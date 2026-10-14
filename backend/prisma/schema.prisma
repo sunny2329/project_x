@@ -1,0 +1,1651 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model admin_analytics_daily {
+  id             BigInt     @id @default(autoincrement())
+  analytics_date DateTime   @db.Date
+  sport_id       BigInt?
+  metric_type_id BigInt
+  metric_value   Decimal    @default(0) @db.Decimal(18, 2)
+  created_at     DateTime   @default(now()) @db.Timestamp(6)
+  updated_at     DateTime   @default(now()) @db.Timestamp(6)
+  mst_sport      mst_sport? @relation(fields: [sport_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_admin_analytics_daily_sport")
+
+  @@unique([analytics_date, sport_id, metric_type_id], map: "uq_admin_analytics_daily")
+}
+
+model admin_audit_log {
+  id             BigInt   @id @default(autoincrement())
+  user_id        String   @db.Uuid
+  action_type_id BigInt
+  entity_type_id BigInt?
+  entity_id      String?  @db.Uuid
+  old_value      Json?
+  new_value      Json?
+  ip_address     String?  @db.Inet
+  user_agent     String?
+  created_at     DateTime @default(now()) @db.Timestamp(6)
+  usr_user       usr_user @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_admin_audit_log_user")
+}
+
+model auth_account_verification {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id           String    @db.Uuid
+  verification_type Int       @default(1)
+  target_value      String?   @db.VarChar(255)
+  verification_hash String?   @db.VarChar(255)
+  expires_at        DateTime? @db.Timestamptz(6)
+  verified_at       DateTime? @db.Timestamptz(6)
+  created_at        DateTime  @default(now()) @db.Timestamptz(6)
+  usr_user          usr_user  @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_account_verification_user")
+}
+
+model auth_device {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id           String    @db.Uuid
+  device_identifier String    @db.VarChar(255)
+  device_type       String?   @db.VarChar(30)
+  device_name       String?   @db.VarChar(255)
+  os_name           String?   @db.VarChar(100)
+  os_version        String?   @db.VarChar(50)
+  app_version       String?   @db.VarChar(50)
+  push_token        String?
+  is_active         Boolean   @default(true)
+  last_seen_at      DateTime? @db.Timestamptz(6)
+  created_at        DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime  @default(now()) @db.Timestamptz(6)
+  usr_user          usr_user  @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_auth_device_user")
+
+  @@unique([user_id, device_identifier], map: "uq_auth_device")
+}
+
+model auth_login_log {
+  id                 BigInt    @id @default(autoincrement())
+  user_id            String?   @db.Uuid
+  username           String?   @db.VarChar(50)
+  phone_country_code String?   @db.VarChar(5)
+  phone_number       String?   @db.VarChar(20)
+  login_method       Int       @default(1)
+  action             Int       @default(1)
+  status             Int       @default(1)
+  failure_reason     String?   @db.VarChar(255)
+  ip_address         String?   @db.Inet
+  user_agent         String?
+  device_id          String?   @db.Uuid
+  created_at         DateTime  @default(now()) @db.Timestamptz(6)
+  usr_user           usr_user? @relation(fields: [user_id], references: [id], onUpdate: NoAction, map: "fk_login_log_user")
+}
+
+model auth_otp {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id            String?   @db.Uuid
+  phone_country_code String    @db.VarChar(5)
+  phone_number       String    @db.VarChar(20)
+  otp_hash           String    @db.VarChar(255)
+  purpose            Int       @default(1)
+  attempt_count      Int       @default(0) @db.SmallInt
+  max_attempts       Int       @default(5) @db.SmallInt
+  expires_at         DateTime  @db.Timestamptz(6)
+  verified_at        DateTime? @db.Timestamptz(6)
+  created_at         DateTime  @default(now()) @db.Timestamptz(6)
+  usr_user           usr_user? @relation(fields: [user_id], references: [id], onUpdate: NoAction, map: "fk_auth_otp_user")
+}
+
+model auth_password_history {
+  id            BigInt   @id @default(autoincrement())
+  user_id       String   @db.Uuid
+  password_hash String   @db.VarChar(255)
+  created_at    DateTime @default(now()) @db.Timestamptz(6)
+  usr_user      usr_user @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_password_history_user")
+}
+
+model auth_password_reset {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String    @db.Uuid
+  token_hash String    @db.VarChar(255)
+  expires_at DateTime  @db.Timestamptz(6)
+  used_at    DateTime? @db.Timestamptz(6)
+  created_at DateTime  @default(now()) @db.Timestamptz(6)
+  usr_user   usr_user  @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_password_reset_user")
+}
+
+model auth_session {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id            String    @db.Uuid
+  refresh_token_hash String    @db.VarChar(255)
+  device_id          String?   @db.Uuid
+  ip_address         String?   @db.Inet
+  user_agent         String?
+  expires_at         DateTime  @db.Timestamptz(6)
+  last_used_at       DateTime? @db.Timestamptz(6)
+  revoked_at         DateTime? @db.Timestamptz(6)
+  created_at         DateTime  @default(now()) @db.Timestamptz(6)
+  usr_user           usr_user  @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_auth_session_user")
+}
+
+model match_correction {
+  id                 String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  match_id           String            @db.Uuid
+  score_event_id     String            @unique(map: "uq_match_correction_event") @db.Uuid
+  correction_type_id BigInt
+  reason             String?
+  corrected_by       String            @db.Uuid
+  created_at         DateTime          @default(now()) @db.Timestamp(6)
+  match_score_event  match_score_event @relation(fields: [score_event_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_match_correction_event")
+  match_master       match_master      @relation(fields: [match_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_match_correction_match")
+  usr_user           usr_user          @relation(fields: [corrected_by], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_match_correction_user")
+}
+
+model match_master {
+  id                     String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sport_id               BigInt
+  format_id              BigInt?
+  scoring_id             BigInt?
+  created_by             String                   @db.Uuid
+  match_type_id          BigInt
+  status_id              BigInt
+  scheduled_at           DateTime?                @db.Timestamp(6)
+  started_at             DateTime?                @db.Timestamp(6)
+  completed_at           DateTime?                @db.Timestamp(6)
+  created_at             DateTime                 @default(now()) @db.Timestamp(6)
+  updated_at             DateTime                 @default(now()) @db.Timestamp(6)
+  match_correction       match_correction[]
+  usr_user               usr_user                 @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_match_master_created_by")
+  mst_sport_format       mst_sport_format?        @relation(fields: [format_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_match_master_format")
+  mst_sport_scoring      mst_sport_scoring?       @relation(fields: [scoring_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_match_master_scoring")
+  mst_sport              mst_sport                @relation(fields: [sport_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_match_master_sport")
+  match_participant      match_participant[]
+  match_period           match_period[]
+  match_report           match_report[]
+  match_result           match_result?
+  match_score_event      match_score_event[]
+  match_score_state      match_score_state[]
+  match_stat_snapshot    match_stat_snapshot[]
+  match_team             match_team[]
+  usr_sport_stat_history usr_sport_stat_history[]
+}
+
+model match_participant {
+  id                  String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  match_id            String                @db.Uuid
+  user_id             String                @db.Uuid
+  participant_type_id BigInt?
+  participant_no      Int
+  status_id           BigInt?
+  joined_at           DateTime              @default(now()) @db.Timestamp(6)
+  created_at          DateTime              @default(now()) @db.Timestamp(6)
+  updated_at          DateTime              @default(now()) @db.Timestamp(6)
+  match_master        match_master          @relation(fields: [match_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_match_participant_match")
+  usr_user            usr_user              @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_match_participant_user")
+  match_result        match_result[]
+  match_score_event   match_score_event[]
+  match_score_state   match_score_state[]
+  match_stat_snapshot match_stat_snapshot[]
+  match_team_member   match_team_member[]
+
+  @@unique([match_id, participant_no], map: "uq_match_participant_no")
+  @@unique([match_id, user_id], map: "uq_match_participant_user")
+}
+
+model match_period {
+  id                String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  match_id          String              @db.Uuid
+  period_no         Int
+  period_type_id    BigInt?
+  status_id         BigInt?
+  started_at        DateTime?           @db.Timestamp(6)
+  completed_at      DateTime?           @db.Timestamp(6)
+  created_at        DateTime            @default(now()) @db.Timestamp(6)
+  updated_at        DateTime            @default(now()) @db.Timestamp(6)
+  match_master      match_master        @relation(fields: [match_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_match_period_match")
+  match_score_event match_score_event[]
+  match_score_state match_score_state[]
+
+  @@unique([match_id, period_no], map: "uq_match_period_no")
+}
+
+model match_report {
+  id                                          String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  reporter_id                                 String       @db.Uuid
+  match_id                                    String       @db.Uuid
+  report_type_id                              BigInt
+  description                                 String?
+  status_id                                   BigInt
+  resolved_by                                 String?      @db.Uuid
+  resolved_at                                 DateTime?    @db.Timestamp(6)
+  created_at                                  DateTime     @default(now()) @db.Timestamp(6)
+  updated_at                                  DateTime     @default(now()) @db.Timestamp(6)
+  match_master                                match_master @relation(fields: [match_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_match_report_match")
+  usr_user_match_report_reporter_idTousr_user usr_user     @relation("match_report_reporter_idTousr_user", fields: [reporter_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_match_report_reporter")
+  usr_user_match_report_resolved_byTousr_user usr_user?    @relation("match_report_resolved_byTousr_user", fields: [resolved_by], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_match_report_resolved_by")
+}
+
+model match_result {
+  id                    String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  match_id              String             @unique(map: "uq_match_result_match") @db.Uuid
+  winner_participant_id String?            @db.Uuid
+  winner_team_id        String?            @db.Uuid
+  result_type_id        BigInt?
+  result_data           Json?
+  completed_at          DateTime           @default(now()) @db.Timestamp(6)
+  created_at            DateTime           @default(now()) @db.Timestamp(6)
+  match_master          match_master       @relation(fields: [match_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_match_result_match")
+  match_participant     match_participant? @relation(fields: [winner_participant_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_match_result_winner_participant")
+  match_team            match_team?        @relation(fields: [winner_team_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_match_result_winner_team")
+}
+
+model match_score_event {
+  id                String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  match_id          String              @db.Uuid
+  period_id         String?             @db.Uuid
+  participant_id    String?             @db.Uuid
+  team_id           String?             @db.Uuid
+  event_type_id     BigInt
+  sequence_no       Int
+  score_value       Decimal?            @default(0) @db.Decimal(10, 2)
+  event_data        Json?
+  is_undone         Boolean             @default(false)
+  created_by        String              @db.Uuid
+  created_at        DateTime            @default(now()) @db.Timestamp(6)
+  match_correction  match_correction?
+  usr_user          usr_user            @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_match_score_event_created_by")
+  match_master      match_master        @relation(fields: [match_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_match_score_event_match")
+  match_participant match_participant?  @relation(fields: [participant_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_match_score_event_participant")
+  match_period      match_period?       @relation(fields: [period_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_match_score_event_period")
+  match_team        match_team?         @relation(fields: [team_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_match_score_event_team")
+  match_score_state match_score_state[]
+
+  @@unique([match_id, sequence_no], map: "uq_match_score_event_sequence")
+}
+
+model match_score_state {
+  id                String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  match_id          String             @db.Uuid
+  period_id         String?            @db.Uuid
+  participant_id    String?            @db.Uuid
+  team_id           String?            @db.Uuid
+  score_value       Decimal            @default(0) @db.Decimal(10, 2)
+  state_data        Json?
+  last_event_id     String?            @db.Uuid
+  updated_at        DateTime           @default(now()) @db.Timestamp(6)
+  match_score_event match_score_event? @relation(fields: [last_event_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_match_score_state_event")
+  match_master      match_master       @relation(fields: [match_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_match_score_state_match")
+  match_participant match_participant? @relation(fields: [participant_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_match_score_state_participant")
+  match_period      match_period?      @relation(fields: [period_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_match_score_state_period")
+  match_team        match_team?        @relation(fields: [team_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_match_score_state_team")
+}
+
+model match_stat_snapshot {
+  id                         String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  match_id                   String                       @db.Uuid
+  participant_id             String                       @db.Uuid
+  sport_id                   BigInt
+  stat_data                  Json
+  created_at                 DateTime                     @default(now()) @db.Timestamp(6)
+  match_master               match_master                 @relation(fields: [match_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_match_stat_snapshot_match")
+  match_participant          match_participant            @relation(fields: [participant_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_match_stat_snapshot_participant")
+  mst_sport                  mst_sport                    @relation(fields: [sport_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_match_stat_snapshot_sport")
+  match_stat_snapshot_detail match_stat_snapshot_detail[]
+
+  @@unique([match_id, participant_id], map: "uq_match_stat_snapshot")
+}
+
+model match_stat_snapshot_detail {
+  id                  String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  snapshot_id         String              @db.Uuid
+  stat_type_id        BigInt
+  stat_value          Decimal             @default(0) @db.Decimal(18, 4)
+  created_at          DateTime            @default(now()) @db.Timestamp(6)
+  match_stat_snapshot match_stat_snapshot @relation(fields: [snapshot_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_match_stat_snapshot_detail_snapshot")
+
+  @@unique([snapshot_id, stat_type_id], map: "uq_match_stat_snapshot_detail")
+}
+
+model match_team {
+  id                String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  match_id          String              @db.Uuid
+  team_no           Int
+  team_name         String?             @db.VarChar(150)
+  created_at        DateTime            @default(now()) @db.Timestamp(6)
+  updated_at        DateTime            @default(now()) @db.Timestamp(6)
+  match_result      match_result[]
+  match_score_event match_score_event[]
+  match_score_state match_score_state[]
+  match_master      match_master        @relation(fields: [match_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_match_team_match")
+  match_team_member match_team_member[]
+
+  @@unique([match_id, team_no], map: "uq_match_team_no")
+}
+
+model match_team_member {
+  id                String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  team_id           String            @db.Uuid
+  participant_id    String            @db.Uuid
+  member_no         Int
+  created_at        DateTime          @default(now()) @db.Timestamp(6)
+  updated_at        DateTime          @default(now()) @db.Timestamp(6)
+  match_participant match_participant @relation(fields: [participant_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_match_team_member_participant")
+  match_team        match_team        @relation(fields: [team_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_match_team_member_team")
+
+  @@unique([team_id, participant_id], map: "uq_match_team_member")
+  @@unique([team_id, member_no], map: "uq_match_team_member_no")
+}
+
+model media_asset {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  uploaded_by   String   @db.Uuid
+  media_type_id BigInt
+  storage_key   String
+  media_url     String?
+  file_name     String?  @db.VarChar(255)
+  mime_type     String?  @db.VarChar(100)
+  file_size     BigInt?
+  width         Int?
+  height        Int?
+  duration      Decimal? @db.Decimal(10, 2)
+  created_at    DateTime @default(now()) @db.Timestamp(6)
+  usr_user      usr_user @relation(fields: [uploaded_by], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_media_asset_uploaded_by")
+}
+
+model mst_sport {
+  id                     BigInt                   @id @default(autoincrement())
+  code                   String                   @unique(map: "uq_mst_sport_code") @db.VarChar(50)
+  name                   String                   @unique(map: "uq_mst_sport_name") @db.VarChar(100)
+  description            String?                  @db.VarChar(500)
+  admin_analytics_daily  admin_analytics_daily[]
+  match_master           match_master[]
+  match_stat_snapshot    match_stat_snapshot[]
+  mst_sport_event        mst_sport_event[]
+  mst_sport_format       mst_sport_format[]
+  mst_sport_period       mst_sport_period[]
+  mst_sport_rule         mst_sport_rule[]
+  mst_sport_scoring      mst_sport_scoring[]
+  mst_sport_stat         mst_sport_stat[]
+  usr_sport_rating       usr_sport_rating[]
+  usr_sport_stat_history usr_sport_stat_history[]
+  usr_sport_stats        usr_sport_stats[]
+  usr_user_sport         usr_user_sport[]
+}
+
+model mst_sport_event {
+  id            BigInt      @id @default(autoincrement())
+  sport_id      BigInt
+  event_type_id BigInt
+  name          String      @db.VarChar(100)
+  description   String?     @db.VarChar(500)
+  event_config  Json        @default("{}")
+  mst_sport     mst_sport   @relation(fields: [sport_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_sport_event_sport")
+  type_master   type_master @relation(fields: [event_type_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_sport_event_type")
+
+  @@unique([sport_id, event_type_id], map: "uq_sport_event")
+}
+
+model mst_sport_format {
+  id                BigInt              @id @default(autoincrement())
+  sport_id          BigInt
+  format_type_id    BigInt
+  name              String              @db.VarChar(100)
+  description       String?             @db.VarChar(500)
+  min_players       Int?                @db.SmallInt
+  max_players       Int?                @db.SmallInt
+  match_master      match_master[]
+  mst_sport         mst_sport           @relation(fields: [sport_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_sport_format_sport")
+  type_master       type_master         @relation(fields: [format_type_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_sport_format_type")
+  mst_sport_scoring mst_sport_scoring[]
+
+  @@unique([sport_id, format_type_id], map: "uq_sport_format")
+}
+
+model mst_sport_period {
+  id             BigInt      @id @default(autoincrement())
+  sport_id       BigInt
+  period_type_id BigInt
+  name           String      @db.VarChar(100)
+  sequence_no    Int?        @db.SmallInt
+  config         Json        @default("{}")
+  mst_sport      mst_sport   @relation(fields: [sport_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_sport_period_sport")
+  type_master    type_master @relation(fields: [period_type_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_sport_period_type")
+
+  @@unique([sport_id, period_type_id, sequence_no], map: "uq_sport_period")
+}
+
+model mst_sport_rule {
+  id         BigInt    @id @default(autoincrement())
+  sport_id   BigInt
+  rule_code  String    @db.VarChar(100)
+  rule_name  String    @db.VarChar(255)
+  rule_value Json?
+  is_active  Boolean   @default(true)
+  created_at DateTime  @default(now()) @db.Timestamp(6)
+  updated_at DateTime  @default(now()) @db.Timestamp(6)
+  mst_sport  mst_sport @relation(fields: [sport_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_mst_sport_rule_sport")
+
+  @@unique([sport_id, rule_code], map: "uq_mst_sport_rule_code")
+}
+
+model mst_sport_scoring {
+  id               BigInt            @id @default(autoincrement())
+  sport_id         BigInt
+  format_id        BigInt?
+  scoring_type_id  BigInt
+  scoring_config   Json              @default("{}")
+  match_master     match_master[]
+  mst_sport_format mst_sport_format? @relation(fields: [format_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_sport_scoring_format")
+  mst_sport        mst_sport         @relation(fields: [sport_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_sport_scoring_sport")
+  type_master      type_master       @relation(fields: [scoring_type_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_sport_scoring_type")
+
+  @@unique([sport_id, format_id], map: "uq_sport_scoring")
+}
+
+model mst_sport_stat {
+  id           BigInt      @id @default(autoincrement())
+  sport_id     BigInt
+  stat_code    String      @db.VarChar(50)
+  stat_name    String      @db.VarChar(100)
+  data_type_id BigInt
+  description  String?     @db.VarChar(500)
+  type_master  type_master @relation(fields: [data_type_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_sport_stat_data_type")
+  mst_sport    mst_sport   @relation(fields: [sport_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_sport_stat_sport")
+
+  @@unique([sport_id, stat_code], map: "uq_sport_stat")
+}
+
+model notification {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id              String    @db.Uuid
+  notification_type_id BigInt
+  title                String    @db.VarChar(255)
+  message              String?
+  reference_type_id    BigInt?
+  reference_id         String?   @db.Uuid
+  is_read              Boolean   @default(false)
+  created_at           DateTime  @default(now()) @db.Timestamp(6)
+  read_at              DateTime? @db.Timestamp(6)
+  usr_user             usr_user  @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_notification_user")
+}
+
+model social_post {
+  id                  String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id             String                @db.Uuid
+  post_type_id        BigInt
+  match_id            String?               @unique(map: "uq_social_post_match") @db.Uuid
+  content             String?
+  visibility_id       BigInt?
+  created_at          DateTime              @default(now()) @db.Timestamp(6)
+  updated_at          DateTime              @default(now()) @db.Timestamp(6)
+  /// Re-pointed by the pivot from match_master to the new matches table (no rows used it).
+  match               Match?                @relation(fields: [match_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_social_post_match")
+  usr_user            usr_user              @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_social_post_user")
+  social_post_comment social_post_comment[]
+  social_post_like    social_post_like[]
+  social_post_media   social_post_media[]
+}
+
+model social_post_comment {
+  id                        String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  post_id                   String                @db.Uuid
+  user_id                   String                @db.Uuid
+  parent_comment_id         String?               @db.Uuid
+  content                   String
+  created_at                DateTime              @default(now()) @db.Timestamp(6)
+  updated_at                DateTime              @default(now()) @db.Timestamp(6)
+  social_post_comment       social_post_comment?  @relation("social_post_commentTosocial_post_comment", fields: [parent_comment_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_social_post_comment_parent")
+  other_social_post_comment social_post_comment[] @relation("social_post_commentTosocial_post_comment")
+  social_post               social_post           @relation(fields: [post_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_social_post_comment_post")
+  usr_user                  usr_user              @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_social_post_comment_user")
+}
+
+model social_post_like {
+  id          String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  post_id     String      @db.Uuid
+  user_id     String      @db.Uuid
+  created_at  DateTime    @default(now()) @db.Timestamp(6)
+  social_post social_post @relation(fields: [post_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_social_post_like_post")
+  usr_user    usr_user    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_social_post_like_user")
+
+  @@unique([post_id, user_id], map: "uq_social_post_like")
+}
+
+model social_post_media {
+  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  post_id       String      @db.Uuid
+  media_type_id BigInt
+  media_url     String
+  thumbnail_url String?
+  media_order   Int         @default(1)
+  created_at    DateTime    @default(now()) @db.Timestamp(6)
+  social_post   social_post @relation(fields: [post_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_social_post_media_post")
+
+  @@unique([post_id, media_order], map: "uq_social_post_media_order")
+}
+
+model type_master {
+  id                BigInt              @id @default(autoincrement())
+  type_id           Int
+  description       String?             @db.VarChar(255)
+  mst_sport_event   mst_sport_event[]
+  mst_sport_format  mst_sport_format[]
+  mst_sport_period  mst_sport_period[]
+  mst_sport_scoring mst_sport_scoring[]
+  mst_sport_stat    mst_sport_stat[]
+
+  @@unique([type_id, id], map: "uq_type_master_id_id")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model user_report {
+  id                                              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  reporter_id                                     String    @db.Uuid
+  reported_user_id                                String    @db.Uuid
+  report_type_id                                  BigInt
+  description                                     String?
+  status_id                                       BigInt
+  resolved_by                                     String?   @db.Uuid
+  resolved_at                                     DateTime? @db.Timestamp(6)
+  created_at                                      DateTime  @default(now()) @db.Timestamp(6)
+  updated_at                                      DateTime  @default(now()) @db.Timestamp(6)
+  usr_user_user_report_reported_user_idTousr_user usr_user  @relation("user_report_reported_user_idTousr_user", fields: [reported_user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_user_report_reported_user")
+  usr_user_user_report_reporter_idTousr_user      usr_user  @relation("user_report_reporter_idTousr_user", fields: [reporter_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_user_report_reporter")
+  usr_user_user_report_resolved_byTousr_user      usr_user? @relation("user_report_resolved_byTousr_user", fields: [resolved_by], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_user_report_resolved_by")
+}
+
+model usr_role {
+  id            BigInt          @id @default(autoincrement())
+  code          String          @unique(map: "uq_usr_role_code") @db.VarChar(50)
+  name          String          @db.VarChar(100)
+  description   String?         @db.VarChar(255)
+  is_active     Boolean         @default(true)
+  created_at    DateTime        @default(now()) @db.Timestamp(6)
+  updated_at    DateTime        @default(now()) @db.Timestamp(6)
+  usr_user_role usr_user_role[]
+}
+
+model usr_sport_rating {
+  id             BigInt    @id @default(autoincrement())
+  user_id        String    @db.Uuid
+  sport_id       BigInt
+  rating         Decimal   @default(1000) @db.Decimal(10, 2)
+  matches_played Int       @default(0)
+  matches_won    Int       @default(0)
+  matches_lost   Int       @default(0)
+  updated_at     DateTime  @default(now()) @db.Timestamp(6)
+  mst_sport      mst_sport @relation(fields: [sport_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_usr_sport_rating_sport")
+  usr_user       usr_user  @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_usr_sport_rating_user")
+
+  @@unique([user_id, sport_id], map: "uq_usr_sport_rating")
+}
+
+model usr_sport_stat_history {
+  id           String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id      String       @db.Uuid
+  sport_id     BigInt
+  match_id     String       @db.Uuid
+  stat_data    Json
+  created_at   DateTime     @default(now()) @db.Timestamp(6)
+  match_master match_master @relation(fields: [match_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_usr_sport_stat_history_match")
+  mst_sport    mst_sport    @relation(fields: [sport_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_usr_sport_stat_history_sport")
+  usr_user     usr_user     @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_usr_sport_stat_history_user")
+
+  @@unique([user_id, sport_id, match_id], map: "uq_usr_sport_stat_history")
+}
+
+model usr_sport_stats {
+  id              BigInt    @id @default(autoincrement())
+  user_id         String    @db.Uuid
+  sport_id        BigInt
+  matches_played  Int       @default(0)
+  matches_won     Int       @default(0)
+  matches_lost    Int       @default(0)
+  points_scored   BigInt    @default(0)
+  points_conceded BigInt    @default(0)
+  updated_at      DateTime  @default(now()) @db.Timestamp(6)
+  mst_sport       mst_sport @relation(fields: [sport_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_usr_sport_stats_sport")
+  usr_user        usr_user  @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_usr_sport_stats_user")
+
+  @@unique([user_id, sport_id], map: "uq_usr_sport_stats")
+}
+
+/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
+model usr_user {
+  id                                                     String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  username                                               String                      @db.VarChar(50)
+  phone_country_code                                     String                      @db.VarChar(5)
+  phone_number                                           String                      @db.VarChar(20)
+  email                                                  String?                     @unique(map: "uq_usr_user_email") @db.VarChar(255)
+  password_hash                                          String                      @db.VarChar(255)
+  status                                                 Int                         @default(1)
+  is_phone_verified                                      Boolean                     @default(false)
+  is_email_verified                                      Boolean                     @default(false)
+  last_login_at                                          DateTime?                   @db.Timestamptz(6)
+  created_at                                             DateTime                    @default(now()) @db.Timestamptz(6)
+  updated_at                                             DateTime                    @default(now()) @db.Timestamptz(6)
+  admin_audit_log                                        admin_audit_log[]
+  auth_account_verification                              auth_account_verification[]
+  auth_device                                            auth_device[]
+  auth_login_log                                         auth_login_log[]
+  auth_otp                                               auth_otp[]
+  auth_password_history                                  auth_password_history[]
+  auth_password_reset                                    auth_password_reset[]
+  auth_session                                           auth_session[]
+  match_correction                                       match_correction[]
+  match_master                                           match_master[]
+  match_participant                                      match_participant[]
+  match_report_match_report_reporter_idTousr_user        match_report[]              @relation("match_report_reporter_idTousr_user")
+  match_report_match_report_resolved_byTousr_user        match_report[]              @relation("match_report_resolved_byTousr_user")
+  match_score_event                                      match_score_event[]
+  media_asset                                            media_asset[]
+  notification                                           notification[]
+  social_post                                            social_post[]
+  social_post_comment                                    social_post_comment[]
+  social_post_like                                       social_post_like[]
+  user_report_user_report_reported_user_idTousr_user     user_report[]               @relation("user_report_reported_user_idTousr_user")
+  user_report_user_report_reporter_idTousr_user          user_report[]               @relation("user_report_reporter_idTousr_user")
+  user_report_user_report_resolved_byTousr_user          user_report[]               @relation("user_report_resolved_byTousr_user")
+  usr_sport_rating                                       usr_sport_rating[]
+  usr_sport_stat_history                                 usr_sport_stat_history[]
+  usr_sport_stats                                        usr_sport_stats[]
+  usr_user_block_usr_user_block_blocked_idTousr_user     usr_user_block[]            @relation("usr_user_block_blocked_idTousr_user")
+  usr_user_block_usr_user_block_blocker_idTousr_user     usr_user_block[]            @relation("usr_user_block_blocker_idTousr_user")
+  usr_user_follow_usr_user_follow_follower_idTousr_user  usr_user_follow[]           @relation("usr_user_follow_follower_idTousr_user")
+  usr_user_follow_usr_user_follow_following_idTousr_user usr_user_follow[]           @relation("usr_user_follow_following_idTousr_user")
+  usr_user_profile                                       usr_user_profile?
+  usr_user_role                                          usr_user_role[]
+  usr_user_sport                                         usr_user_sport[]
+  // New core (pivot) back-relations
+  player                                                 Player?                     @relation("PlayerAccount")
+  guestPlayersCreated                                    Player[]                    @relation("PlayerCreatedBy")
+  rulesetsCreated                                        ScoringRuleset[]
+  venuesCreated                                          Venue[]
+  teamsCreated                                           Team[]
+  matchesCreated                                         Match[]
+  scorerAssignments                                      MatchScorer[]               @relation("ScorerUser")
+  scorerAssignmentsMade                                  MatchScorer[]               @relation("ScorerAssignedBy")
+  eventsRecorded                                         MatchEvent[]                @relation("EventActor")
+  eventsVoided                                           MatchEvent[]                @relation("EventVoidedBy")
+  confirmations                                          MatchConfirmation[]
+  tournamentsOrganized                                   Tournament[]
+  tournamentRoles                                        TournamentStaff[]
+  courtScorerAssignments                                 CourtScorer[]
+  entriesRegistered                                      TournamentEntry[]
+
+  @@unique([phone_country_code, phone_number], map: "uq_usr_user_phone")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model usr_user_block {
+  id                                           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  blocker_id                                   String   @db.Uuid
+  blocked_id                                   String   @db.Uuid
+  created_at                                   DateTime @default(now()) @db.Timestamp(6)
+  usr_user_usr_user_block_blocked_idTousr_user usr_user @relation("usr_user_block_blocked_idTousr_user", fields: [blocked_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_usr_user_block_blocked")
+  usr_user_usr_user_block_blocker_idTousr_user usr_user @relation("usr_user_block_blocker_idTousr_user", fields: [blocker_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_usr_user_block_blocker")
+
+  @@unique([blocker_id, blocked_id], map: "uq_usr_user_block")
+  @@index([blocked_id], map: "idx_usr_user_block_blocked")
+  @@index([blocker_id], map: "idx_usr_user_block_blocker")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model usr_user_follow {
+  id                                              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  follower_id                                     String   @db.Uuid
+  following_id                                    String   @db.Uuid
+  status_id                                       BigInt
+  created_at                                      DateTime @default(now()) @db.Timestamp(6)
+  updated_at                                      DateTime @default(now()) @db.Timestamp(6)
+  usr_user_usr_user_follow_follower_idTousr_user  usr_user @relation("usr_user_follow_follower_idTousr_user", fields: [follower_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_usr_user_follow_follower")
+  usr_user_usr_user_follow_following_idTousr_user usr_user @relation("usr_user_follow_following_idTousr_user", fields: [following_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_usr_user_follow_following")
+
+  @@unique([follower_id, following_id], map: "uq_usr_user_follow")
+  @@index([follower_id], map: "idx_usr_user_follow_follower")
+  @@index([following_id], map: "idx_usr_user_follow_following")
+}
+
+model usr_user_profile {
+  id            BigInt   @id @default(autoincrement())
+  user_id       String   @unique(map: "uq_usr_user_profile_user") @db.Uuid
+  display_name  String   @db.VarChar(150)
+  profile_photo String?
+  city_id       BigInt?
+  bio           String?  @db.VarChar(500)
+  created_at    DateTime @default(now()) @db.Timestamp(6)
+  updated_at    DateTime @default(now()) @db.Timestamp(6)
+  usr_user      usr_user @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_usr_user_profile_user")
+}
+
+model usr_user_role {
+  id         BigInt   @id @default(autoincrement())
+  user_id    String   @db.Uuid
+  role_id    BigInt
+  created_at DateTime @default(now()) @db.Timestamp(6)
+  usr_role   usr_role @relation(fields: [role_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_usr_user_role_role")
+  usr_user   usr_user @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_usr_user_role_user")
+
+  @@unique([user_id, role_id], map: "uq_usr_user_role")
+}
+
+model usr_user_sport {
+  id         BigInt    @id @default(autoincrement())
+  user_id    String    @db.Uuid
+  sport_id   BigInt
+  is_primary Boolean   @default(false)
+  created_at DateTime  @default(now()) @db.Timestamp(6)
+  updated_at DateTime  @default(now()) @db.Timestamp(6)
+  mst_sport  mst_sport @relation(fields: [sport_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_usr_user_sport_sport")
+  usr_user   usr_user  @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_usr_user_sport_user")
+
+  @@unique([user_id, sport_id], map: "uq_usr_user_sport")
+}
+
+// =====================================================================================
+// NEW CORE (racket-first pivot). See docs/pivot/PLAN.md. Everything above this line is the
+// legacy schema, introspected from project_x and recorded by migration 0_baseline.
+// =====================================================================================
+
+// -------------------------------------------------------------------------------------
+// Enums (closed sets)
+// -------------------------------------------------------------------------------------
+
+enum MatchContext {
+  friendly
+  tournament
+
+  @@map("match_context")
+}
+
+enum MatchStatus {
+  scheduled
+  live
+  completed
+  abandoned
+  disputed
+  walkover
+  retired
+
+  @@map("match_status")
+}
+
+/// How the result was produced: scored point by point, or typed in afterwards.
+enum ScoringMode {
+  live
+  manual
+
+  @@map("scoring_mode")
+}
+
+/// Why a decided match ended the way it did (null while not decided).
+enum ResultType {
+  played
+  walkover
+  no_show
+  retired
+  double_walkover
+
+  @@map("result_type")
+}
+
+enum VerificationStatus {
+  not_required // live-scored, or no registered opponent to confirm
+  pending
+  confirmed
+  disputed
+
+  @@map("verification_status")
+}
+
+enum ConfirmationDecision {
+  confirmed
+  disputed
+
+  @@map("confirmation_decision")
+}
+
+enum SideOutcome {
+  won
+  lost
+  drawn
+
+  @@map("side_outcome")
+}
+
+enum SegmentStatus {
+  in_progress
+  completed
+
+  @@map("segment_status")
+}
+
+enum TournamentStatus {
+  draft
+  registration_open
+  registration_closed
+  in_progress
+  completed
+  cancelled
+
+  @@map("tournament_status")
+}
+
+enum TournamentVisibility {
+  public
+  unlisted
+  private
+
+  @@map("tournament_visibility")
+}
+
+enum TournamentRole {
+  organizer
+  co_organizer
+  scorer
+  referee
+
+  @@map("tournament_role")
+}
+
+enum TournamentEventStatus {
+  draft
+  registration_open
+  registration_closed
+  drawn
+  in_progress
+  completed
+  cancelled
+
+  @@map("tournament_event_status")
+}
+
+enum StageStatus {
+  pending
+  in_progress
+  completed
+
+  @@map("stage_status")
+}
+
+enum EntryStatus {
+  pending
+  approved
+  withdrawn
+  disqualified
+
+  @@map("entry_status")
+}
+
+enum FixtureStatus {
+  pending // waiting for one or both entries (e.g. "winner of QF1")
+  ready // both entries known, not started
+  live
+  completed // decided: played, walkover, no-show or retirement (see matches.result_type)
+  bye // one entry advances without a match
+  cancelled
+
+  @@map("fixture_status")
+}
+
+// -------------------------------------------------------------------------------------
+// Sports and rules
+// -------------------------------------------------------------------------------------
+
+model Sport {
+  /// Ids 1-6 copied from mst_sport so existing references stay valid; new sports continue from 7.
+  id           Int      @id @default(autoincrement())
+  slug         String   @unique @db.VarChar(40) // "badminton", "table-tennis", "box-cricket"
+  name         String   @unique @db.VarChar(60)
+  /// Open set: "racket", "team", "bat_and_ball", ... (validated in code, not an enum).
+  category     String   @db.VarChar(30)
+  /// Key into the scoring plugin registry: "rally", "side_out", "tennis", later "overs" ...
+  scoringModel String   @map("scoring_model") @db.VarChar(40)
+  isActive     Boolean  @default(false) @map("is_active")
+  /// Icon key and accent colour for the app, so the UI needs no per-sport code.
+  iconKey      String   @map("icon_key") @db.VarChar(40)
+  accentColor  String   @map("accent_color") @db.VarChar(9)
+  sortOrder    Int      @default(0) @map("sort_order")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  formats          SportFormat[]
+  rulesets         ScoringRuleset[]
+  matches          Match[]
+  teams            Team[]
+  ratings          PlayerRating[]
+  ratingHistory    PlayerRatingHistory[]
+  playerStats      PlayerSportStats[]
+  tournamentEvents TournamentEvent[]
+  courts           Court[]
+  playerSports     PlayerSport[]
+
+  @@index([isActive, sortOrder])
+  @@map("sports")
+}
+
+/// Side sizes a sport is played with: singles (1), doubles (2), later "5-a-side" (5) ...
+model SportFormat {
+  id             String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  sportId        Int      @map("sport_id")
+  code           String   @db.VarChar(30) // "singles", "doubles", "mixed_doubles", "team"
+  name           String   @db.VarChar(60)
+  playersPerSide Int      @map("players_per_side") @db.SmallInt
+  /// Team sports may field fewer/more (substitutes); equal to players_per_side for racket sports.
+  minPerSide     Int      @map("min_per_side") @db.SmallInt
+  maxPerSide     Int      @map("max_per_side") @db.SmallInt
+  isActive       Boolean  @default(true) @map("is_active")
+  sortOrder      Int      @default(0) @map("sort_order")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  sport            Sport             @relation(fields: [sportId], references: [id])
+  matches          Match[]
+  tournamentEvents TournamentEvent[]
+
+  @@unique([sportId, code])
+  // RAW SQL: CHECK (min_per_side <= players_per_side AND players_per_side <= max_per_side AND min_per_side >= 1)
+  @@map("sport_formats")
+}
+
+/// One named rule set ("Badminton 21 x 3", "Pickleball side-out to 11", "Tennis no-ad").
+/// `config` is validated by the sport's plugin `configSchema` before every write.
+model ScoringRuleset {
+  id              String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  sportId         Int      @map("sport_id")
+  slug            String   @db.VarChar(60)
+  name            String   @db.VarChar(80)
+  /// The plugin this config is written for (equals sports.scoring_model at creation; kept so a
+  /// sport can later offer rulesets for two models, e.g. pickleball rally vs side-out).
+  scoringModel    String   @map("scoring_model") @db.VarChar(40)
+  config          Json     @db.JsonB
+  isDefault       Boolean  @default(false) @map("is_default")
+  isActive        Boolean  @default(true) @map("is_active")
+  createdByUserId String?  @map("created_by_user_id") @db.Uuid // null = system ruleset
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  sport            Sport             @relation(fields: [sportId], references: [id])
+  createdBy        usr_user?         @relation(fields: [createdByUserId], references: [id])
+  matches          Match[]
+  tournamentEvents TournamentEvent[]
+
+  @@unique([sportId, slug])
+  // RAW SQL: CREATE UNIQUE INDEX ... ON scoring_rulesets (sport_id) WHERE is_default  (one default per sport)
+  @@map("scoring_rulesets")
+}
+
+// -------------------------------------------------------------------------------------
+// People, teams, venues
+// -------------------------------------------------------------------------------------
+
+/// Anyone who plays. A guest has no user_id; signing up with the same verified phone links
+/// (claims) the guest row, so past matches, stats and rating become the user's.
+model Player {
+  id              String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  userId          String?   @unique @map("user_id") @db.Uuid
+  displayName     String    @map("display_name") @db.VarChar(80)
+  /// E.164. Guests: optional, used to invite and to match the claim. Not unique: two organizers
+  /// may add the same guest; the claim merges them.
+  phone           String?   @db.VarChar(16)
+  createdByUserId String?   @map("created_by_user_id") @db.Uuid
+  claimedAt       DateTime? @map("claimed_at") @db.Timestamptz
+  /// Set when this guest row was merged into another player; the row is kept for audit.
+  mergedIntoId    String?   @map("merged_into_id") @db.Uuid
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  user          usr_user?               @relation("PlayerAccount", fields: [userId], references: [id])
+  createdBy     usr_user?               @relation("PlayerCreatedBy", fields: [createdByUserId], references: [id])
+  mergedInto    Player?                 @relation("PlayerMerge", fields: [mergedIntoId], references: [id])
+  mergedFrom    Player[]                @relation("PlayerMerge")
+  participants  MatchParticipant[]
+  teamMembers   TeamMember[]
+  entryMembers  TournamentEntryMember[]
+  ratings       PlayerRating[]
+  ratingHistory PlayerRatingHistory[]
+  stats         PlayerSportStats[]
+  sports        PlayerSport[]
+  confirmations MatchConfirmation[]
+
+  @@index([phone])
+  @@index([createdByUserId])
+  // RAW SQL: CHECK (phone IS NULL OR phone ~ '^\+[1-9][0-9]{7,14}$')
+  @@map("players")
+}
+
+/// "Sports I play" on the profile (replaces usr_user_sport, which stays frozen).
+model PlayerSport {
+  playerId  String   @map("player_id") @db.Uuid
+  sportId   Int      @map("sport_id")
+  isPrimary Boolean  @default(false) @map("is_primary")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  sport  Sport  @relation(fields: [sportId], references: [id])
+
+  @@id([playerId, sportId])
+  // RAW SQL: CREATE UNIQUE INDEX ... ON player_sports (player_id) WHERE is_primary
+  @@map("player_sports")
+}
+
+/// A persistent pair or team (a regular doubles partner, later a 5-a-side squad).
+model Team {
+  id              String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  sportId         Int      @map("sport_id")
+  name            String   @db.VarChar(80)
+  createdByUserId String   @map("created_by_user_id") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  sport     Sport             @relation(fields: [sportId], references: [id])
+  createdBy usr_user          @relation(fields: [createdByUserId], references: [id])
+  members   TeamMember[]
+  stats     TeamStats?
+  sides     MatchSide[]
+  entries   TournamentEntry[]
+
+  @@index([sportId])
+  @@map("teams")
+}
+
+model TeamMember {
+  teamId   String    @map("team_id") @db.Uuid
+  playerId String    @map("player_id") @db.Uuid
+  /// Generic role: "captain", "player" ... (free text, sport-agnostic).
+  role     String?   @db.VarChar(30)
+  joinedAt DateTime  @default(now()) @map("joined_at") @db.Timestamptz
+  leftAt   DateTime? @map("left_at") @db.Timestamptz
+
+  team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  player Player @relation(fields: [playerId], references: [id])
+
+  @@id([teamId, playerId])
+  @@index([playerId])
+  @@map("team_members")
+}
+
+/// Team-level record, updated in the match-completion transaction (rebuildable from matches).
+model TeamStats {
+  teamId        String   @id @map("team_id") @db.Uuid
+  matchesPlayed Int      @default(0) @map("matches_played")
+  won           Int      @default(0)
+  lost          Int      @default(0)
+  drawn         Int      @default(0)
+  majorWon      Int      @default(0) @map("major_won") // games (badminton) / sets (tennis)
+  majorLost     Int      @default(0) @map("major_lost")
+  minorWon      Int      @default(0) @map("minor_won") // points (badminton) / games (tennis)
+  minorLost     Int      @default(0) @map("minor_lost")
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@map("team_stats")
+}
+
+model Venue {
+  id              String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  name            String   @db.VarChar(120)
+  address         String?  @db.VarChar(255)
+  city            String?  @db.VarChar(80)
+  latitude        Decimal? @db.Decimal(9, 6)
+  longitude       Decimal? @db.Decimal(9, 6)
+  createdByUserId String?  @map("created_by_user_id") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  createdBy   usr_user?    @relation(fields: [createdByUserId], references: [id])
+  courts      Court[]
+  matches     Match[]
+  tournaments Tournament[]
+
+  @@index([city])
+  @@map("venues")
+}
+
+/// A court at a venue and/or used by a tournament ("Court 2"). No booking data (out of scope).
+model Court {
+  id           String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  venueId      String?  @map("venue_id") @db.Uuid
+  tournamentId String?  @map("tournament_id") @db.Uuid
+  sportId      Int?     @map("sport_id")
+  name         String   @db.VarChar(60)
+  sortOrder    Int      @default(0) @map("sort_order")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  venue      Venue?        @relation(fields: [venueId], references: [id])
+  tournament Tournament?   @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  sport      Sport?        @relation(fields: [sportId], references: [id])
+  scorers    CourtScorer[]
+  matches    Match[]
+  fixtures   Fixture[]
+
+  @@unique([tournamentId, name])
+  @@index([venueId])
+  // RAW SQL: CHECK (venue_id IS NOT NULL OR tournament_id IS NOT NULL)
+  @@map("courts")
+}
+
+// -------------------------------------------------------------------------------------
+// Matches (generic core: no sport-specific columns)
+// -------------------------------------------------------------------------------------
+
+model Match {
+  id              String             @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  sportId         Int                @map("sport_id")
+  sportFormatId   String             @map("sport_format_id") @db.Uuid
+  rulesetId       String?            @map("ruleset_id") @db.Uuid
+  /// Snapshot of the plugin + config at creation. Replays always use these, never the live
+  /// ruleset row, so editing a ruleset never changes a past result.
+  scoringModel    String             @map("scoring_model") @db.VarChar(40)
+  rulesetConfig   Json               @map("ruleset_config") @db.JsonB
+  context         MatchContext
+  status          MatchStatus        @default(scheduled)
+  scoringMode     ScoringMode        @default(live) @map("scoring_mode")
+  resultType      ResultType?        @map("result_type")
+  verification    VerificationStatus @default(not_required)
+  venueId         String?            @map("venue_id") @db.Uuid
+  courtId         String?            @map("court_id") @db.Uuid
+  /// Read-only public scoreboard link: /s/<share_token>. Random, URL-safe, not the match id.
+  shareToken      String             @unique @map("share_token") @db.VarChar(32)
+  /// Optimistic concurrency for scoring: bumped by every event and every undo.
+  version         Int                @default(0)
+  /// Derived cache of the plugin's ScoreSummary (lists, feed, public page). Rebuilt by replay.
+  summary         Json?              @db.JsonB
+  createdByUserId String             @map("created_by_user_id") @db.Uuid
+  scheduledAt     DateTime?          @map("scheduled_at") @db.Timestamptz
+  startedAt       DateTime?          @map("started_at") @db.Timestamptz
+  completedAt     DateTime?          @map("completed_at") @db.Timestamptz
+  createdAt       DateTime           @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime           @updatedAt @map("updated_at") @db.Timestamptz
+
+  sport         Sport                 @relation(fields: [sportId], references: [id])
+  sportFormat   SportFormat           @relation(fields: [sportFormatId], references: [id])
+  ruleset       ScoringRuleset?       @relation(fields: [rulesetId], references: [id])
+  venue         Venue?                @relation(fields: [venueId], references: [id])
+  court         Court?                @relation(fields: [courtId], references: [id])
+  createdBy     usr_user              @relation(fields: [createdByUserId], references: [id])
+  sides         MatchSide[]
+  participants  MatchParticipant[]
+  segments      MatchSegment[]
+  events        MatchEvent[]
+  scorers       MatchScorer[]
+  confirmations MatchConfirmation[]
+  ratingHistory PlayerRatingHistory[]
+  fixture       Fixture?
+  post          social_post?
+
+  @@index([status, updatedAt(sort: Desc)])
+  @@index([sportId, completedAt(sort: Desc)])
+  @@index([createdByUserId, createdAt(sort: Desc)])
+  @@index([verification]) // pending confirmations
+  @@map("matches")
+}
+
+/// One side of a match: a player, a pair, or a team. Any number of players per side.
+model MatchSide {
+  id        String       @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  matchId   String       @map("match_id") @db.Uuid
+  /// 0-based position; the plugin addresses sides by this index.
+  sideIndex Int          @map("side_index") @db.SmallInt
+  name      String?      @db.VarChar(80)
+  teamId    String?      @map("team_id") @db.Uuid
+  /// Tournament matches: the entry playing on this side.
+  entryId   String?      @map("entry_id") @db.Uuid
+  outcome   SideOutcome?
+
+  match         Match               @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  team          Team?               @relation(fields: [teamId], references: [id])
+  entry         TournamentEntry?    @relation(fields: [entryId], references: [id])
+  participants  MatchParticipant[]  @relation("SideParticipants")
+  segmentScores MatchSegmentScore[]
+  segmentsWon   MatchSegment[]
+  events        MatchEvent[]
+  confirmations MatchConfirmation[]
+
+  @@unique([matchId, sideIndex])
+  @@unique([id, matchId]) // target of the composite FK from match_participants
+  @@index([teamId])
+  @@index([entryId])
+  @@map("match_sides")
+}
+
+model MatchParticipant {
+  id        String  @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  matchId   String  @map("match_id") @db.Uuid
+  sideId    String  @map("side_id") @db.Uuid
+  playerId  String  @map("player_id") @db.Uuid
+  /// Generic role/position: "player", "captain", later "goalkeeper", "wicket_keeper" ...
+  position  String? @db.VarChar(30)
+  /// Order within the side (doubles: who is player 1 / 2, which drives serve order).
+  sortOrder Int     @default(0) @map("sort_order") @db.SmallInt
+
+  match  Match        @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  /// Composite FK guarantees the side belongs to the same match.
+  side   MatchSide    @relation("SideParticipants", fields: [sideId, matchId], references: [id, matchId], onDelete: Cascade)
+  player Player       @relation(fields: [playerId], references: [id])
+  events MatchEvent[]
+
+  @@unique([matchId, playerId]) // a player appears once per match
+  @@unique([id, matchId])
+  @@index([playerId])
+  @@map("match_participants")
+}
+
+/// Generic, self-referencing score hierarchy, materialised from the event replay after every
+/// change: tennis set -> game (-> tiebreak), badminton game, later innings -> over, half ...
+model MatchSegment {
+  id           String        @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  matchId      String        @map("match_id") @db.Uuid
+  parentId     String?       @map("parent_id") @db.Uuid
+  /// Open set defined by plugins: "game", "set", "tiebreak", "match_tiebreak", later "over" ...
+  type         String        @db.VarChar(30)
+  sequence     Int           @db.SmallInt
+  status       SegmentStatus @default(in_progress)
+  winnerSideId String?       @map("winner_side_id") @db.Uuid
+  startedAt    DateTime      @default(now()) @map("started_at") @db.Timestamptz
+  endedAt      DateTime?     @map("ended_at") @db.Timestamptz
+
+  match      Match               @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  parent     MatchSegment?       @relation("SegmentTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children   MatchSegment[]      @relation("SegmentTree")
+  winnerSide MatchSide?          @relation(fields: [winnerSideId], references: [id])
+  scores     MatchSegmentScore[]
+  events     MatchEvent[]
+
+  // RAW SQL: UNIQUE NULLS NOT DISTINCT (match_id, parent_id, type, sequence)
+  @@index([matchId, parentId, sequence])
+  @@map("match_segments")
+}
+
+model MatchSegmentScore {
+  segmentId String @map("segment_id") @db.Uuid
+  sideId    String @map("side_id") @db.Uuid
+  score     Int
+
+  segment MatchSegment @relation(fields: [segmentId], references: [id], onDelete: Cascade)
+  side    MatchSide    @relation(fields: [sideId], references: [id], onDelete: Cascade)
+
+  @@id([segmentId, sideId])
+  @@map("match_segment_scores")
+}
+
+/// Append-only event log. Scores are never stored as truth; they are replayed from here.
+/// Undo = set voided_at on the latest non-voided event (rows are never deleted or edited
+/// otherwise), then replay. The payload is validated by the plugin's `eventSchema`.
+model MatchEvent {
+  id             String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  matchId        String    @map("match_id") @db.Uuid
+  sequence       Int
+  /// Plugin event type: "rally_won", later "ball", "goal" ...; "match_retired" etc. are core types.
+  type           String    @db.VarChar(40)
+  sideId         String?   @map("side_id") @db.Uuid
+  participantId  String?   @map("participant_id") @db.Uuid
+  segmentId      String?   @map("segment_id") @db.Uuid
+  payload        Json      @default("{}") @db.JsonB
+  actorUserId    String?   @map("actor_user_id") @db.Uuid
+  /// Idempotency key from the scoring device (offline queue / retries).
+  clientEventId  String?   @map("client_event_id") @db.Uuid
+  occurredAt     DateTime  @map("occurred_at") @db.Timestamptz
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  voidedAt       DateTime? @map("voided_at") @db.Timestamptz
+  voidedByUserId String?   @map("voided_by_user_id") @db.Uuid
+
+  match       Match             @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  side        MatchSide?        @relation(fields: [sideId], references: [id])
+  participant MatchParticipant? @relation(fields: [participantId], references: [id])
+  segment     MatchSegment?     @relation(fields: [segmentId], references: [id], onDelete: SetNull)
+  actor       usr_user?         @relation("EventActor", fields: [actorUserId], references: [id])
+  voidedBy    usr_user?         @relation("EventVoidedBy", fields: [voidedByUserId], references: [id])
+
+  @@unique([matchId, sequence])
+  @@unique([matchId, clientEventId])
+  @@map("match_events")
+}
+
+/// Who may score a match besides its creator (friendly helpers, tournament scorers/referees).
+model MatchScorer {
+  matchId          String   @map("match_id") @db.Uuid
+  userId           String   @map("user_id") @db.Uuid
+  assignedByUserId String   @map("assigned_by_user_id") @db.Uuid
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  match      Match    @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  user       usr_user @relation("ScorerUser", fields: [userId], references: [id])
+  assignedBy usr_user @relation("ScorerAssignedBy", fields: [assignedByUserId], references: [id])
+
+  @@id([matchId, userId])
+  @@index([userId])
+  @@map("match_scorers")
+}
+
+/// Opponent confirmation for manually entered results. One decision per opposing side is
+/// enough; the match counts toward ratings once confirmed.
+model MatchConfirmation {
+  id        String               @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  matchId   String               @map("match_id") @db.Uuid
+  sideId    String               @map("side_id") @db.Uuid
+  playerId  String               @map("player_id") @db.Uuid
+  userId    String               @map("user_id") @db.Uuid
+  decision  ConfirmationDecision
+  comment   String?              @db.VarChar(500)
+  decidedAt DateTime             @default(now()) @map("decided_at") @db.Timestamptz
+
+  match  Match     @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  side   MatchSide @relation(fields: [sideId], references: [id], onDelete: Cascade)
+  player Player    @relation(fields: [playerId], references: [id])
+  user   usr_user  @relation(fields: [userId], references: [id])
+
+  @@unique([matchId, sideId])
+  @@map("match_confirmations")
+}
+
+// -------------------------------------------------------------------------------------
+// Ratings and stats (always per player per sport; sports are never mixed)
+// -------------------------------------------------------------------------------------
+
+model PlayerRating {
+  playerId     String    @map("player_id") @db.Uuid
+  sportId      Int       @map("sport_id")
+  /// "elo" in the MVP; "glicko2" later. The RD/volatility columns are ready for Glicko-2.
+  system       String    @default("elo") @db.VarChar(20)
+  rating       Float     @default(1000)
+  deviation    Float?
+  volatility   Float?
+  ratedMatches Int       @default(0) @map("rated_matches")
+  lastRatedAt  DateTime? @map("last_rated_at") @db.Timestamptz
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  player Player @relation(fields: [playerId], references: [id])
+  sport  Sport  @relation(fields: [sportId], references: [id])
+
+  @@id([playerId, sportId])
+  @@index([sportId, rating(sort: Desc)]) // leaderboards
+  @@map("player_ratings")
+}
+
+model PlayerRatingHistory {
+  id              String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  playerId        String   @map("player_id") @db.Uuid
+  sportId         Int      @map("sport_id")
+  matchId         String   @map("match_id") @db.Uuid
+  system          String   @db.VarChar(20)
+  ratingBefore    Float    @map("rating_before")
+  ratingAfter     Float    @map("rating_after")
+  deviationBefore Float?   @map("deviation_before")
+  deviationAfter  Float?   @map("deviation_after")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  player Player @relation(fields: [playerId], references: [id])
+  sport  Sport  @relation(fields: [sportId], references: [id])
+  match  Match  @relation(fields: [matchId], references: [id])
+
+  @@unique([playerId, matchId])
+  @@index([playerId, sportId, createdAt(sort: Desc)])
+  @@map("player_rating_history")
+}
+
+/// Aggregate record per player per sport, updated in the completion transaction (rebuildable).
+model PlayerSportStats {
+  playerId      String   @map("player_id") @db.Uuid
+  sportId       Int      @map("sport_id")
+  matchesPlayed Int      @default(0) @map("matches_played")
+  won           Int      @default(0)
+  lost          Int      @default(0)
+  drawn         Int      @default(0)
+  majorWon      Int      @default(0) @map("major_won")
+  majorLost     Int      @default(0) @map("major_lost")
+  minorWon      Int      @default(0) @map("minor_won")
+  minorLost     Int      @default(0) @map("minor_lost")
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  player Player @relation(fields: [playerId], references: [id])
+  sport  Sport  @relation(fields: [sportId], references: [id])
+
+  @@id([playerId, sportId])
+  @@map("player_sport_stats")
+}
+
+// -------------------------------------------------------------------------------------
+// Tournaments
+// Tournament -> TournamentEvent (category) -> TournamentStage -> StageGroup -> Fixture -> Match
+// -------------------------------------------------------------------------------------
+
+model Tournament {
+  id                   String               @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  slug                 String               @unique @db.VarChar(80)
+  name                 String               @db.VarChar(120)
+  description          String?
+  organizerUserId      String               @map("organizer_user_id") @db.Uuid
+  venueId              String?              @map("venue_id") @db.Uuid
+  status               TournamentStatus     @default(draft)
+  visibility           TournamentVisibility @default(public)
+  startsOn             DateTime?            @map("starts_on") @db.Date
+  endsOn               DateTime?            @map("ends_on") @db.Date
+  registrationOpensAt  DateTime?            @map("registration_opens_at") @db.Timestamptz
+  registrationClosesAt DateTime?            @map("registration_closes_at") @db.Timestamptz
+  createdAt            DateTime             @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt            DateTime             @updatedAt @map("updated_at") @db.Timestamptz
+
+  organizer usr_user          @relation(fields: [organizerUserId], references: [id])
+  venue     Venue?            @relation(fields: [venueId], references: [id])
+  staff     TournamentStaff[]
+  events    TournamentEvent[]
+  courts    Court[]
+
+  @@index([status, startsOn])
+  @@index([organizerUserId])
+  @@map("tournaments")
+}
+
+/// Organizer / co-organizer / scorer / referee. Players are derived from entries; spectators
+/// need no row (public pages are read-only).
+model TournamentStaff {
+  id           String         @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  tournamentId String         @map("tournament_id") @db.Uuid
+  userId       String         @map("user_id") @db.Uuid
+  role         TournamentRole
+  createdAt    DateTime       @default(now()) @map("created_at") @db.Timestamptz
+
+  tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  user       usr_user   @relation(fields: [userId], references: [id])
+
+  @@unique([tournamentId, userId, role])
+  @@index([userId])
+  @@map("tournament_staff")
+}
+
+/// A scorer assigned to every match on a court (match_scorers covers single matches).
+model CourtScorer {
+  courtId   String   @map("court_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  court Court    @relation(fields: [courtId], references: [id], onDelete: Cascade)
+  user  usr_user @relation(fields: [userId], references: [id])
+
+  @@id([courtId, userId])
+  @@map("court_scorers")
+}
+
+/// A category: "Men's Singles", "Mixed Doubles U-17". Own sport, ruleset, format and entries.
+model TournamentEvent {
+  id            String                @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  tournamentId  String                @map("tournament_id") @db.Uuid
+  sportId       Int                   @map("sport_id")
+  sportFormatId String                @map("sport_format_id") @db.Uuid
+  rulesetId     String                @map("ruleset_id") @db.Uuid
+  name          String                @db.VarChar(80)
+  /// Key into the tournament-format registry: "knockout", "round_robin", "groups_knockout";
+  /// later "double_elimination", "swiss", "league" (no schema change needed).
+  format        String                @db.VarChar(40)
+  /// Validated by that format's Zod schema: group count, qualifiers per group, 3rd-place match ...
+  formatConfig  Json                  @map("format_config") @db.JsonB
+  /// Ordered tiebreaker keys, validated in code:
+  /// ["match_wins", "head_to_head", "major_diff", "minor_diff"].
+  tiebreakers   Json                  @db.JsonB
+  /// Optional per-category rule overrides on top of the ruleset (e.g. group games to 15).
+  rulesOverride Json?                 @map("rules_override") @db.JsonB
+  /// Free-form eligibility notes/filters (gender, age); not enforced by the MVP.
+  eligibility   Json?                 @db.JsonB
+  status        TournamentEventStatus @default(draft)
+  maxEntries    Int?                  @map("max_entries")
+  sortOrder     Int                   @default(0) @map("sort_order")
+  createdAt     DateTime              @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime              @updatedAt @map("updated_at") @db.Timestamptz
+
+  tournament  Tournament        @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  sport       Sport             @relation(fields: [sportId], references: [id])
+  sportFormat SportFormat       @relation(fields: [sportFormatId], references: [id])
+  ruleset     ScoringRuleset    @relation(fields: [rulesetId], references: [id])
+  entries     TournamentEntry[]
+  stages      TournamentStage[]
+
+  @@unique([tournamentId, name])
+  @@map("tournament_events")
+}
+
+/// A player or pair (or later a team) registered in one category.
+model TournamentEntry {
+  id                 String      @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  eventId            String      @map("event_id") @db.Uuid
+  name               String?     @db.VarChar(120) // defaults to the players' names
+  teamId             String?     @map("team_id") @db.Uuid
+  seed               Int?        @db.SmallInt
+  status             EntryStatus @default(pending)
+  registeredByUserId String      @map("registered_by_user_id") @db.Uuid
+  createdAt          DateTime    @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt          DateTime    @updatedAt @map("updated_at") @db.Timestamptz
+
+  event            TournamentEvent         @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  team             Team?                   @relation(fields: [teamId], references: [id])
+  registeredBy     usr_user                @relation(fields: [registeredByUserId], references: [id])
+  members          TournamentEntryMember[]
+  groupEntries     StageGroupEntry[]
+  matchSides       MatchSide[]
+  fixturesAsEntry1 Fixture[]               @relation("FixtureEntry1")
+  fixturesAsEntry2 Fixture[]               @relation("FixtureEntry2")
+  fixturesWon      Fixture[]               @relation("FixtureWinner")
+
+  @@unique([eventId, seed]) // NULL seeds allowed (Postgres treats NULLs as distinct)
+  @@unique([id, eventId]) // target of the composite FK from tournament_entry_members
+  @@index([eventId, status])
+  @@map("tournament_entries")
+}
+
+model TournamentEntryMember {
+  entryId   String @map("entry_id") @db.Uuid
+  /// Copied from the entry (composite FK keeps it consistent) so a player can be in only one
+  /// entry per category.
+  eventId   String @map("event_id") @db.Uuid
+  playerId  String @map("player_id") @db.Uuid
+  sortOrder Int    @default(0) @map("sort_order") @db.SmallInt
+
+  entry  TournamentEntry @relation(fields: [entryId, eventId], references: [id, eventId], onDelete: Cascade)
+  player Player          @relation(fields: [playerId], references: [id])
+
+  @@id([entryId, playerId])
+  @@unique([eventId, playerId])
+  @@index([playerId])
+  @@map("tournament_entry_members")
+}
+
+/// A phase of a category: "Group stage", "Knockout". Type is an open key ("round_robin",
+/// "knockout"; later "double_elimination", "swiss").
+model TournamentStage {
+  id        String      @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  eventId   String      @map("event_id") @db.Uuid
+  sequence  Int         @db.SmallInt
+  type      String      @db.VarChar(40)
+  name      String      @db.VarChar(60)
+  config    Json        @default("{}") @db.JsonB
+  status    StageStatus @default(pending)
+  createdAt DateTime    @default(now()) @map("created_at") @db.Timestamptz
+
+  event    TournamentEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  groups   StageGroup[]
+  fixtures Fixture[]
+
+  @@unique([eventId, sequence])
+  @@map("tournament_stages")
+}
+
+/// A group ("Group A") or a bracket ("Main", later "Winners" / "Losers") inside a stage.
+model StageGroup {
+  id       String @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  stageId  String @map("stage_id") @db.Uuid
+  type     String @db.VarChar(20) // "group" | "bracket" (open set)
+  name     String @db.VarChar(40)
+  sequence Int    @db.SmallInt
+
+  stage    TournamentStage   @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  entries  StageGroupEntry[]
+  fixtures Fixture[]
+
+  @@unique([stageId, name])
+  @@map("stage_groups")
+}
+
+model StageGroupEntry {
+  groupId  String @map("group_id") @db.Uuid
+  entryId  String @map("entry_id") @db.Uuid
+  /// Draw position within the group (round-robin order / bracket line).
+  position Int    @db.SmallInt
+
+  group StageGroup      @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  entry TournamentEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+
+  @@id([groupId, entryId])
+  @@unique([groupId, position])
+  @@map("stage_group_entries")
+}
+
+/// One slot in the draw. Becomes a normal Match (context = tournament) when it is played.
+model Fixture {
+  id                   String        @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  stageId              String        @map("stage_id") @db.Uuid
+  groupId              String?       @map("group_id") @db.Uuid
+  round                Int           @db.SmallInt
+  /// Position within the round (bracket line / round-robin pairing number).
+  position             Int           @db.SmallInt
+  roundName            String?       @map("round_name") @db.VarChar(40) // "Quarter-final"
+  entry1Id             String?       @map("entry1_id") @db.Uuid
+  entry2Id             String?       @map("entry2_id") @db.Uuid
+  /// Where an unknown entry comes from, for display and for filling it in:
+  /// {"kind":"winner","fixtureId":"..."} | {"kind":"group_rank","groupId":"...","rank":1}
+  entry1Source         Json?         @map("entry1_source") @db.JsonB
+  entry2Source         Json?         @map("entry2_source") @db.JsonB
+  /// Winner advancement: the winner fills slot 1 or 2 of next_fixture.
+  nextFixtureId        String?       @map("next_fixture_id") @db.Uuid
+  nextFixtureSlot      Int?          @map("next_fixture_slot") @db.SmallInt
+  /// Loser routing (3rd-place match now; losers bracket for double elimination later).
+  loserNextFixtureId   String?       @map("loser_next_fixture_id") @db.Uuid
+  loserNextFixtureSlot Int?          @map("loser_next_fixture_slot") @db.SmallInt
+  courtId              String?       @map("court_id") @db.Uuid
+  scheduledAt          DateTime?     @map("scheduled_at") @db.Timestamptz
+  matchId              String?       @unique @map("match_id") @db.Uuid
+  status               FixtureStatus @default(pending)
+  winnerEntryId        String?       @map("winner_entry_id") @db.Uuid
+  createdAt            DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt            DateTime      @updatedAt @map("updated_at") @db.Timestamptz
+
+  stage            TournamentStage  @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  group            StageGroup?      @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  entry1           TournamentEntry? @relation("FixtureEntry1", fields: [entry1Id], references: [id])
+  entry2           TournamentEntry? @relation("FixtureEntry2", fields: [entry2Id], references: [id])
+  winnerEntry      TournamentEntry? @relation("FixtureWinner", fields: [winnerEntryId], references: [id])
+  nextFixture      Fixture?         @relation("WinnerAdvance", fields: [nextFixtureId], references: [id])
+  feedsFrom        Fixture[]        @relation("WinnerAdvance")
+  loserNextFixture Fixture?         @relation("LoserAdvance", fields: [loserNextFixtureId], references: [id])
+  loserFeedsFrom   Fixture[]        @relation("LoserAdvance")
+  court            Court?           @relation(fields: [courtId], references: [id])
+  match            Match?           @relation(fields: [matchId], references: [id])
+
+  // RAW SQL: UNIQUE NULLS NOT DISTINCT (stage_id, group_id, round, position)
+  // RAW SQL: CHECK (next_fixture_slot IN (1, 2)), CHECK (loser_next_fixture_slot IN (1, 2))
+  // RAW SQL: CHECK (entry1_id IS NULL OR entry1_id <> entry2_id)
+  @@index([stageId, round])
+  @@index([courtId, scheduledAt])
+  @@index([status])
+  @@map("fixtures")
+}
