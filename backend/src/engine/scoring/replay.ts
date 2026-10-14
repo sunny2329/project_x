@@ -1,0 +1,85 @@
+import type { AnyScoringPlugin, ScoringRegistry } from './registry.js';
+import { ScoringError, type PluginEvent, type ScoreSummary, type SideInfo } from './types.js';
+
+function zodMessage(error: { issues: Array<{ path: PropertyKey[]; message: string }> }): string {
+  return error.issues.map((issue) => (issue.path.length ? `${issue.path.join('.')}: ${issue.message}` : issue.message)).join('; ');
+}
+
+/** Parses a ruleset config with the plugin's schema (fills defaults). Throws INVALID_CONFIG. */
+export function parseConfig(plugin: AnyScoringPlugin, config: unknown): unknown {
+  const parsed = plugin.configSchema.safeParse(config);
+  if (!parsed.success) throw new ScoringError('INVALID_CONFIG', zodMessage(parsed.error));
+  return parsed.data;
+}
+
+/** Parses one event with the plugin's schema. Throws INVALID_EVENT. */
+export function parseEvent(plugin: AnyScoringPlugin, event: unknown): PluginEvent {
+  const parsed = plugin.eventSchema.safeParse(event);
+  if (!parsed.success) throw new ScoringError('INVALID_EVENT', zodMessage(parsed.error));
+  return parsed.data;
+}
+
+export interface Scorer {
+  plugin: AnyScoringPlugin;
+  config: unknown;
+  sides: SideInfo[];
+}
+
+/** Resolves the plugin, validates the config and the side layout. */
+export function createScorer(registry: ScoringRegistry, scoringModel: string, config: unknown, sides: SideInfo[]): Scorer {
+  const plugin = registry.get(scoringModel);
+  const parsed = parseConfig(plugin, config);
+  const problem = plugin.validateSides(parsed, sides);
+  if (problem) throw new ScoringError('INVALID_SIDES', problem);
+  return { plugin, config: parsed, sides };
+}
+
+export interface ReplayResult {
+  state: unknown;
+  summary: ScoreSummary;
+  complete: boolean;
+}
+
+/**
+ * Folds the events over the initial state. Scores are never stored as truth: every read,
+ * every new event and every undo (drop the last event) goes through here.
+ */
+export function replay(scorer: Scorer, events: readonly unknown[]): ReplayResult {
+  const { plugin, config, sides } = scorer;
+  let state = plugin.initialState(config, sides);
+  for (const raw of events) {
+    if (plugin.isComplete(state)) throw new ScoringError('MATCH_COMPLETE', 'The match is already decided.');
+    state = plugin.applyEvent(state, parseEvent(plugin, raw), config);
+  }
+  return { state, summary: plugin.summary(state, config), complete: plugin.isComplete(state) };
+}
+
+/** Replays `events` plus `next`; throws ScoringError if `next` is not allowed now. */
+export function applyNext(scorer: Scorer, events: readonly unknown[], next: unknown): ReplayResult {
+  return replay(scorer, [...events, next]);
+}
+
+/** Events reproducing a typed-in final score; throws INVALID_RESULT if it is not a finished match. */
+export function manualResultEvents(scorer: Scorer, scores: number[][]): PluginEvent[] {
+  const { plugin, config, sides } = scorer;
+  if (!plugin.eventsForManualResult) throw new ScoringError('INVALID_RESULT', 'This sport does not support entering results afterwards.');
+  if (scores.some((segment) => segment.length !== sides.length || segment.some((n) => !Number.isInteger(n) || n < 0))) {
+    throw new ScoringError('INVALID_RESULT', 'Each score needs one whole number per side.');
+  }
+  let events: PluginEvent[];
+  try {
+    events = plugin.eventsForManualResult(config, sides, scores);
+    const result = replay(scorer, events);
+    if (!result.complete) throw new ScoringError('INVALID_RESULT', 'That score does not finish the match.');
+    // The replay must land on exactly the score typed in (no game/set ending early or late).
+    const played = result.summary.segments.filter((s) => s.complete);
+    const same = played.length === scores.length && played.every((s, i) => s.scores.every((n, j) => n === scores[i]![j]));
+    if (!same) throw new ScoringError('INVALID_RESULT', 'That score is not possible under these rules.');
+  } catch (error) {
+    if (error instanceof ScoringError && error.code !== 'INVALID_RESULT') {
+      throw new ScoringError('INVALID_RESULT', 'That score is not possible under these rules.');
+    }
+    throw error;
+  }
+  return events;
+}
