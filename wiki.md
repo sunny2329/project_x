@@ -23,9 +23,11 @@ PROJECT_X is a sports social + sports ecosystem mobile application, built module
 3. **Posts, likes, comments** — done (text only). **Chat** (1:1 and groups, polling) — built,
    waiting for the owner to apply the messaging tables (`docs/sql/2026-09-29_messaging_and_indexes.sql`).
    **Redis** — live match state, session cache, chat polling (see "Performance and Redis").
-4. **Product focus:** fast real-time scoring (six sports) and **tournaments** (corporate
-   inter-department / inter-company events). Design: `docs/scoring-and-tournaments.md`
-   (designed, not built; schema changes await the owner).
+4. **Product focus (2026-10-14 pivot): racket sports first** — badminton, table tennis, pickleball,
+   padel, tennis — with **friendly matches** and **tournaments**, on a sport-agnostic core (scoring
+   plugins + generic match/event/segment model). Volleyball, football and box cricket are kept but
+   inactive. Plan: `docs/pivot/PLAN.md`; adding a sport: `ADDING_A_SPORT.md`.
+   `docs/scoring-and-tournaments.md` (corporate organizations, medal tables) is post-MVP.
 5. Social Graph / Follow, Media, Notifications, Realtime, Teams, Events, Venues, Bookings,
    Communities, Search, Analytics — not started (`docs/database-design.md`)
 
@@ -34,8 +36,9 @@ PROJECT_X is a sports social + sports ecosystem mobile application, built module
 - UI screenshots and supplied PostgreSQL schemas are the source of truth.
 - No secrets in Git (`.env*` is ignored; only `.env.example` is committed).
 - Do not restructure the repo or implement future modules ahead of time.
-- The database schema is owned by the project owner (Neon database `project_x`). Code uses it as
-  is; the backend never creates or alters tables. Schema changes are made by the owner.
+- The database schema is managed with **Prisma migrations** (`backend/prisma/`, since 2026-10-14).
+  The 46 original tables are recorded by `0_baseline`; never run `prisma migrate dev`/`reset` against
+  `project_x`. See `backend/prisma/README.md`.
 
 ## How to run (local development)
 
@@ -229,115 +232,59 @@ took ~3 s. Decided: move Neon to Singapore (ap-southeast-1, ~70 ms) and add Redi
   suspension takes effect within 60 s).
 - **Chat polling**: see "Messages API".
 
-## Match module (Module 2: friendly-match scoring)
+## Match & tournament modules (racket-first core)
 
-### How scoring works
-- **Server is the source of truth.** Each tap is one request and one `match_score_event` row. The
-  scoreboard is always rebuilt by replaying the match's events (not undone) through the sport's
-  engine, so undo is trivially correct. Matches have at most a few hundred events.
-- **Engines** (`backend/src/modules/match/scoring/`, pure functions, unit-tested):
-  - `rally.ts` — pickleball, badminton, table tennis, volleyball: first to N (win by 2, optional cap),
-    best of K games/sets, optional different target for the deciding set. The scorer taps the side
-    that won the point (with side-out pickleball scoring, tap only when a point counts; serve is not tracked).
-  - `timed-goals.ts` — football: goals per half; the scorer ends each half (the app shows a clock
-    from the half's start). Draws allowed.
-  - `overs.ts` — box cricket: two innings of N overs; wides/no-balls add runs and don't count as
-    legal balls; an innings ends on overs, wickets, the target being passed, or "End innings". Equal runs = tie.
-- Default rules (`scoring/sport-rules.ts`, seeded into `mst_sport_scoring`; read from there at runtime):
+### Architecture
+- **`backend/src/engine/`** — pure TypeScript, no DB/HTTP (a test enforces it):
+  - `scoring/`: the `ScoringPlugin` interface (`types.ts`), `ScoringRegistry`, `replay()`, and the
+    MVP plugins `rally` (badminton, table tennis, pickleball rally, volleyball), `side_out`
+    (traditional pickleball, 0-0-2 start), `tennis` (tennis, padel: advantage/golden point, tiebreaks,
+    match tiebreak). Every plugin tracks the server on every point. `parked/` holds the football and
+    box-cricket engines (not registered).
+  - `tournament/`: formats registry (`knockout`, `round_robin`, `groups_knockout`), seeding with byes,
+    advancement (walkover / no-show / retirement / double walkover, 3rd-place routing),
+    standings with ordered tiebreakers.
+  - `rating/`: `RatingSystem` interface; Elo K=32 now, Glicko-2 columns ready.
+- **`backend/src/catalog/sports.ts`** — sports, formats, default rulesets (seeded by `npm run db:seed`).
+- **Modules:** `sports`, `players` (guests, search, claim), `matches` (live scoring through the
+  registry, Redis live store + persister, completion, confirmation), `tournaments`, `public`
+  (share pages). They use Prisma Client on the shared `pg` pool; auth/feed/social/chat keep raw SQL.
+- **No sport-specific branches outside the plugins.** The app draws the scoreboard and the scoring
+  buttons from the plugin's `ScoreSummary` (`sides`, `segments`, `callout`, `actions`).
 
-| Sport | Format(s) (players per side) | Default rules | Options when starting |
-| --- | --- | --- | --- |
-| Pickleball | Singles 1, Doubles 2 | games to 11, win by 2, best of 3 | best of 1/3/5, points |
-| Badminton | Singles 1, Doubles 2 | games to 21, win by 2, cap 30, best of 3 | best of, points (cap moves with it) |
-| Table tennis | Singles 1, Doubles 2 | games to 11, win by 2, best of 5 | best of, points |
-| Volleyball | Team 1–6 | sets to 25, win by 2, best of 5, 5th set to 15 | best of, points |
-| Football | Team 1–11 | 2 × 20 min halves | minutes per half |
-| Box cricket | Team 1–11 | 6 overs, 5 wickets, wide/no-ball +1 | overs, wickets, batting first |
+### How a match works
+- `matches` snapshots `scoring_model` + `ruleset_config`, so later ruleset edits never change it.
+- `match_events` is append-only (`payload` validated by the plugin). Scores are replayed from it;
+  undo sets `voided_at` on the newest event. `match_segments` (+ scores) and `matches.summary` are
+  projections rebuilt after every change.
+- Requests carry `version` (409 `STALE_MATCH` if stale) and an optional `clientEventId` (a retry
+  never counts twice). Scorers: the creator, `match_scorers`, the court's `court_scorers`, and the
+  tournament's organizers.
+- **Completion** (one transaction): status/result type, side outcomes, segments, records rebuilt
+  (`player_sport_stats`, `team_stats`), ratings, the feed post, tournament advancement.
+- **Ratings** move only when every participant is a registered player and the match was played or
+  retired (never walkovers). Manually entered friendly results wait for a registered opponent's
+  confirmation (`/confirm`); a dispute sets the match `disputed` and removes it from records.
+- **Guests:** players without accounts (`players.user_id` null). Signing up with the same verified
+  phone takes over the guest's history; `POST /players/claim` merges more guests later.
 
-  Team sports need only one registered player (e.g. the captain) per side, because
-  `match_participant.user_id` is required (guests are not possible in this schema).
-- **Who scores:** only the match creator (`canScore`). Every change bumps `version`
-  (events + undos); scoring requests send the version they saw and a stale one gets 409
-  STALE_MATCH, so a retry or a double tap never counts twice. The match row is locked
-  (`SELECT … FOR UPDATE`) for each change.
-- **Finishing:** when the engine says the match is decided, the scorer sees "Save result" (Undo is
-  still possible until then). Saving is one transaction: `match_master` completed, `match_result`,
-  then for every player `match_stat_snapshot`, `usr_sport_stat_history`, `usr_sport_stats`
-  (+played/won/lost/points), `usr_sport_rating` (Elo, K = 32, a side's rating = its players'
-  average, every player on a side gets the same change; ratings locked while updated) and the sport
-  is added to `usr_user_sport` if missing; finally one automatic `social_post`
-  ("Aarav beat Rohan 11-7, 11-9 · Pickleball"). **Abandon** marks the match abandoned; nothing is
-  saved to stats and it disappears from history.
-
-### Match API (`/api/v1/matches`, all require `Authorization: Bearer`)
-| Method & path | Body | Success | Notable errors |
-| --- | --- | --- | --- |
-| GET `/setup` | – | 200 `{sports: [{sport, kind, formats: [{id, name, minPlayers, maxPlayers}], defaults}]}` | – |
-| GET `/live` | – | 200 `{matches: [MatchCard]}` (mine + followed players' live matches, 20 max) | – |
-| POST `/` | `sportId`, `formatId`, `sides: [{name?, playerIds[]}, {…}]`, `options?` (`bestOf`, `pointsToWin`, `periodMinutes`, `overs`, `wickets`, `battingFirst`) | 201 `{match}` | 400 VALIDATION_ERROR (players per side, unknown/inactive player, duplicate player) |
-| GET `/:id` | – | 200 `{match}` | 404 MATCH_NOT_FOUND |
-| POST `/:id/events` | `{type: point\|goal, side}`, `{type: period_end\|innings_end}` or `{type: ball, runs 0–6, extra: none\|wide\|no_ball, wicket}`, plus `version` | 200 `{match}` | 403 NOT_MATCH_SCORER, 409 STALE_MATCH / MATCH_OVER / MATCH_NOT_LIVE, 400 INVALID_EVENT |
-| POST `/:id/undo` | `version` | 200 `{match}` | 400 NOTHING_TO_UNDO, 409 as above |
-| POST `/:id/finish` | `version` | 200 `{match}` (with `ratingChanges`) | 409 MATCH_NOT_FINISHED |
-| POST `/:id/abandon` | – | 200 `{match}` | 403, 409 MATCH_NOT_LIVE |
-
-`match` = `{ id, sport, format, status (live|completed|abandoned), createdBy, canScore, config,
-sides: [{no, teamId, name, players: [{participantId, userId, username, fullName}]}], score, version,
-startedAt, completedAt, currentPeriodStartedAt, ratingChanges: [{userId, before, after}] }`.
-`score` = `{ kind, finished, winner (1|2|null), currentPeriod, periods: [{no, label, score, winner,
-finished}], headline (games won / goals / runs), totals, summary, cricket: {battingSide, innings,
-target, thisOver} | null, allowedEvents }`. Any signed-in user can view a match.
-
-### Where the data goes
-- `match_master` (sport, format, scoring row, created_by, type friendly, status), `match_team`
-  (always two sides, `team_name`), `match_participant` + `match_team_member` (every player).
-- `match_score_state`: one match-level row (no team/period/participant) whose `state_data` holds
-  `config` (the rules this match uses, i.e. defaults + options; the schema has no column for
-  per-match rules) and `snapshot` (latest scoreboard, used by live lists); one row per side with
-  `score_value` = headline number.
-- `match_score_event`: `team_id` = scoring side (batting side for balls), `period_id`,
-  `score_value` = points/goals/runs added, `event_data` = `{runs, extra, wicket}` for balls.
-  Undo sets `is_undone` and adds a `match_correction` row (type Undo).
-- `match_period`: one row per game/set/half/innings reached (live/completed); periods taken back by
-  an undo are marked void and reused if play reaches them again.
-- `match_result.result_data` = `{summary, winnerSide, sides: [{no, name, headline}], periods}`;
-  `winner_team_id` always, `winner_participant_id` for singles; NULLs = draw.
-- Stat JSON (`match_stat_snapshot.stat_data`, `usr_sport_stat_history.stat_data`) =
-  `{side, result, pointsFor, pointsAgainst, periodsWon?, periodsLost?, summary, ratingBefore, ratingAfter}`.
-  `match_stat_snapshot_detail` is not written (its `stat_type_id` has no defined meaning yet).
-
-### Lookup codes (`type_master`)
-`type_master.type_id` is used as the **category** and `id` as the value, with fixed ids
-(category × 100 + n) defined in `backend/src/modules/match/match.codes.ts` and inserted by
-`npm run seed` (which refuses to run if one of those ids already has another category, and moves
-the id sequence past them).
-
-| Category (`type_id`) | Values (`id`) |
+### API (all `/api/v1`, bearer token unless noted)
+| Area | Endpoints |
 | --- | --- |
-| 1 format | 101 singles, 102 doubles, 103 team |
-| 2 scoring | 201 point-based, 202 set/rally-based, 203 time + goal, 204 over-based |
-| 3 period | 301 game, 302 set, 303 half, 304 innings |
-| 4 score event | 401 point, 402 goal, 403 period end, 404 ball, 405 innings end |
-| 5 stat data type | 501 integer |
-| 6 match status | 601 scheduled (unused), 602 live, 603 completed, 604 abandoned |
-| 7 match type | 701 friendly |
-| 8 post type | 801 match result |
-| 9 correction | 901 undo |
-| 10 period status | 1001 live, 1002 completed, 1003 void |
-| 11 result | 1101 win, 1102 draw |
+| Sports | `GET /sports` (active only, with formats + rulesets), `GET /sports/:slug` |
+| Players | `GET /players?q=`, `GET /players/me`, `GET/POST /players/guests`, `POST /players/claim` |
+| Matches | `POST /matches` (`{sport, format, rulesetId?, sides:[{players:[{userId}|{playerId}|{guest}]}], manualScores?}`), `GET /matches/live`, `GET /matches/pending-confirmations`, `GET /matches/:id`, `POST /matches/:id/events` (`{event, version, clientEventId?}`), `/undo`, `/complete`, `/retire`, `/walkover`, `/abandon`, `/confirm`, `/scorers` |
+| Tournaments | `GET/POST /tournaments`, `GET/PATCH /tournaments/:id`, `POST /tournaments/:id/{staff,courts,events}`, `DELETE /tournaments/:id/staff/:userId/:role`, `POST /courts/:id/scorers` |
+| Categories | `GET/PATCH /tournament-events/:id`, `POST /tournament-events/:id/entries`, `POST /tournament-events/:id/draw` (`{preview?, randomSeed?}`), `DELETE /tournament-events/:id/draw`, `PATCH /entries/:id` (approve, seed) |
+| Fixtures | `GET /fixtures/mine`, `GET/PATCH /fixtures/:id` (court, time), `POST /fixtures/:id/start`, `/walkover`, `/result` |
+| Public (no login) | `GET /public/matches/:shareToken`, `GET /public/tournaments/:slug`, `GET /public/tournament-events/:id`; pages `/s/:shareToken` (live scoreboard) and `/t/:slug` (brackets, fixtures, live scores, standings) |
 
-The auth/follow codes (`usr_user.status`, `auth_*`, `usr_user_follow.status_id`) predate this and
-are still defined only in code (see "Status codes").
-
-### Known gaps / follow-ups (match)
-- No guest players (schema: `match_participant.user_id` NOT NULL); team sports use captains only.
-- Per-match rules live in `match_score_state.state_data.config`; a `match_master.scoring_config`
-  column would be cleaner.
-- Spectators poll every 4 s; move to websockets with the Realtime module.
-- No player-level stats inside team sports (e.g. goal scorers, batting/bowling figures).
-- Pickleball serve/side-out and cricket strike rotation are not tracked.
-- No indexes yet on `match_participant(user_id)`, `match_score_event(match_id)`,
-  `social_post(user_id, created_at)` (see docs/mvp-data-flow.md gap 6).
+### Known gaps / follow-ups
+- Spectators poll (4 s app, 3-5 s public pages); WebSockets + Redis pub/sub are still to do.
+- The result card is shared as text + link (no image yet: needs a native capture module).
+- Scheduling is manual (court + time per fixture); no automatic scheduler or clash detection.
+- Double elimination / Swiss: add a format in `engine/tournament/formats.ts` (no schema change).
+- Legacy `match_*`, `mst_sport*`, `usr_sport_*`, `usr_user_sport` tables are frozen, not dropped.
 
 ## Auth module
 
@@ -481,6 +428,20 @@ Frontend (`frontend/.env`, template `frontend/.env.example`): `EXPO_PUBLIC_API_U
   derived from it and should be checked against real designs when they exist.
 
 ## Changelog
+
+### 2026-10-14 — Pivot: racket sports first, generic core, tournaments
+- Prisma adopted: `0_baseline` (46 existing tables, marked applied), `1_core_schema` (31 new tables),
+  `2_updated_at_defaults`; applied to `project_x`. Only existing-table change: `social_post.match_id`
+  FK now points at `matches` (no rows used it). Seeded 8 sports (5 active), 21 rulesets; backfilled
+  5 players, their sports and ratings from the legacy tables.
+- Engine: scoring plugins (rally, side-out, tennis), tournament engine, rating interface.
+- Backend: new `sports`, `players`, `matches`, `tournaments`, `public` modules; profile and feed read
+  the new tables; old `modules/match` removed; football/cricket engines parked.
+- App: quick start with guests and manual results, generic live scoring screen, share links,
+  confirmations, tournaments (create, categories, entries, seeding, draw, bracket, standings,
+  fixtures with court/time, walkover, results, staff and court scorers).
+- Tests: engine (scoring + tournaments), live store, auth API and end-to-end flows against a
+  throwaway schema built from the migrations (`src/test/harness.ts`).
 
 ### 2026-10-06 — Scoring & tournaments design
 - New `docs/scoring-and-tournaments.md`: real-time scoring targets and architecture (WebSockets +

@@ -1,5 +1,9 @@
 # PROJECT_X — Live Scoring & Tournaments
 
+> **Post-MVP reference.** The 2026-10-14 pivot (racket sports first) superseded the schema and
+> scoring parts of this document; see `docs/pivot/PLAN.md` and wiki.md "Match & tournament modules".
+> Organizations, departments, medal tables and team-sport engines here remain future ideas.
+
 Design for the two core features: **fast, real-time scoring for the six MVP sports** and
 **tournaments** (the main feature, aimed at corporate events: inter-department and inter-company
 sports days). It shows how both sit on the existing `project_x` schema, what has to change, how a

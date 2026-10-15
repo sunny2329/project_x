@@ -1,7 +1,20 @@
 # Pivot plan: racket sports first (tournaments + friendly matches)
 
-_Status: **draft, waiting for the owner's approval**. Nothing in the database or code has been
-changed. Written 2026-10-14. Schema draft: [schema.prisma](schema.prisma)._
+_Status: **implemented** (approved 2026-10-14: "you can edit the public schema of neon"; the open
+questions took the defaults in section 7). Written 2026-10-14. The live schema is
+`backend/prisma/schema.prisma`; [schema.prisma](schema.prisma) here is the approved draft._
+
+### Where the implementation differs from this plan
+- **(A) `usr_user_sport` was not re-pointed.** Its `sport_id` is a `bigint`, which can't cleanly
+  reference `sports.id` (`int`). "Sports I play" moved to a new `player_sports` table instead
+  (backfilled from the 2 legacy rows); `usr_user_sport` is frozen like the other legacy tables.
+- **Migration 2** (`2_updated_at_defaults`) was added: database defaults for `updated_at`, so raw-SQL
+  inserts (backfill, stats rebuilds) work.
+- The backfill runs in the seed script (`npm run db:seed`), not as a migration, because it needs the
+  seeded sports first.
+- Records are **rebuilt** from decided matches (not incremented) so disputes and guest merges can't
+  leave them wrong.
+- The result card is shared as text plus the public link; an image needs a native capture module.
 
 ---
 
