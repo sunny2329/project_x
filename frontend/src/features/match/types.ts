@@ -1,159 +1,177 @@
-/** Mirrors backend/src/modules/match/scoring/types.ts and match.types.ts. */
-export type Side = 1 | 2;
-export type Pair = [number, number];
-export type ScoringKind = 'rally' | 'timed_goals' | 'overs';
+/*
+ * Mirrors the backend's generic match API (backend/src/modules/matches/matches.types.ts and
+ * backend/src/engine/scoring/types.ts). Nothing here is sport-specific: every sport's scoreboard
+ * and scoring buttons come from the plugin's ScoreSummary.
+ */
 
-export interface RallyConfig {
-  kind: 'rally';
-  periodName: 'Game' | 'Set';
-  pointsToWin: number;
-  winBy: number;
-  cap: number | null;
-  bestOf: number;
-  decidingPoints: number | null;
+export interface PluginEvent {
+  type: string;
+  [key: string]: unknown;
 }
 
-export interface TimedGoalsConfig {
-  kind: 'timed_goals';
-  periods: number;
-  periodMinutes: number;
-}
-
-export interface OversConfig {
-  kind: 'overs';
-  overs: number;
-  ballsPerOver: number;
-  wickets: number;
-  wideRuns: number;
-  noBallRuns: number;
-  battingFirst: Side;
-}
-
-export type ScoringConfig = RallyConfig | TimedGoalsConfig | OversConfig;
-
-export type BallExtra = 'none' | 'wide' | 'no_ball';
-
-export type ScoreEvent =
-  | { type: 'point'; side: Side }
-  | { type: 'goal'; side: Side }
-  | { type: 'period_end' }
-  | { type: 'ball'; runs: number; extra: BallExtra; wicket: boolean }
-  | { type: 'innings_end' };
-
-export interface PeriodScore {
-  no: number;
+export interface ScoringAction {
+  id: string;
   label: string;
-  score: Pair;
-  winner: Side | null;
-  finished: boolean;
+  sideIndex: number | null;
+  event: PluginEvent;
 }
 
-export interface InningsView {
-  battingSide: Side;
-  runs: number;
-  wickets: number;
-  legalBalls: number;
-  overs: string;
-  extras: number;
-  finished: boolean;
+export interface SideSummary {
+  index: number;
+  primary: string;
+  current: string | null;
+  serving: boolean;
+  serverNumber: 1 | 2 | null;
+  serverPlayerIndex: number | null;
+  serveNote: string | null;
 }
 
-export interface ScoreView {
-  kind: ScoringKind;
-  finished: boolean;
-  winner: Side | null;
-  currentPeriod: PeriodScore;
-  periods: PeriodScore[];
-  headline: Pair;
-  totals: Pair;
-  summary: string;
-  cricket: { battingSide: Side; innings: InningsView[]; target: number | null; thisOver: string[] } | null;
-  allowedEvents: ScoreEvent['type'][];
+export interface SegmentSummary {
+  type: string;
+  sequence: number;
+  label: string;
+  scores: number[];
+  display: string[];
+  winnerSideIndex: number | null;
+  complete: boolean;
+  children: SegmentSummary[];
+}
+
+export interface ScoreSummary {
+  scoringModel: string;
+  complete: boolean;
+  winnerSideIndex: number | null;
+  sides: SideSummary[];
+  segments: SegmentSummary[];
+  headline: string;
+  callout: string | null;
+  totals: { major: number[]; minor: number[]; majorLabel: string; minorLabel: string };
+  actions: ScoringAction[];
 }
 
 export interface SportRef {
   id: string;
+  slug: string;
+  name: string;
+  /** MaterialCommunityIcons name. */
+  iconKey: string;
+  accentColor: string;
+}
+
+export interface FormatOption {
   code: string;
   name: string;
+  playersPerSide: number;
+  minPerSide: number;
+  maxPerSide: number;
 }
 
-export interface FormatSetup {
+export interface RulesetOption {
   id: string;
+  slug: string;
   name: string;
-  minPlayers: number;
-  maxPlayers: number;
+  scoringModel: string;
+  isDefault: boolean;
+  config: Record<string, unknown>;
 }
 
-export interface SportSetup {
-  sport: SportRef;
-  kind: ScoringKind;
-  formats: FormatSetup[];
-  defaults: ScoringConfig;
+/** GET /api/v1/sports (active sports only). */
+export interface SportSummary extends SportRef {
+  category: string;
+  formats: FormatOption[];
+  rulesets: RulesetOption[];
 }
 
 export interface PlayerRef {
-  participantId: string;
-  userId: string;
-  username: string;
-  fullName: string;
+  playerId: string;
+  userId: string | null;
+  displayName: string;
+  isGuest: boolean;
 }
 
-export interface MatchSide {
-  no: Side;
-  teamId: string;
+/** A search result: a registered user (maybe no player row yet) or one of my guests. */
+export interface PlayerOption {
+  playerId: string | null;
+  userId: string | null;
+  username: string | null;
+  displayName: string;
+  isGuest: boolean;
+}
+
+export type ParticipantInput = { playerId: string } | { userId: string } | { guest: { displayName: string; phone?: string | null } };
+
+export type MatchStatus = 'scheduled' | 'live' | 'completed' | 'abandoned' | 'disputed' | 'walkover' | 'retired';
+export type ResultType = 'played' | 'walkover' | 'no_show' | 'retired' | 'double_walkover';
+export type Verification = 'not_required' | 'pending' | 'confirmed' | 'disputed';
+
+export interface SideView {
+  index: number;
   name: string;
+  teamId: string | null;
+  entryId: string | null;
   players: PlayerRef[];
+  outcome: 'won' | 'lost' | 'drawn' | null;
 }
 
-export type MatchStatus = 'live' | 'completed' | 'abandoned';
+export interface TournamentRef {
+  tournamentId: string;
+  slug: string;
+  name: string;
+  eventId: string;
+  eventName: string;
+  fixtureId: string;
+  roundName: string | null;
+}
+
+export interface ConfirmationView {
+  status: Verification;
+  canConfirm: boolean;
+  decisions: { sideIndex: number; displayName: string; decision: 'confirmed' | 'disputed'; comment: string | null; decidedAt: string }[];
+}
+
+export interface MatchView {
+  id: string;
+  context: 'friendly' | 'tournament';
+  sport: SportRef;
+  format: { code: string; name: string; playersPerSide: number };
+  ruleset: { id: string | null; name: string | null; scoringModel: string };
+  scoringMode: 'live' | 'manual';
+  shareToken: string;
+  createdByUserId: string;
+  venue: { id: string; name: string } | null;
+  court: { id: string; name: string } | null;
+  tournament: TournamentRef | null;
+  sides: SideView[];
+  status: MatchStatus;
+  resultType: ResultType | null;
+  score: ScoreSummary;
+  version: number;
+  canScore: boolean;
+  startedAt: string | null;
+  completedAt: string | null;
+  ratingChanges: { playerId: string; before: number; after: number }[];
+  confirmation: ConfirmationView;
+}
 
 export interface MatchCard {
   id: string;
-  sport: SportRef;
+  context: 'friendly' | 'tournament';
   status: MatchStatus;
-  sides: { no: Side; name: string }[];
-  score: ScoreView;
+  sport: SportRef;
+  sides: { index: number; name: string; outcome: SideView['outcome'] }[];
+  score: Pick<ScoreSummary, 'headline' | 'complete' | 'winnerSideIndex' | 'callout'> & {
+    sides: { index: number; primary: string; current: string | null; serving: boolean }[];
+  };
   mine: boolean;
-  startedAt: string;
+  startedAt: string | null;
   updatedAt: string;
 }
 
-export interface MatchDetail {
-  id: string;
-  sport: SportRef;
-  format: { id: string; name: string };
-  status: MatchStatus;
-  createdBy: string;
-  canScore: boolean;
-  config: ScoringConfig;
-  sides: MatchSide[];
-  score: ScoreView;
-  version: number;
-  startedAt: string;
-  completedAt: string | null;
-  currentPeriodStartedAt: string | null;
-  ratingChanges: { userId: string; before: number; after: number }[];
-}
-
-/** A player found by search (no contact details). */
-export interface PlayerSummary {
-  id: string;
-  username: string;
-  fullName: string;
-}
-
-export interface MatchOptions {
-  bestOf?: 1 | 3 | 5;
-  pointsToWin?: number;
-  periodMinutes?: number;
-  overs?: number;
-  wickets?: number;
-  battingFirst?: Side;
-}
-
 export interface NewMatch {
-  sportId: string;
-  formatId: string;
-  sides: [{ name?: string; playerIds: string[] }, { name?: string; playerIds: string[] }];
-  options: MatchOptions;
+  sport: string;
+  format: string;
+  rulesetId?: string;
+  sides: { name?: string; players: ParticipantInput[] }[];
+  /** Result entered afterwards: one [side 0, side 1] score per game/set. */
+  manualScores?: number[][];
 }

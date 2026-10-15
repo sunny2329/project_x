@@ -7,7 +7,7 @@ import { radius, spacing, typography, useTheme } from '@/shared/theme';
 /** Discover tile: coloured top stripe, sport icon on a tinted square, name, rating and record. */
 export function SportTile({ sport }: { sport: PlayerSport }) {
   const { colors } = useTheme();
-  const accent = sportColor(sport.code);
+  const accent = sportColor(sport);
   return (
     <View
       style={[styles.tile, { backgroundColor: colors.surface, borderColor: colors.surfaceBorder, borderTopColor: accent }]}
@@ -15,7 +15,7 @@ export function SportTile({ sport }: { sport: PlayerSport }) {
     >
       {sport.isPrimary ? <View style={[styles.primaryDot, { backgroundColor: colors.primary }]} /> : null}
       <View style={[styles.icon, { backgroundColor: `${accent}22` }]}>
-        <MaterialCommunityIcons name={sportIcon(sport.code)} size={24} color={accent} />
+        <MaterialCommunityIcons name={sportIcon(sport)} size={24} color={accent} />
       </View>
       <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>
         {sport.name}

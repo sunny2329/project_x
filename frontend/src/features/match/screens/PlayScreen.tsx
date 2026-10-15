@@ -1,21 +1,25 @@
+import Feather from '@expo/vector-icons/Feather';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useAuthStore } from '@/features/auth/store/auth.store';
 import { useProfileStore } from '@/features/profile/store/profile.store';
-import { ChoiceChips, FormMessage, PrimaryButton, Screen, SectionHeader, TopBar } from '@/shared/components';
+import { ChoiceChips, FormMessage, PrimaryButton, Screen, SectionHeader, TextField, TopBar } from '@/shared/components';
 import { useSubmit } from '@/shared/hooks/useSubmit';
 import { spacing, typography, useTheme } from '@/shared/theme';
 import { matchApi } from '../api/match.api';
 import { LiveMatchCard } from '../components/LiveMatchCard';
 import { SideEditor } from '../components/SideEditor';
 import { SportGrid } from '../components/SportGrid';
-import { defaultOptions, optionChoices, rulesSummary } from '../format';
+import { parseScores } from '../format';
 import { useLiveMatches } from '../hooks/useLiveMatches';
-import { addPlayer, fitToFormat, lineupIds, lineupProblem, removePlayer, type Lineup } from '../lineup';
-import type { MatchOptions, Side, SportSetup } from '../types';
+import { addPlayer, fitToFormat, lineupKeys, lineupProblem, removePlayer, type Lineup, type LineupPlayer } from '../lineup';
+import type { SportSummary } from '../types';
 
-/** Start a friendly match: sport, format, both sides' players, rules. Also lists my live matches to resume. */
+/**
+ * Start a friendly in a few taps: sport -> rules -> singles/doubles -> players -> start scoring.
+ * Players can be guests. Or enter a result afterwards (the opponent confirms it).
+ */
 export default function PlayScreen() {
   const { colors } = useTheme();
   const user = useAuthStore((s) => s.user);
@@ -26,26 +30,27 @@ export default function PlayScreen() {
   const submitSetup = setupState.submit;
   const start = useSubmit();
 
-  const [sports, setSports] = useState<SportSetup[]>([]);
+  const [sports, setSports] = useState<SportSummary[]>([]);
   const [chosenSportId, setChosenSportId] = useState<string | null>(null);
-  const [formatId, setFormatId] = useState<string | null>(null);
+  const [formatCode, setFormatCode] = useState<string | null>(null);
+  const [rulesetId, setRulesetId] = useState<string | null>(null);
   /** Players picked besides me (I am always first on side 1). */
   const [picked, setPicked] = useState<Lineup>([[], []]);
-  const [teamNames, setTeamNames] = useState<[string, string]>(['', '']);
-  /** Only the rules the player changed; the rest come from the sport's defaults. */
-  const [optionChanges, setOptionChanges] = useState<MatchOptions>({});
-  const [searchSide, setSearchSide] = useState<Side | null>(null);
+  const [searchSide, setSearchSide] = useState<number | null>(null);
+  const [manual, setManual] = useState(false);
+  const [scoreText, setScoreText] = useState('');
 
-  const me = useMemo(() => (user ? { id: user.id, username: user.username, fullName: user.fullName } : null), [user]);
+  const me = useMemo<LineupPlayer | null>(
+    () => (user ? { key: user.id, displayName: user.fullName, isGuest: false, userId: user.id, input: { userId: user.id } } : null),
+    [user],
+  );
 
-  const loadSetup = useCallback(() => {
+  useEffect(() => {
     void submitSetup(async () => {
-      const response = await matchApi.setup();
+      const response = await matchApi.sports();
       setSports(response.sports);
     });
   }, [submitSetup]);
-
-  useEffect(loadSetup, [loadSetup]);
 
   useFocusEffect(
     useCallback(() => {
@@ -54,67 +59,69 @@ export default function PlayScreen() {
   );
 
   // Until the player picks one: their primary sport, else the first.
-  const sport = sports.find((s) => s.sport.id === chosenSportId) ?? sports.find((s) => s.sport.id === primarySportId) ?? sports[0] ?? null;
-  const format = sport?.formats.find((f) => f.id === formatId) ?? sport?.formats[0] ?? null;
-  const options: MatchOptions = sport ? { ...defaultOptions(sport.defaults), ...optionChanges } : {};
-  const lineup: Lineup = fitToFormat(
-    me ? [[me, ...picked[0]], picked[1]] : picked,
-    format ?? { id: '', name: '', minPlayers: 1, maxPlayers: 11 },
-  );
-  const withoutMe = (next: Lineup): Lineup => (me ? removePlayer(next, me.id) : next);
+  const sport = sports.find((s) => s.id === chosenSportId) ?? sports.find((s) => s.id === primarySportId) ?? sports[0] ?? null;
+  const format = sport?.formats.find((f) => f.code === formatCode) ?? sport?.formats[0] ?? null;
+  const ruleset = sport?.rulesets.find((r) => r.id === rulesetId) ?? sport?.rulesets.find((r) => r.isDefault) ?? sport?.rulesets[0] ?? null;
+  const lineup: Lineup = fitToFormat(me ? [[me, ...picked[0]!], picked[1]!] : picked, format ?? { maxPerSide: 11 });
+  const withoutMe = (next: Lineup): Lineup => (me ? removePlayer(next, me.key) : next);
 
   function selectSport(id: string) {
     setChosenSportId(id);
-    setFormatId(null);
-    setOptionChanges({});
+    setFormatCode(null);
+    setRulesetId(null);
     setSearchSide(null);
   }
 
-  function selectFormat(id: string) {
-    const next = sport?.formats.find((f) => f.id === id);
+  function selectFormat(code: string) {
+    const next = sport?.formats.find((f) => f.code === code);
     if (!next) return;
-    setFormatId(id);
-    setPicked((prev) => withoutMe(fitToFormat(me ? [[me, ...prev[0]], prev[1]] : prev, next)));
+    setFormatCode(code);
+    setPicked((prev) => withoutMe(fitToFormat(me ? [[me, ...prev[0]!], prev[1]!] : prev, next)));
   }
 
-  function setOption(key: keyof MatchOptions, value: number) {
-    setOptionChanges((prev) => ({ ...prev, [key]: value }));
-  }
-
-  const problem = format ? lineupProblem(lineup, format) : 'Pick a sport';
-  const teamFormat = (format?.maxPlayers ?? 0) > 2;
+  const scores = manual ? parseScores(scoreText) : null;
+  const problem = !format
+    ? 'Pick a sport'
+    : (lineupProblem(lineup, format) ?? (manual && !scores ? 'Enter the score of each game or set, e.g. 21-15, 18-21, 21-19' : null));
 
   async function startMatch() {
-    if (!sport || !format || problem) return;
+    if (!sport || !format || !ruleset || problem) return;
     let createdId: string | null = null;
     const ok = await start.submit(async () => {
       const { match } = await matchApi.create({
-        sportId: sport.sport.id,
-        formatId: format.id,
-        sides: [0, 1].map((i) => ({
-          ...(teamFormat && teamNames[i]!.trim() ? { name: teamNames[i]!.trim() } : {}),
-          playerIds: lineup[i]!.map((p) => p.id),
-        })) as [{ playerIds: string[] }, { playerIds: string[] }],
-        options,
+        sport: sport.slug,
+        format: format.code,
+        rulesetId: ruleset.id,
+        sides: lineup.map((players) => ({ players: players.map((p) => p.input) })),
+        ...(manual && scores ? { manualScores: scores } : {}),
       });
       createdId = match.id;
     });
     if (ok && createdId) {
       setPicked([[], []]);
-      setTeamNames(['', '']);
+      setScoreText('');
       router.push({ pathname: '/match/[id]', params: { id: createdId } });
     }
   }
 
   const myLive = live.matches.filter((m) => m.mine);
-  const battingOptions = [
-    { label: teamNames[0].trim() || 'Your side', value: 1 as Side },
-    { label: teamNames[1].trim() || 'Opponents', value: 2 as Side },
-  ];
 
   return (
-    <Screen edges={['top']} header={<TopBar title="New match" back={false} />}>
-      <Text style={[typography.subtitle, styles.header, { color: colors.textMuted }]}>Score a friendly match, point by point.</Text>
+    <Screen edges={['top']} header={<TopBar title="Play" back={false} />}>
+      <Text style={[typography.subtitle, styles.header, { color: colors.textMuted }]}>Score a friendly point by point, or run a tournament.</Text>
+
+      <Pressable
+        onPress={() => router.push('/tournaments')}
+        accessibilityRole="button"
+        style={({ pressed }) => [styles.tournaments, { backgroundColor: colors.surface, borderColor: colors.surfaceBorder, opacity: pressed ? 0.8 : 1 }]}
+      >
+        <Feather name="award" size={20} color={colors.primary} />
+        <View style={styles.flex}>
+          <Text style={[styles.tournamentsTitle, { color: colors.text }]}>Tournaments</Text>
+          <Text style={[typography.caption, { color: colors.textMuted }]}>Organize one, score your court, or follow the draw</Text>
+        </View>
+        <Feather name="chevron-right" size={20} color={colors.icon} />
+      </Pressable>
 
       {myLive.length ? (
         <View style={styles.section}>
@@ -131,21 +138,20 @@ export default function PlayScreen() {
         <SectionHeader title="Sport" />
         {setupState.submitting && !sports.length ? <ActivityIndicator color={colors.primary} /> : null}
         <FormMessage message={setupState.formError} />
-        <SportGrid sports={sports} selectedId={sport?.sport.id ?? null} onSelect={selectSport} />
-        {sport ? (
-          <Text style={[typography.caption, styles.rules, { color: colors.textMuted }]}>{rulesSummary(sport.defaults)} by default</Text>
-        ) : null}
+        <SportGrid sports={sports} selectedId={sport?.id ?? null} onSelect={selectSport} />
       </View>
+
+      {sport && sport.rulesets.length > 1 ? (
+        <View style={styles.section}>
+          <SectionHeader title="Rules" />
+          <ChoiceChips accessibilityLabel="Rules" options={sport.rulesets.map((r) => ({ label: r.name, value: r.id }))} value={ruleset?.id} onChange={setRulesetId} />
+        </View>
+      ) : null}
 
       {sport && sport.formats.length > 1 ? (
         <View style={styles.section}>
           <SectionHeader title="Format" />
-          <ChoiceChips
-            accessibilityLabel="Format"
-            options={sport.formats.map((f) => ({ label: f.name, value: f.id }))}
-            value={format?.id}
-            onChange={selectFormat}
-          />
+          <ChoiceChips accessibilityLabel="Format" options={sport.formats.map((f) => ({ label: f.name, value: f.code }))} value={format?.code} onChange={selectFormat} />
         </View>
       ) : null}
 
@@ -153,84 +159,62 @@ export default function PlayScreen() {
         <View style={styles.section}>
           <SectionHeader title="Players" />
           <View style={styles.list}>
-            {([1, 2] as const).map((side) => (
+            {[0, 1].map((side) => (
               <SideEditor
                 key={side}
-                title={side === 1 ? 'Your side' : 'Opponents'}
-                players={lineup[side - 1]!}
-                maxPlayers={format.maxPlayers}
-                teamName={
-                  teamFormat
-                    ? {
-                        value: teamNames[side - 1]!,
-                        placeholder: side === 1 ? 'Team name (optional)' : 'Opponent team name (optional)',
-                        onChange: (name) => setTeamNames((prev) => (side === 1 ? [name, prev[1]] : [prev[0], name])),
-                      }
-                    : undefined
-                }
-                lockedPlayerId={me?.id}
+                title={side === 0 ? 'Your side' : 'Opponents'}
+                players={lineup[side]!}
+                maxPlayers={format.maxPerSide}
+                lockedKey={me?.key}
                 searching={searchSide === side}
-                excludeIds={lineupIds(lineup)}
+                excludeKeys={lineupKeys(lineup)}
                 onToggleSearch={() => setSearchSide((prev) => (prev === side ? null : side))}
                 onAdd={(player) => {
-                  const next = addPlayer(lineup, side, player, format.maxPlayers);
+                  const next = addPlayer(lineup, side, player, format.maxPerSide);
                   setPicked(withoutMe(next));
-                  if (next[side - 1]!.length >= format.maxPlayers) setSearchSide(null);
+                  if (next[side]!.length >= format.maxPerSide) setSearchSide(null);
                 }}
-                onRemove={(playerId) => setPicked((prev) => removePlayer(prev, playerId))}
+                onRemove={(key) => setPicked((prev) => removePlayer(prev, key))}
               />
             ))}
           </View>
-          {teamFormat ? (
-            <Text style={[typography.caption, styles.rules, { color: colors.textMuted }]}>
-              Only players on ProjectX can be added. For a team game, adding just the captains is enough.
-            </Text>
-          ) : null}
         </View>
       ) : null}
 
-      {sport ? (
+      {format ? (
         <View style={styles.section}>
-          <SectionHeader title="Rules" />
-          <View style={styles.list}>
-            {optionChoices(sport.defaults).map((choice) => (
-              <View key={choice.key} style={styles.option}>
-                <Text style={[typography.caption, { color: colors.textMuted }]}>{choice.label}</Text>
-                <ChoiceChips
-                  accessibilityLabel={choice.label}
-                  options={choice.values.map((value) => ({ label: String(value), value }))}
-                  value={options[choice.key] as number | undefined}
-                  onChange={(value) => setOption(choice.key, value)}
-                />
-              </View>
-            ))}
-            {sport.kind === 'overs' ? (
-              <View style={styles.option}>
-                <Text style={[typography.caption, { color: colors.textMuted }]}>Batting first</Text>
-                <ChoiceChips
-                  accessibilityLabel="Batting first"
-                  options={battingOptions}
-                  value={options.battingFirst}
-                  onChange={(value) => setOption('battingFirst', value)}
-                />
-              </View>
-            ) : null}
-          </View>
+          <ChoiceChips
+            accessibilityLabel="Scoring"
+            options={[
+              { label: 'Score live', value: 'live' },
+              { label: 'Enter result', value: 'manual' },
+            ]}
+            value={manual ? 'manual' : 'live'}
+            onChange={(v) => setManual(v === 'manual')}
+          />
+          {manual ? (
+            <View style={styles.manual}>
+              <TextField icon="edit-3" placeholder="e.g. 21-15, 18-21, 21-19 (your side first)" value={scoreText} onChangeText={setScoreText} autoCorrect={false} />
+              <Text style={[typography.caption, { color: colors.textMuted }]}>Results entered afterwards count towards ratings once a registered opponent confirms them.</Text>
+            </View>
+          ) : null}
         </View>
       ) : null}
 
       <FormMessage message={start.formError ?? Object.values(start.serverFieldErrors)[0] ?? null} />
       {problem && format ? <Text style={[typography.caption, styles.problem, { color: colors.textMuted }]}>{problem}</Text> : null}
-      <PrimaryButton title="Start match" onPress={() => void startMatch()} loading={start.submitting} disabled={Boolean(problem)} />
+      <PrimaryButton title={manual ? 'Save result' : 'Start match'} onPress={() => void startMatch()} loading={start.submitting} disabled={Boolean(problem)} />
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  header: { paddingTop: spacing.lg, marginBottom: spacing.xl },
+  header: { paddingTop: spacing.lg, marginBottom: spacing.lg },
   section: { marginBottom: spacing.xl },
   list: { gap: spacing.md },
-  rules: { marginTop: spacing.sm },
-  option: { gap: spacing.sm },
+  flex: { flex: 1 },
+  manual: { gap: spacing.sm, marginTop: spacing.md },
   problem: { textAlign: 'center', marginBottom: spacing.sm, marginTop: spacing.sm },
+  tournaments: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, borderWidth: 1, borderRadius: 16, padding: spacing.lg, marginBottom: spacing.xl },
+  tournamentsTitle: { fontSize: 16, fontWeight: '700' },
 });

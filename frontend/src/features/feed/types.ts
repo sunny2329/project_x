@@ -14,17 +14,18 @@ export interface FeedPost {
 /** Mirrors FeedMatch in backend/src/modules/feed/feed.repository.ts. */
 export interface FeedMatch {
   id: string;
-  sport: { code: string; name: string };
-  /** "Singles", "Doubles", "Team". */
+  context: 'friendly' | 'tournament';
+  sport: { id: string; slug: string; name: string; iconKey: string; accentColor: string };
+  /** "Singles", "Doubles". */
   format: string | null;
   durationSeconds: number | null;
   result: {
-    summary: string;
-    /** 1 or 2; null on a draw. */
-    winnerSide: 1 | 2 | null;
-    sides: { no: 1 | 2; name: string; headline: number }[];
-    /** Games, sets, halves or innings played. */
-    periodCount: number;
+    headline: string;
+    winnerSideIndex: number | null;
+    resultType: string | null;
+    sides: { index: number; name: string; primary: string }[];
+    /** Games or sets played. */
+    segmentCount: number;
   } | null;
 }
 

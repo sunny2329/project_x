@@ -2,20 +2,20 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { radius, spacing, useTheme } from '@/shared/theme';
 import { sportIcon } from '../format';
-import type { SportSetup } from '../types';
+import type { SportSummary } from '../types';
 
 interface SportGridProps {
-  sports: SportSetup[];
+  sports: SportSummary[];
   selectedId: string | null;
   onSelect: (sportId: string) => void;
 }
 
-/** The six sports as a 3-column grid of icon tiles. */
+/** The active sports as a 3-column grid of icon tiles. */
 export function SportGrid({ sports, selectedId, onSelect }: SportGridProps) {
   const { colors } = useTheme();
   return (
     <View style={styles.grid}>
-      {sports.map(({ sport }) => {
+      {sports.map((sport) => {
         const selected = sport.id === selectedId;
         return (
           <Pressable
@@ -32,7 +32,7 @@ export function SportGrid({ sports, selectedId, onSelect }: SportGridProps) {
               },
             ]}
           >
-            <MaterialCommunityIcons name={sportIcon(sport.code)} size={28} color={selected ? colors.primary : colors.icon} />
+            <MaterialCommunityIcons name={sportIcon(sport)} size={28} color={selected ? colors.primary : sport.accentColor} />
             <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>
               {sport.name}
             </Text>

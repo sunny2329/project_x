@@ -1,97 +1,73 @@
-import { chaseText, defaultOptions, formatClock, resultText, rulesSummary, sideScore } from '../format';
-import { addPlayer, fitToFormat, lineupProblem, removePlayer, type Lineup } from '../lineup';
-import type { OversConfig } from '../types';
-import { matchDetail, scoreView } from './fixtures';
+import { newClientEventId, parseScores, playedSegments, resultText, sportIcon, statusLabel } from '../format';
+import { addPlayer, fitToFormat, fromOption, lineupProblem, newGuest, removePlayer, type Lineup } from '../lineup';
+import { matchView, scoreSummary } from './fixtures';
 
-const cricket: OversConfig = { kind: 'overs', overs: 6, ballsPerOver: 6, wickets: 5, wideRuns: 1, noBallRuns: 1, battingFirst: 1 };
-
-describe('rulesSummary', () => {
-  it('describes each kind of scoring', () => {
-    expect(rulesSummary({ kind: 'rally', periodName: 'Game', pointsToWin: 21, winBy: 2, cap: 30, bestOf: 3, decidingPoints: null })).toBe(
-      'Best of 3 · games to 21, cap 30',
-    );
-    expect(rulesSummary({ kind: 'rally', periodName: 'Set', pointsToWin: 25, winBy: 2, cap: null, bestOf: 1, decidingPoints: 15 })).toBe(
-      '1 set · sets to 25 (decider to 15)',
-    );
-    expect(rulesSummary({ kind: 'timed_goals', periods: 2, periodMinutes: 20 })).toBe('2 × 20 min');
-    expect(rulesSummary(cricket)).toBe('6 overs · 5 wickets');
+describe('format', () => {
+  it('uses the icon key the sport carries', () => {
+    expect(sportIcon({ iconKey: 'tennis' })).toBe('tennis');
+    expect(sportIcon(null)).toBe('trophy-outline');
   });
 
-  it('takes default options from the rules', () => {
-    expect(defaultOptions(cricket)).toEqual({ overs: 6, wickets: 5, battingFirst: 1 });
-  });
-});
-
-describe('scores', () => {
-  it('shows the current game while live and games won when finished', () => {
-    const period = { no: 2, label: 'Game 2', score: [7, 5] as [number, number], winner: null, finished: false };
-    expect(sideScore(scoreView({ currentPeriod: period, headline: [1, 0] }), 1)).toEqual({ main: '7', sub: 'Games 1' });
-    expect(sideScore(scoreView({ finished: true, winner: 1, headline: [2, 0] }), 1)).toEqual({ main: '2', sub: 'Games' });
+  it('describes a decided match, including walkovers and retirements', () => {
+    const won = matchView({ status: 'completed', resultType: 'played', score: scoreSummary({ complete: true, winnerSideIndex: 1 }) });
+    expect(resultText(won)).toBe('Rohan won');
+    expect(resultText({ ...won, resultType: 'no_show' })).toBe('Rohan won (no-show)');
+    expect(resultText({ ...won, resultType: 'retired' })).toBe('Rohan won (retired)');
+    expect(resultText({ ...won, resultType: 'double_walkover', score: { ...won.score, winnerSideIndex: null } })).toBe('Double walkover');
+    expect(statusLabel('walkover')).toBe('W/O');
   });
 
-  it('shows runs/wickets, or yet to bat, in cricket', () => {
-    const score = scoreView({
-      kind: 'overs',
-      cricket: {
-        battingSide: 1,
-        innings: [{ battingSide: 1, runs: 34, wickets: 2, legalBalls: 22, overs: '3.4', extras: 1, finished: false }],
-        target: null,
-        thisOver: ['1', '4'],
-      },
-    });
-    expect(sideScore(score, 1)).toEqual({ main: '34/2', sub: '3.4 ov' });
-    expect(sideScore(score, 2)).toEqual({ main: '–', sub: 'Yet to bat' });
+  it('keeps only segments that have started', () => {
+    const segments = [...scoreSummary().segments, { type: 'game', sequence: 3, label: 'Game 3', scores: [0, 0], display: ['0', '0'], winnerSideIndex: null, complete: false, children: [] }];
+    expect(playedSegments(segments).map((s) => s.sequence)).toEqual([1, 2]);
   });
 
-  it('describes the chase and the result', () => {
-    const chasing = matchDetail({
-      config: cricket,
-      score: scoreView({
-        kind: 'overs',
-        cricket: {
-          battingSide: 2,
-          innings: [
-            { battingSide: 1, runs: 40, wickets: 5, legalBalls: 30, overs: '5.0', extras: 0, finished: true },
-            { battingSide: 2, runs: 30, wickets: 1, legalBalls: 27, overs: '4.3', extras: 0, finished: false },
-          ],
-          target: 41,
-          thisOver: [],
-        },
-      }),
-    });
-    expect(chaseText(chasing)).toBe('Needs 11 from 9 balls');
-    expect(resultText(matchDetail())).toBeNull();
-    expect(resultText(matchDetail({ score: scoreView({ finished: true, winner: 2 }) }))).toBe('Rohan won');
-    expect(resultText(matchDetail({ score: scoreView({ kind: 'overs', finished: true, winner: null }) }))).toBe('Tied');
+  it('parses typed-in scores', () => {
+    expect(parseScores('21-15, 18-21 21–19')).toEqual([
+      [21, 15],
+      [18, 21],
+      [21, 19],
+    ]);
+    expect(parseScores('6-4; 7:6')).toEqual([
+      [6, 4],
+      [7, 6],
+    ]);
+    expect(parseScores('21')).toBeNull();
+    expect(parseScores('')).toBeNull();
   });
 
-  it('formats the match clock', () => {
-    expect(formatClock(65_000)).toBe('1:05');
-    expect(formatClock(61 * 60_000)).toBe('61:00');
-    expect(formatClock(-5)).toBe('0:00');
+  it('makes v4-shaped client event ids', () => {
+    expect(newClientEventId()).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    expect(newClientEventId()).not.toBe(newClientEventId());
   });
 });
 
 describe('lineup', () => {
-  const me = { id: 'u1', username: 'me', fullName: 'Me' };
-  const a = { id: 'u2', username: 'a', fullName: 'A' };
-  const b = { id: 'u3', username: 'b', fullName: 'B' };
-  const doubles = { id: 'f', name: 'Doubles', minPlayers: 2, maxPlayers: 2 };
-  const singles = { id: 'f', name: 'Singles', minPlayers: 1, maxPlayers: 1 };
+  const me = fromOption({ playerId: 'p1', userId: 'u1', username: 'me', displayName: 'Me', isGuest: false });
+  const a = fromOption({ playerId: null, userId: 'u2', username: 'a', displayName: 'A', isGuest: false });
+  const guest = newGuest('Dev', '+919812345678');
+  const doubles = { minPerSide: 2, maxPerSide: 2 };
+  const singles = { minPerSide: 1, maxPerSide: 1 };
+
+  it('turns search results and guests into participant inputs', () => {
+    expect(me.input).toEqual({ playerId: 'p1' });
+    expect(a.input).toEqual({ userId: 'u2' });
+    expect(guest).toMatchObject({ isGuest: true, userId: null, input: { guest: { displayName: 'Dev', phone: '+919812345678' } } });
+  });
 
   it('adds each player once and respects the side size', () => {
     let lineup: Lineup = [[me], []];
-    lineup = addPlayer(lineup, 2, a, 1);
-    expect(addPlayer(lineup, 1, a, 2)).toBe(lineup);
-    expect(addPlayer(lineup, 2, b, 1)).toBe(lineup);
-    expect(removePlayer(lineup, 'u2')).toEqual([[me], []]);
+    lineup = addPlayer(lineup, 1, a, 1);
+    expect(addPlayer(lineup, 0, a, 2)).toBe(lineup);
+    expect(addPlayer(lineup, 1, guest, 1)).toBe(lineup);
+    expect(removePlayer(lineup, a.key)).toEqual([[me], []]);
   });
 
   it('says what is missing and trims when the format shrinks', () => {
-    const lineup: Lineup = [[me, a], [b]];
+    const lineup: Lineup = [[me, a], [guest]];
     expect(lineupProblem(lineup, doubles)).toBe('Add 1 more player to the other side');
     expect(lineupProblem([[me], []], singles)).toBe('Add 1 more player to the other side');
-    expect(fitToFormat(lineup, singles)).toEqual([[me], [b]]);
+    expect(fitToFormat(lineup, singles)).toEqual([[me], [guest]]);
     expect(lineupProblem(fitToFormat(lineup, singles), singles)).toBeNull();
   });
 });

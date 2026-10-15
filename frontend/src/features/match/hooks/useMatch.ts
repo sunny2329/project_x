@@ -2,12 +2,13 @@ import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError } from '@/shared/api/client';
 import { matchApi } from '../api/match.api';
-import type { MatchDetail, ScoreEvent } from '../types';
+import { newClientEventId } from '../format';
+import type { MatchView, PluginEvent } from '../types';
 
 /** How often a spectator's screen refreshes a live match. */
 const WATCH_INTERVAL_MS = 4_000;
 /** Errors after which the screen should show the server's latest score. */
-const RELOAD_ON = new Set(['STALE_MATCH', 'MATCH_OVER', 'MATCH_NOT_LIVE', 'MATCH_NOT_FINISHED']);
+const RELOAD_ON = new Set(['STALE_MATCH', 'MATCH_OVER', 'MATCH_NOT_LIVE', 'MATCH_NOT_FINISHED', 'NOT_PENDING']);
 
 function messageOf(error: unknown): string {
   return error instanceof ApiError ? error.message : 'Something went wrong. Please try again.';
@@ -15,15 +16,15 @@ function messageOf(error: unknown): string {
 
 /**
  * Loads a match and exposes the scorer's actions. Actions run one at a time (a second tap while
- * one is in flight is ignored) and send the version the scorer saw, so nothing is counted twice.
- * Spectators get the live score by polling while the screen is focused.
+ * one is in flight is ignored), send the version the scorer saw and a client event id, so
+ * nothing is ever counted twice. Spectators poll while the screen is focused.
  */
 export function useMatch(id: string) {
-  const [match, setMatch] = useState<MatchDetail | null>(null);
+  const [match, setMatch] = useState<MatchView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
-  const matchRef = useRef<MatchDetail | null>(null);
+  const matchRef = useRef<MatchView | null>(null);
   useEffect(() => {
     matchRef.current = match;
   }, [match]);
@@ -39,13 +40,13 @@ export function useMatch(id: string) {
   }, [id]);
 
   const run = useCallback(
-    async (action: (version: number) => Promise<{ match: MatchDetail }>): Promise<boolean> => {
+    async (action: (current: MatchView) => Promise<{ match: MatchView }>): Promise<boolean> => {
       const current = matchRef.current;
       if (!current || busyRef.current) return false;
       busyRef.current = true;
       setBusy(true);
       try {
-        const response = await action(current.version);
+        const response = await action(current);
         setMatch(response.match);
         setError(null);
         return true;
@@ -92,9 +93,11 @@ export function useMatch(id: string) {
     error,
     busy,
     reload: load,
-    score: (event: ScoreEvent) => run((version) => matchApi.score(id, event, version)),
-    undo: () => run((version) => matchApi.undo(id, version)),
-    finish: () => run((version) => matchApi.finish(id, version)),
+    score: (event: PluginEvent) => run((m) => matchApi.score(id, event, m.version, newClientEventId())),
+    undo: () => run((m) => matchApi.undo(id, m.version)),
+    complete: () => run((m) => matchApi.complete(id, m.version)),
+    retire: (retiredSideIndex: number) => run((m) => matchApi.retire(id, m.version, retiredSideIndex)),
     abandon: () => run(() => matchApi.abandon(id)),
+    confirm: (decision: 'confirmed' | 'disputed', comment?: string) => run(() => matchApi.confirm(id, decision, comment)),
   };
 }

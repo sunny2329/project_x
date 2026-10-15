@@ -1,30 +1,37 @@
 import { apiRequest } from '@/shared/api/client';
-import type { MatchCard, MatchDetail, NewMatch, PlayerSummary, ScoreEvent, SportSetup } from '../types';
+import { env } from '@/shared/config/env';
+import type { MatchCard, MatchView, NewMatch, PlayerOption, PlayerRef, PluginEvent, SportSummary } from '../types';
 
-type MatchResponse = { match: MatchDetail };
+type MatchResponse = { match: MatchView };
+const auth = { authenticated: true } as const;
+const post = (body?: unknown) => ({ method: 'POST' as const, body, authenticated: true });
 
 /** One function per backend endpoint; see wiki.md "Match API". */
 export const matchApi = {
-  setup: () => apiRequest<{ sports: SportSetup[] }>('/api/v1/matches/setup', { authenticated: true }),
+  sports: () => apiRequest<{ sports: SportSummary[] }>('/api/v1/sports', auth),
+  live: () => apiRequest<{ matches: MatchCard[] }>('/api/v1/matches/live', auth),
+  pendingConfirmations: () => apiRequest<{ matches: MatchCard[] }>('/api/v1/matches/pending-confirmations', auth),
+  create: (match: NewMatch) => apiRequest<MatchResponse>('/api/v1/matches', post(match)),
+  get: (id: string) => apiRequest<MatchResponse>(`/api/v1/matches/${id}`, auth),
 
-  live: () => apiRequest<{ matches: MatchCard[] }>('/api/v1/matches/live', { authenticated: true }),
+  /** `version` is the version the scorer is looking at; `clientEventId` makes a retry harmless. */
+  score: (id: string, event: PluginEvent, version: number, clientEventId: string) =>
+    apiRequest<MatchResponse>(`/api/v1/matches/${id}/events`, post({ event, version, clientEventId })),
+  undo: (id: string, version: number) => apiRequest<MatchResponse>(`/api/v1/matches/${id}/undo`, post({ version })),
+  complete: (id: string, version: number) => apiRequest<MatchResponse>(`/api/v1/matches/${id}/complete`, post({ version })),
+  retire: (id: string, version: number, retiredSideIndex: number) =>
+    apiRequest<MatchResponse>(`/api/v1/matches/${id}/retire`, post({ version, retiredSideIndex })),
+  abandon: (id: string) => apiRequest<MatchResponse>(`/api/v1/matches/${id}/abandon`, post()),
+  confirm: (id: string, decision: 'confirmed' | 'disputed', comment?: string) =>
+    apiRequest<MatchResponse>(`/api/v1/matches/${id}/confirm`, post({ decision, ...(comment ? { comment } : {}) })),
 
-  create: (match: NewMatch) => apiRequest<MatchResponse>('/api/v1/matches', { method: 'POST', body: match, authenticated: true }),
-
-  get: (id: string) => apiRequest<MatchResponse>(`/api/v1/matches/${id}`, { authenticated: true }),
-
-  /** `version` is the match version the scorer is looking at; a stale one is rejected (STALE_MATCH). */
-  score: (id: string, event: ScoreEvent, version: number) =>
-    apiRequest<MatchResponse>(`/api/v1/matches/${id}/events`, { method: 'POST', body: { ...event, version }, authenticated: true }),
-
-  undo: (id: string, version: number) =>
-    apiRequest<MatchResponse>(`/api/v1/matches/${id}/undo`, { method: 'POST', body: { version }, authenticated: true }),
-
-  finish: (id: string, version: number) =>
-    apiRequest<MatchResponse>(`/api/v1/matches/${id}/finish`, { method: 'POST', body: { version }, authenticated: true }),
-
-  abandon: (id: string) => apiRequest<MatchResponse>(`/api/v1/matches/${id}/abandon`, { method: 'POST', authenticated: true }),
-
-  searchPlayers: (query: string) =>
-    apiRequest<{ players: PlayerSummary[] }>(`/api/v1/players?q=${encodeURIComponent(query)}`, { authenticated: true }),
+  searchPlayers: (query: string) => apiRequest<{ players: PlayerOption[] }>(`/api/v1/players?q=${encodeURIComponent(query)}`, auth),
+  recentGuests: () => apiRequest<{ players: PlayerRef[] }>('/api/v1/players/guests', auth),
+  me: () => apiRequest<{ player: PlayerRef }>('/api/v1/players/me', auth),
+  claimGuests: () => apiRequest<{ claimed: number }>('/api/v1/players/claim', post()),
 };
+
+/** The read-only live scoreboard link anyone can open without the app. */
+export function shareUrl(match: Pick<MatchView, 'shareToken'>): string {
+  return `${env.apiUrl}/s/${match.shareToken}`;
+}

@@ -19,18 +19,15 @@ interface PostCardProps {
   commentCount?: number;
 }
 
-/** What one period is called in each sport, for the stats row. */
-const PERIOD_LABELS: Record<string, string> = { VOLLEYBALL: 'Sets', FOOTBALL: 'Halves', BOX_CRICKET: 'Innings' };
-
 function matchStats(match: FeedMatch): { label: string; value: string }[] {
   const stats: { label: string; value: string }[] = [];
   const result = match.result;
   if (result && result.sides.length === 2) {
-    const [a, b] = [...result.sides].sort((x, y) => x.no - y.no);
-    stats.push({ label: match.sport.code === 'BOX_CRICKET' ? 'Runs' : 'Score', value: `${a!.headline}–${b!.headline}` });
+    const [a, b] = [...result.sides].sort((x, y) => x.index - y.index);
+    stats.push({ label: 'Score', value: `${a!.primary}–${b!.primary}` });
   }
   if (match.durationSeconds !== null) stats.push({ label: 'Time', value: formatDuration(match.durationSeconds) });
-  if (result && result.periodCount > 0) stats.push({ label: PERIOD_LABELS[match.sport.code] ?? 'Games', value: String(result.periodCount) });
+  if (result && result.segmentCount > 0) stats.push({ label: 'Played', value: result.headline });
   return stats;
 }
 
@@ -69,7 +66,7 @@ export function PostCard({ post, standalone = false, commentCount }: PostCardPro
           </Text>
           <View style={styles.detailRow}>
             <MaterialCommunityIcons
-              name={match ? sportIcon(match.sport.code) : 'pencil-outline'}
+              name={match ? sportIcon(match.sport) : 'pencil-outline'}
               size={14}
               color={colors.textMuted}
             />

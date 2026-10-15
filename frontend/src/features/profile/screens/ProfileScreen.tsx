@@ -118,7 +118,7 @@ export default function ProfileScreen() {
               headline={{
                 label: `${sport.name} rating`,
                 value: String(Math.round(sport.rating)),
-                caption: 'Elo · everyone starts at 1000',
+                caption: sport.ratedMatches ? `Elo · ${sport.ratedMatches} rated match${sport.ratedMatches === 1 ? '' : 'es'}` : 'Elo · everyone starts at 1000',
                 badge: sport.isPrimary ? 'Primary' : undefined,
               }}
               tiles={[
@@ -126,8 +126,8 @@ export default function ProfileScreen() {
                 { label: 'Won', value: String(sport.matchesWon) },
                 { label: 'Win %', value: winRate(sport.matchesWon, sport.matchesPlayed) },
                 { label: 'Lost', value: String(sport.matchesLost) },
-                { label: 'Scored', value: String(sport.pointsScored) },
-                { label: 'Conceded', value: String(sport.pointsConceded) },
+                { label: 'Games won', value: String(sport.majorWon), hint: `${sport.majorLost} lost` },
+                { label: 'Points won', value: String(sport.minorWon), hint: `${sport.minorLost} lost` },
               ]}
             />
           ) : (

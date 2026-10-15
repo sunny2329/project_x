@@ -3,7 +3,7 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { PlayerSearch } from '@/features/match/components/PlayerSearch';
-import type { PlayerSummary } from '@/features/match/types';
+import type { LineupPlayer } from '@/features/match/lineup';
 import { FormMessage, PrimaryButton, Screen, TextField, TopBar } from '@/shared/components';
 import { useSubmit } from '@/shared/hooks/useSubmit';
 import { radius, spacing, typography, useTheme } from '@/shared/theme';
@@ -12,7 +12,7 @@ import { chatApi } from '../api/chat.api';
 /** Pick one player for a direct conversation, or several (plus a name) for a group. */
 export default function NewConversationScreen() {
   const { colors } = useTheme();
-  const [picked, setPicked] = useState<PlayerSummary[]>([]);
+  const [picked, setPicked] = useState<LineupPlayer[]>([]);
   const [groupName, setGroupName] = useState('');
   const { submitting, formError, serverFieldErrors, submit } = useSubmit();
   const group = picked.length > 1;
@@ -21,7 +21,7 @@ export default function NewConversationScreen() {
     let conversationId: string | null = null;
     const ok = await submit(async () => {
       const { conversation } = await chatApi.create(
-        picked.map((p) => p.id),
+        picked.map((p) => p.userId!),
         group ? groupName.trim() : undefined,
       );
       conversationId = conversation.id;
@@ -38,13 +38,13 @@ export default function NewConversationScreen() {
           <View style={styles.chips}>
             {picked.map((player) => (
               <Pressable
-                key={player.id}
-                onPress={() => setPicked((prev) => prev.filter((p) => p.id !== player.id))}
+                key={player.key}
+                onPress={() => setPicked((prev) => prev.filter((p) => p.key !== player.key))}
                 accessibilityRole="button"
-                accessibilityLabel={`Remove ${player.fullName}`}
+                accessibilityLabel={`Remove ${player.displayName}`}
                 style={[styles.chip, { backgroundColor: colors.primarySoft }]}
               >
-                <Text style={[styles.chipText, { color: colors.primary }]}>{player.fullName}</Text>
+                <Text style={[styles.chipText, { color: colors.primary }]}>{player.displayName}</Text>
                 <Feather name="x" size={14} color={colors.primary} />
               </Pressable>
             ))}
@@ -63,8 +63,9 @@ export default function NewConversationScreen() {
         ) : null}
 
         <PlayerSearch
-          excludeIds={picked.map((p) => p.id)}
+          excludeKeys={picked.map((p) => p.key)}
           onPick={(player) => setPicked((prev) => [...prev, player])}
+          registeredOnly
           emptyText="No players found."
         />
 

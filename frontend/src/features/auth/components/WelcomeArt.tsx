@@ -97,9 +97,9 @@ function FeedArt() {
 
 function RatingsArt() {
   const sports = [
-    { code: 'PICKLEBALL', name: 'Pickleball', rating: 1064, change: '+16' },
-    { code: 'BADMINTON', name: 'Badminton', rating: 1012, change: '+8' },
-    { code: 'FOOTBALL', name: 'Football', rating: 998, change: '−4' },
+    { code: 'pickleball', iconKey: 'racquetball', name: 'Pickleball', rating: 1064, change: '+16' },
+    { code: 'badminton', iconKey: 'badminton', name: 'Badminton', rating: 1012, change: '+8' },
+    { code: 'tennis', iconKey: 'tennis', name: 'Tennis', rating: 998, change: '−4' },
   ];
   return (
     <View style={styles.body}>
@@ -107,7 +107,7 @@ function RatingsArt() {
       {sports.map((sport, index) => (
         <View key={sport.code} style={[styles.scoreRow, index > 0 && styles.dividedTop]}>
           <View style={styles.sportIcon}>
-            <MaterialCommunityIcons name={sportIcon(sport.code)} size={16} color={ORANGE} />
+            <MaterialCommunityIcons name={sportIcon(sport)} size={16} color={ORANGE} />
           </View>
           <Text style={[styles.name, styles.flex]}>{sport.name}</Text>
           <Text style={styles.rating}>{sport.rating}</Text>

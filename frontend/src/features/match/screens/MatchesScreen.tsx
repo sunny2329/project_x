@@ -1,5 +1,7 @@
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
+import { matchApi } from '../api/match.api';
+import type { MatchCard } from '../types';
 import { StyleSheet, Text, View } from 'react-native';
 import { MatchRow } from '@/features/profile/components/MatchRow';
 import { useProfileStore } from '@/features/profile/store/profile.store';
@@ -11,7 +13,7 @@ import { useLiveMatches } from '../hooks/useLiveMatches';
 
 const ALL = 'ALL';
 
-/** Live matches (mine and of players I follow) and my match history, filterable by sport. */
+/** Results to confirm, live matches (mine and of players I follow) and my history, filterable by sport. */
 export default function MatchesScreen() {
   const { colors } = useTheme();
   const matches = useProfileStore((s) => s.matches);
@@ -20,10 +22,12 @@ export default function MatchesScreen() {
   const refreshLive = live.refresh;
   const { submitting: refreshing, formError: error, submit } = useSubmit();
   const [sport, setSport] = useState<string>(ALL);
+  const [pending, setPending] = useState<MatchCard[]>([]);
 
   const refresh = useCallback(() => {
     void submit(async () => {
-      await Promise.all([loadProfile(), refreshLive()]);
+      const [, , waiting] = await Promise.all([loadProfile(), refreshLive(), matchApi.pendingConfirmations()]);
+      setPending(waiting.matches);
     });
   }, [submit, loadProfile, refreshLive]);
 
@@ -31,12 +35,12 @@ export default function MatchesScreen() {
 
   // Only the sports that actually appear, in order of first appearance.
   const sportNames = new Map<string, string>();
-  for (const m of live.matches) sportNames.set(m.sport.code, m.sport.name);
-  for (const m of matches) sportNames.set(m.sport.code, m.sport.name);
+  for (const m of live.matches) sportNames.set(m.sport.slug, m.sport.name);
+  for (const m of matches) sportNames.set(m.sport.slug, m.sport.name);
   const filters = [{ label: 'All', value: ALL }, ...[...sportNames].map(([code, name]) => ({ label: name, value: code }))];
 
-  const liveShown = live.matches.filter((m) => sport === ALL || m.sport.code === sport);
-  const history = matches.filter((m) => m.outcome !== 'in_progress' && (sport === ALL || m.sport.code === sport));
+  const liveShown = live.matches.filter((m) => sport === ALL || m.sport.slug === sport);
+  const history = matches.filter((m) => m.outcome !== 'in_progress' && (sport === ALL || m.sport.slug === sport));
 
   return (
     <Screen edges={['top']} header={<TopBar title="Matches" back={false} />} onRefresh={refresh} refreshing={refreshing}>
@@ -44,6 +48,17 @@ export default function MatchesScreen() {
         <ChoiceChips accessibilityLabel="Sport" options={filters} value={sport} onChange={setSport} />
       </View>
       <FormMessage message={error} />
+
+      {pending.length ? (
+        <View style={styles.section}>
+          <SectionHeader title="Waiting for your confirmation" />
+          <View style={styles.list}>
+            {pending.map((match) => (
+              <LiveMatchCard key={match.id} match={match} action="Confirm or dispute the result" />
+            ))}
+          </View>
+        </View>
+      ) : null}
 
       {liveShown.length ? (
         <View style={styles.section}>

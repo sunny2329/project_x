@@ -38,7 +38,19 @@ describe('profile store', () => {
   it('loads the profile and match history together', async () => {
     api.me.mockResolvedValue({ profile: profile() });
     api.matches.mockResolvedValue({
-      matches: [{ matchId: 'm1', sport: { code: 'PICKLEBALL', name: 'Pickleball' }, playedAt: '2026-01-02T00:00:00.000Z', outcome: 'won', otherPlayers: ['Rival'], result: null }],
+      matches: [
+        {
+          matchId: 'm1',
+          context: 'friendly',
+          sport: { id: '1', slug: 'pickleball', name: 'Pickleball', iconKey: 'racquetball', accentColor: '#F97316' },
+          playedAt: '2026-01-02T00:00:00.000Z',
+          outcome: 'won',
+          resultType: 'played',
+          otherPlayers: ['Rival'],
+          headline: '11-7',
+          ratingChange: 12,
+        },
+      ],
     });
 
     await useProfileStore.getState().load();

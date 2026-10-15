@@ -6,7 +6,7 @@ import { radius, spacing, typography, useTheme, type Palette } from '@/shared/th
 import { formatRelativeTime } from '@/shared/utils/time';
 import type { MatchHistoryItem, MatchOutcome } from '../types';
 
-const OUTCOME_LABEL: Record<MatchOutcome, string> = { won: 'W', lost: 'L', draw: 'D', in_progress: 'LIVE' };
+const OUTCOME_LABEL: Record<MatchOutcome, string> = { won: 'W', lost: 'L', draw: 'D', in_progress: 'LIVE', disputed: '?' };
 
 function outcomeColors(outcome: MatchOutcome, colors: Palette): { fg: string; bg: string } {
   if (outcome === 'won') return { fg: colors.success, bg: colors.successSurface };
@@ -15,19 +15,13 @@ function outcomeColors(outcome: MatchOutcome, colors: Palette): { fg: string; bg
   return { fg: colors.textMuted, bg: colors.secondaryButton };
 }
 
-/** The saved score from the player's side ("11-7, 11-9"), if the result has one. */
-function scoreOf(result: unknown): string | null {
-  const summary = (result as { summary?: unknown } | null)?.summary;
-  return typeof summary === 'string' ? summary : null;
-}
-
 /** One line of match history: sport icon, sport, opponents and score, when, result badge. Opens the match on tap. */
 export function MatchRow({ match }: { match: MatchHistoryItem }) {
   const { colors } = useTheme();
   const outcome = outcomeColors(match.outcome, colors);
   const opponents = match.otherPlayers.length ? `vs ${match.otherPlayers.join(', ')}` : 'Solo match';
-  const score = scoreOf(match.result);
-  const accent = sportColor(match.sport.code);
+  const score = match.resultType === 'walkover' || match.resultType === 'no_show' ? 'W/O' : match.headline;
+  const accent = sportColor(match.sport);
 
   return (
     <Pressable
@@ -37,7 +31,7 @@ export function MatchRow({ match }: { match: MatchHistoryItem }) {
       style={({ pressed }) => [styles.row, { opacity: pressed ? 0.7 : 1 }]}
     >
       <View style={[styles.icon, { backgroundColor: `${accent}22` }]}>
-        <MaterialCommunityIcons name={sportIcon(match.sport.code)} size={20} color={accent} />
+        <MaterialCommunityIcons name={sportIcon(match.sport)} size={20} color={accent} />
       </View>
       <View style={styles.body}>
         <Text style={[styles.title, { color: colors.text }]} numberOfLines={1}>
