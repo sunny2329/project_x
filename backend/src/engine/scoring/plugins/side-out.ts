@@ -188,4 +188,8 @@ export const sideOutPlugin: ScoringPlugin<SideOutConfig, SideOutState, RallyWonE
     }
     return events;
   },
+  walkoverScore: (config) => {
+    const games = Math.ceil(config.bestOf / 2);
+    return { major: games, minor: games * config.pointsToWin };
+  },
 };

@@ -1,6 +1,6 @@
 import type { Queryable } from '../../database/pool.js';
 import { UserStatus } from '../auth/auth.types.js';
-import { PostVisibility } from '../match/match.codes.js';
+import { PostVisibility } from './post.codes.js';
 import { FollowStatus } from '../profile/profile.types.js';
 
 export interface FeedPost {
@@ -18,19 +18,21 @@ export interface FeedPost {
 
 export interface FeedMatch {
   id: string;
-  sport: { code: string; name: string };
-  /** "Singles", "Doubles", "Team". */
+  context: 'friendly' | 'tournament';
+  sport: { id: string; slug: string; name: string; iconKey: string; accentColor: string };
+  /** "Singles", "Doubles". */
   format: string | null;
   /** From start to the result being saved; null when either time is missing. */
   durationSeconds: number | null;
-  /** From match_result.result_data; null if the match has no saved result. */
+  /** From the match's ScoreSummary; null while it is not decided. */
   result: {
-    summary: string;
-    /** 1 or 2; null on a draw. */
-    winnerSide: 1 | 2 | null;
-    sides: { no: 1 | 2; name: string; headline: number }[];
-    /** Games, sets, halves or innings played. */
-    periodCount: number;
+    headline: string;
+    winnerSideIndex: number | null;
+    /** played / retired. */
+    resultType: string | null;
+    sides: { index: number; name: string; primary: string }[];
+    /** Games or sets played. */
+    segmentCount: number;
   } | null;
 }
 
@@ -46,15 +48,22 @@ export const POST_COLUMNS = `
   CASE WHEN m.id IS NULL THEN NULL
        ELSE json_build_object(
          'id', m.id,
-         'sport', json_build_object('code', s.code, 'name', s.name),
+         'context', m.context,
+         'sport', json_build_object('id', s.id::text, 'slug', s.slug, 'name', s.name, 'iconKey', s.icon_key, 'accentColor', s.accent_color),
          'format', f.name,
          'durationSeconds', CASE WHEN m.started_at IS NOT NULL AND m.completed_at IS NOT NULL
                                  THEN greatest(extract(epoch FROM m.completed_at - m.started_at), 0)::int END,
-         'result', CASE WHEN mr.id IS NULL THEN NULL ELSE json_build_object(
-           'summary', mr.result_data->>'summary',
-           'winnerSide', mr.result_data->'winnerSide',
-           'sides', coalesce(mr.result_data->'sides', '[]'::jsonb),
-           'periodCount', jsonb_array_length(coalesce(mr.result_data->'periods', '[]'::jsonb))) END) END AS match,
+         'result', CASE WHEN m.status NOT IN ('completed', 'retired', 'walkover') THEN NULL ELSE json_build_object(
+           'headline', m.summary->>'headline',
+           'winnerSideIndex', m.summary->'winnerSideIndex',
+           'resultType', m.result_type,
+           'sides', (SELECT coalesce(json_agg(json_build_object(
+                        'index', ms.side_index,
+                        'name', coalesce(ms.name, (SELECT string_agg(split_part(pl.display_name, ' ', 1), ' & ' ORDER BY mp.sort_order)
+                                                     FROM match_participants mp JOIN players pl ON pl.id = mp.player_id WHERE mp.side_id = ms.id)),
+                        'primary', m.summary->'sides'->ms.side_index->>'primary') ORDER BY ms.side_index), '[]'::json)
+                       FROM match_sides ms WHERE ms.match_id = m.id),
+           'segmentCount', jsonb_array_length(coalesce(m.summary->'segments', '[]'::jsonb))) END) END AS match,
   CASE WHEN sp.visibility_id = ${PostVisibility.FOLLOWERS} THEN 'followers' ELSE 'public' END AS visibility,
   (SELECT count(*)::int FROM social_post_like l WHERE l.post_id = sp.id) AS "likeCount",
   (SELECT count(*)::int FROM social_post_comment c WHERE c.post_id = sp.id) AS "commentCount",
@@ -64,10 +73,9 @@ export const POST_FROM = `
   FROM social_post sp
   JOIN usr_user u ON u.id = sp.user_id
   LEFT JOIN usr_user_profile pr ON pr.user_id = u.id
-  LEFT JOIN match_master m ON m.id = sp.match_id
-  LEFT JOIN mst_sport s ON s.id = m.sport_id
-  LEFT JOIN mst_sport_format f ON f.id = m.format_id
-  LEFT JOIN match_result mr ON mr.match_id = m.id`;
+  LEFT JOIN matches m ON m.id = sp.match_id
+  LEFT JOIN sports s ON s.id = m.sport_id
+  LEFT JOIN sport_formats f ON f.id = m.sport_format_id`;
 
 /** Neither the viewer (`$1`) nor the author has blocked the other. */
 export const NOT_BLOCKED = `

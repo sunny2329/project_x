@@ -1,14 +1,17 @@
 import type { Redis } from 'ioredis';
-import type { ScoringConfig, Side } from '../scoring/types.js';
-import type { MatchSide, SportRef } from '../match.types.js';
+import type { MatchStatic, MatchStatusName } from '../matches.types.js';
 
 /** One scoring event as the live store keeps it (the Postgres id is not needed to replay). */
 export interface LiveEvent {
-  sequenceNo: number;
-  typeId: number;
-  side: Side | null;
-  data: Record<string, unknown> | null;
-  isUndone: boolean;
+  sequence: number;
+  /** The plugin event type ("rally_won" ...). */
+  type: string;
+  sideIndex: number | null;
+  /** The full plugin event, as validated by the plugin's eventSchema. */
+  payload: Record<string, unknown>;
+  clientEventId: string | null;
+  occurredAt: string;
+  voided: boolean;
 }
 
 /** Everything needed to serve and score a live match without touching Postgres. */
@@ -17,24 +20,20 @@ export interface LiveState {
   version: number;
   match: {
     id: string;
-    sport: SportRef;
-    format: { id: string; name: string };
-    createdBy: string;
-    statusId: number;
-    startedAt: string;
-    completedAt: string | null;
-    config: ScoringConfig;
+    status: MatchStatusName;
+    scoringModel: string;
+    /** The ruleset snapshot (matches.ruleset_config). */
+    rulesetConfig: unknown;
+    startedAt: string | null;
+    /** Users allowed to score besides the creator (assigned scorers, organizers). */
+    scorerUserIds: string[];
+    view: MatchStatic;
   };
-  sides: MatchSide[];
   events: LiveEvent[];
-  /** Period number -> when it started (ISO), for the football clock. */
-  periodStarts: Record<string, string>;
 }
 
 /** A change waiting to be written to Postgres, in order. */
-export type PersistJob =
-  | { kind: 'event'; sequenceNo: number; typeId: number; side: Side | null; data: Record<string, unknown> | null; scoreValue: number; userId: string }
-  | { kind: 'undo'; sequenceNo: number; userId: string };
+export type PersistJob = { kind: 'event'; event: LiveEvent; actorUserId: string } | { kind: 'undo'; sequence: number; actorUserId: string };
 
 export type CommitResult = 'ok' | 'stale' | 'missing';
 

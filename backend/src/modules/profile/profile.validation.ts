@@ -20,7 +20,7 @@ export const updateSportsSchema = z
   .object({
     sportIds: z
       .array(sportId)
-      .max(6, 'Pick at most 6 sports')
+      .max(10, 'Pick at most 10 sports')
       .refine((ids) => new Set(ids).size === ids.length, 'Each sport can be picked once'),
     primarySportId: sportId.nullable(),
   })
@@ -37,10 +37,6 @@ export const matchHistoryQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(50).default(20),
 });
 
-export const playerSearchQuerySchema = z.object({
-  q: z.string().trim().min(2, 'Type at least 2 characters').max(50),
-  limit: z.coerce.number().int().min(1).max(20).default(10),
-});
 
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
 export type UpdateSportsInput = z.infer<typeof updateSportsSchema>;

@@ -1,6 +1,6 @@
 import type { Queryable } from '../../database/pool.js';
 import { UserStatus } from '../auth/auth.types.js';
-import { ConversationType } from '../match/match.codes.js';
+import { ConversationType } from './chat.codes.js';
 import type { ChatMessage, ChatUser, Conversation } from './chat.types.js';
 
 type MessageRow = Omit<ChatMessage, 'createdAt'> & { createdAt: Date };

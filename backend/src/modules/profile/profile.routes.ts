@@ -3,28 +3,7 @@ import { validateBody } from '../../middleware/validate.js';
 import { sendSuccess } from '../../utils/api-response.js';
 import { AppError } from '../../utils/app-error.js';
 import type { ProfileService } from './profile.service.js';
-import { z } from 'zod';
-import { matchHistoryQuerySchema, playerSearchQuerySchema, updateProfileSchema, updateSportsSchema } from './profile.validation.js';
-
-/** `/api/v1/sports`: the sports catalogue (`mst_sport`). */
-export function createSportsRouter(service: ProfileService, requireAuth: RequestHandler): Router {
-  const router = Router();
-  router.get('/', requireAuth, async (_req, res) => {
-    sendSuccess(res, { sports: await service.listSports() });
-  });
-  return router;
-}
-
-/** `/api/v1/players`: finding other players by username or name (e.g. to add them to a match). */
-export function createPlayersRouter(service: ProfileService, requireAuth: RequestHandler): Router {
-  const router = Router();
-  router.get('/', requireAuth, async (req, res) => {
-    const query = playerSearchQuerySchema.safeParse(req.query);
-    if (!query.success) throw AppError.badRequest('VALIDATION_ERROR', 'Invalid query.', z.flattenError(query.error).fieldErrors);
-    sendSuccess(res, { players: await service.searchPlayers(req.auth!.userId, query.data.q, query.data.limit) });
-  });
-  return router;
-}
+import { matchHistoryQuerySchema, updateProfileSchema, updateSportsSchema } from './profile.validation.js';
 
 /** `/api/v1/profile`: the signed-in player's own profile. Every route requires a bearer token. */
 export function createProfileRouter(service: ProfileService, requireAuth: RequestHandler): Router {

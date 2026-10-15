@@ -908,7 +908,7 @@ model Sport {
   accentColor  String   @map("accent_color") @db.VarChar(9)
   sortOrder    Int      @default(0) @map("sort_order")
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   formats          SportFormat[]
   rulesets         ScoringRuleset[]
@@ -963,7 +963,7 @@ model ScoringRuleset {
   isActive        Boolean  @default(true) @map("is_active")
   createdByUserId String?  @map("created_by_user_id") @db.Uuid // null = system ruleset
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   sport            Sport             @relation(fields: [sportId], references: [id])
   createdBy        usr_user?         @relation(fields: [createdByUserId], references: [id])
@@ -993,7 +993,7 @@ model Player {
   /// Set when this guest row was merged into another player; the row is kept for audit.
   mergedIntoId    String?   @map("merged_into_id") @db.Uuid
   createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   user          usr_user?               @relation("PlayerAccount", fields: [userId], references: [id])
   createdBy     usr_user?               @relation("PlayerCreatedBy", fields: [createdByUserId], references: [id])
@@ -1036,7 +1036,7 @@ model Team {
   name            String   @db.VarChar(80)
   createdByUserId String   @map("created_by_user_id") @db.Uuid
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   sport     Sport             @relation(fields: [sportId], references: [id])
   createdBy usr_user          @relation(fields: [createdByUserId], references: [id])
@@ -1076,7 +1076,7 @@ model TeamStats {
   majorLost     Int      @default(0) @map("major_lost")
   minorWon      Int      @default(0) @map("minor_won") // points (badminton) / games (tennis)
   minorLost     Int      @default(0) @map("minor_lost")
-  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
 
@@ -1092,7 +1092,7 @@ model Venue {
   longitude       Decimal? @db.Decimal(9, 6)
   createdByUserId String?  @map("created_by_user_id") @db.Uuid
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   createdBy   usr_user?    @relation(fields: [createdByUserId], references: [id])
   courts      Court[]
@@ -1157,7 +1157,7 @@ model Match {
   startedAt       DateTime?          @map("started_at") @db.Timestamptz
   completedAt     DateTime?          @map("completed_at") @db.Timestamptz
   createdAt       DateTime           @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt       DateTime           @updatedAt @map("updated_at") @db.Timestamptz
+  updatedAt       DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   sport         Sport                 @relation(fields: [sportId], references: [id])
   sportFormat   SportFormat           @relation(fields: [sportFormatId], references: [id])
@@ -1354,7 +1354,7 @@ model PlayerRating {
   volatility   Float?
   ratedMatches Int       @default(0) @map("rated_matches")
   lastRatedAt  DateTime? @map("last_rated_at") @db.Timestamptz
-  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  updatedAt    DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   player Player @relation(fields: [playerId], references: [id])
   sport  Sport  @relation(fields: [sportId], references: [id])
@@ -1397,7 +1397,7 @@ model PlayerSportStats {
   majorLost     Int      @default(0) @map("major_lost")
   minorWon      Int      @default(0) @map("minor_won")
   minorLost     Int      @default(0) @map("minor_lost")
-  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   player Player @relation(fields: [playerId], references: [id])
   sport  Sport  @relation(fields: [sportId], references: [id])
@@ -1425,7 +1425,7 @@ model Tournament {
   registrationOpensAt  DateTime?            @map("registration_opens_at") @db.Timestamptz
   registrationClosesAt DateTime?            @map("registration_closes_at") @db.Timestamptz
   createdAt            DateTime             @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt            DateTime             @updatedAt @map("updated_at") @db.Timestamptz
+  updatedAt            DateTime             @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   organizer usr_user          @relation(fields: [organizerUserId], references: [id])
   venue     Venue?            @relation(fields: [venueId], references: [id])
@@ -1492,7 +1492,7 @@ model TournamentEvent {
   maxEntries    Int?                  @map("max_entries")
   sortOrder     Int                   @default(0) @map("sort_order")
   createdAt     DateTime              @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt     DateTime              @updatedAt @map("updated_at") @db.Timestamptz
+  updatedAt     DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   tournament  Tournament        @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
   sport       Sport             @relation(fields: [sportId], references: [id])
@@ -1515,7 +1515,7 @@ model TournamentEntry {
   status             EntryStatus @default(pending)
   registeredByUserId String      @map("registered_by_user_id") @db.Uuid
   createdAt          DateTime    @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt          DateTime    @updatedAt @map("updated_at") @db.Timestamptz
+  updatedAt          DateTime    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   event            TournamentEvent         @relation(fields: [eventId], references: [id], onDelete: Cascade)
   team             Team?                   @relation(fields: [teamId], references: [id])
@@ -1627,7 +1627,7 @@ model Fixture {
   status               FixtureStatus @default(pending)
   winnerEntryId        String?       @map("winner_entry_id") @db.Uuid
   createdAt            DateTime      @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt            DateTime      @updatedAt @map("updated_at") @db.Timestamptz
+  updatedAt            DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   stage            TournamentStage  @relation(fields: [stageId], references: [id], onDelete: Cascade)
   group            StageGroup?      @relation(fields: [groupId], references: [id], onDelete: Cascade)

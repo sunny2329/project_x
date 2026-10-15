@@ -223,4 +223,8 @@ export const rallyPlugin: ScoringPlugin<RallyConfig, RallyState, RallyWonEvent> 
     if (scores.length === 0) throw new ScoringError('INVALID_RESULT', 'Enter at least one game.');
     return scores.flatMap((game) => interleavedPoints(game, 'game').map((sideIndex) => ({ type: 'rally_won' as const, sideIndex })));
   },
+  walkoverScore: (config) => {
+    const games = Math.ceil(config.bestOf / 2);
+    return { major: games, minor: games * config.pointsToWin };
+  },
 };

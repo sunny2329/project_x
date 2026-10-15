@@ -2,26 +2,29 @@ import { describe, expect, it } from 'vitest';
 import { LivePersister } from './live-persister.js';
 import { MemoryLiveStore, type LiveState, type PersistJob } from './live-store.js';
 
+const seq = (j: PersistJob) => (j.kind === 'event' ? j.event.sequence : j.sequence);
+
 function state(version: number): LiveState {
   return {
     version,
     match: {
       id: 'm1',
-      sport: { id: '1', code: 'BADMINTON', name: 'Badminton' },
-      format: { id: '1', name: 'Singles' },
-      createdBy: 'u1',
-      statusId: 602,
+      status: 'live',
+      scoringModel: 'rally',
+      rulesetConfig: { pointsToWin: 21, bestOf: 3 },
       startedAt: new Date(0).toISOString(),
-      completedAt: null,
-      config: { kind: 'rally', periodName: 'Game', pointsToWin: 21, winBy: 2, cap: 30, bestOf: 3, decidingPoints: null },
+      scorerUserIds: [],
+      view: {} as LiveState['match']['view'],
     },
-    sides: [],
     events: [],
-    periodStarts: {},
   };
 }
 
-const job = (sequenceNo: number): PersistJob => ({ kind: 'event', sequenceNo, typeId: 401, side: 1, data: null, scoreValue: 1, userId: 'u1' });
+const job = (sequence: number): PersistJob => ({
+  kind: 'event',
+  event: { sequence, type: 'rally_won', sideIndex: 0, payload: { type: 'rally_won', sideIndex: 0 }, clientEventId: null, occurredAt: new Date(0).toISOString(), voided: false },
+  actorUserId: 'u1',
+});
 
 describe('MemoryLiveStore', () => {
   it('commits only on the expected version and queues the job', async () => {
@@ -48,7 +51,7 @@ describe('LivePersister', () => {
     await store.prime(state(0));
     const written: number[] = [];
     const persister = new LivePersister(store, async (_id, j) => {
-      written.push(j.sequenceNo);
+      written.push(seq(j));
     });
     for (let i = 1; i <= 3; i += 1) await store.commit(i - 1, state(i), job(i));
     await persister.flush('m1');
@@ -65,7 +68,7 @@ describe('LivePersister', () => {
     const written: number[] = [];
     const persister = new LivePersister(store, async (_id, j) => {
       if (fail) throw new Error('db down');
-      written.push(j.sequenceNo);
+      written.push(seq(j));
     });
     await expect(persister.flush('m1')).rejects.toThrow('db down');
     expect(await store.peekJob('m1')).toEqual(job(1));
@@ -82,8 +85,8 @@ describe('LivePersister', () => {
     let release!: () => void;
     const gate = new Promise<void>((resolve) => (release = resolve));
     const persister = new LivePersister(store, async (_id, j) => {
-      if (j.sequenceNo === 1) await gate;
-      written.push(j.sequenceNo);
+      if (seq(j) === 1) await gate;
+      written.push(seq(j));
     });
     const first = persister.flush('m1');
     await store.commit(1, state(2), job(2));

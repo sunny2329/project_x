@@ -5,7 +5,7 @@ import { loadEnv } from './config/env.js';
 import { createLogger } from './config/logger.js';
 import { createPool } from './database/pool.js';
 import { DevSmsSender, TwilioSmsSender } from './modules/auth/providers/sms-sender.js';
-import { RedisLiveStore } from './modules/match/live/live-store.js';
+import { RedisLiveStore } from './modules/matches/live/live-store.js';
 import { AppleIdentityVerifier, GoogleIdentityVerifier } from './modules/auth/providers/social-identity.js';
 
 const env = loadEnv();
@@ -34,14 +34,14 @@ const app = createApp({
 });
 
 // Scores taken before the last shutdown that had not reached Postgres yet.
-app.services.matchService.resumePending().catch((error: unknown) => logger.error({ err: error }, 'Could not resume pending live scores'));
+app.services.matches.resumePending().catch((error: unknown) => logger.error({ err: error }, 'Could not resume pending live scores'));
 
 const server = app.listen(env.PORT, () => logger.info(`API listening on port ${env.PORT}`));
 
 function shutdown(signal: string): void {
   logger.info(`${signal} received, shutting down`);
   server.close(() => {
-    Promise.allSettled([pool.end(), redis?.quit()]).finally(() => process.exit(0));
+    Promise.allSettled([app.services.db.$disconnect(), pool.end(), redis?.quit()]).finally(() => process.exit(0));
   });
 }
 process.on('SIGTERM', () => shutdown('SIGTERM'));

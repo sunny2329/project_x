@@ -6,24 +6,30 @@ import type { PublicUser } from '../auth/auth.types.js';
  */
 export const FollowStatus = { ACCEPTED: 1, PENDING: 2 } as const;
 
-/** Starting skill rating; matches the `usr_sport_rating.rating` column default. */
-export const DEFAULT_RATING = 1000;
-
+/** A sport as the profile shows it. */
 export interface Sport {
   id: string;
-  code: string;
+  slug: string;
   name: string;
+  iconKey: string;
+  accentColor: string;
 }
 
-/** A sport the user plays, with their stats and skill rating in it. */
+/**
+ * A sport the user plays, with their record and rating in it. major = games (badminton) or
+ * sets (tennis); minor = points (badminton) or games (tennis).
+ */
 export interface PlayerSport extends Sport {
   isPrimary: boolean;
   rating: number;
+  ratedMatches: number;
   matchesPlayed: number;
   matchesWon: number;
   matchesLost: number;
-  pointsScored: number;
-  pointsConceded: number;
+  majorWon: number;
+  majorLost: number;
+  minorWon: number;
+  minorLost: number;
 }
 
 export interface Profile {
@@ -36,22 +42,20 @@ export interface Profile {
   following: number;
 }
 
-export type MatchOutcome = 'won' | 'lost' | 'draw' | 'in_progress';
+export type MatchOutcome = 'won' | 'lost' | 'draw' | 'in_progress' | 'disputed';
 
 export interface MatchHistoryItem {
   matchId: string;
-  sport: { code: string; name: string };
+  context: 'friendly' | 'tournament';
+  sport: Sport;
   playedAt: string;
   outcome: MatchOutcome;
+  /** played / walkover / no_show / retired / double_walkover, once decided. */
+  resultType: string | null;
   /** Display names of the other participants (opponents and, in doubles, the partner). */
   otherPlayers: string[];
-  /** Sport-specific score summary from `match_result.result_data`. */
-  result: unknown;
-}
-
-/** What player search reveals about other users: no email or phone. */
-export interface PlayerSearchResult {
-  id: string;
-  username: string;
-  fullName: string;
+  /** Score line from the side of the user ("21-15, 18-21, 21-19"). */
+  headline: string | null;
+  /** Rating change in this match, when it was rated. */
+  ratingChange: number | null;
 }

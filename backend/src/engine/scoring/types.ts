@@ -92,6 +92,11 @@ export interface ScoringPlugin<Config = unknown, State = unknown, Event extends 
    * The core replays them and checks that the match is complete.
    */
   eventsForManualResult?(config: Config, sides: SideInfo[], scores: number[][]): Event[];
+  /**
+   * Optional: the totals a walkover winner is credited with in standings (badminton best of 3:
+   * 2 games, 42 points). Defaults to { major: 1, minor: 0 }.
+   */
+  walkoverScore?(config: Config): { major: number; minor: number };
 }
 
 export type ScoringErrorCode = 'UNKNOWN_SCORING_MODEL' | 'INVALID_CONFIG' | 'INVALID_SIDES' | 'INVALID_EVENT' | 'MATCH_COMPLETE' | 'INVALID_RESULT';

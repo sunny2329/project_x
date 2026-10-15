@@ -1,7 +1,7 @@
 import type { Queryable } from '../../database/pool.js';
 import { UserStatus } from '../auth/auth.types.js';
 import { NOT_BLOCKED, POST_COLUMNS, POST_FROM, toFeedPost, type FeedPost, type FeedRow } from '../feed/feed.repository.js';
-import { PostType, PostVisibility } from '../match/match.codes.js';
+import { PostType, PostVisibility } from '../feed/post.codes.js';
 import { FollowStatus } from '../profile/profile.types.js';
 
 export interface PostComment {

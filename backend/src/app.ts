@@ -21,13 +21,19 @@ import { createChatRouter } from './modules/chat/chat.routes.js';
 import { ChatService } from './modules/chat/chat.service.js';
 import { feedRepository } from './modules/feed/feed.repository.js';
 import { createFeedRouter } from './modules/feed/feed.routes.js';
-import type { LiveStore } from './modules/match/live/live-store.js';
-import { matchRepository } from './modules/match/match.repository.js';
-import { createMatchRouter } from './modules/match/match.routes.js';
-import { MatchService } from './modules/match/match.service.js';
+import { createPrisma, type Db } from './database/prisma.js';
+import type { LiveStore } from './modules/matches/live/live-store.js';
+import { createMatchesRouter } from './modules/matches/matches.routes.js';
+import { MatchesService } from './modules/matches/matches.service.js';
+import { createPlayersRouter } from './modules/players/players.routes.js';
+import { PlayersService } from './modules/players/players.service.js';
 import { profileRepository } from './modules/profile/profile.repository.js';
-import { createPlayersRouter, createProfileRouter, createSportsRouter } from './modules/profile/profile.routes.js';
+import { createProfileRouter } from './modules/profile/profile.routes.js';
 import { ProfileService } from './modules/profile/profile.service.js';
+import { createPublicRouters } from './modules/public/public.routes.js';
+import { createSportsRouter } from './modules/sports/sports.routes.js';
+import { createTournamentRouters } from './modules/tournaments/tournaments.routes.js';
+import { TournamentsService } from './modules/tournaments/tournaments.service.js';
 import { socialRepository } from './modules/social/social.repository.js';
 import { createSocialRouter } from './modules/social/social.routes.js';
 import { sendSuccess } from './utils/api-response.js';
@@ -36,6 +42,8 @@ export interface AppDependencies {
   env: Env;
   logger: Logger;
   pool: pg.Pool;
+  /** Prisma Client over `pool`; created from it when omitted. */
+  db?: Db;
   sms: SmsSender;
   google: SocialIdentityVerifier | null;
   apple: SocialIdentityVerifier | null;
@@ -47,7 +55,9 @@ export interface AppDependencies {
 }
 
 export interface AppServices {
-  matchService: MatchService;
+  matches: MatchesService;
+  tournaments: TournamentsService;
+  db: Db;
 }
 
 export function createApp(deps: AppDependencies): Express & { services: AppServices } {
@@ -97,25 +107,38 @@ export function createApp(deps: AppDependencies): Express & { services: AppServi
 
   app.get('/health', (_req, res) => sendSuccess(res, { status: 'ok' }));
   const requireAuth = authenticate((token) => authService.authenticate(token));
-  const profileService = new ProfileService({ pool: deps.pool, repository: profileRepository, users: authRepository });
-  const matchService = new MatchService({
-    pool: deps.pool,
-    repository: matchRepository,
+  const db = deps.db ?? createPrisma(deps.pool);
+  const players = new PlayersService(db);
+  const profileService = new ProfileService({ pool: deps.pool, repository: profileRepository, users: authRepository, players });
+  const matches = new MatchesService({
+    db,
+    players,
     live: deps.live?.store,
     persistInBackground: deps.live?.shared ?? false,
     logger,
   });
+  const tournaments = new TournamentsService(db, players, matches);
+  matches.setDecidedHook(tournaments);
+  const tournamentRouters = createTournamentRouters(tournaments, requireAuth);
+  const publicRouters = createPublicRouters(matches, tournaments);
 
   app.use('/api/v1/auth', createAuthRouter(authService, deps.rateLimiting ?? true));
-  app.use('/api/v1/sports', createSportsRouter(profileService, requireAuth));
+  app.use('/api/v1/sports', createSportsRouter(db, requireAuth));
   app.use('/api/v1/profile', createProfileRouter(profileService, requireAuth));
-  app.use('/api/v1/players', createPlayersRouter(profileService, requireAuth));
-  app.use('/api/v1/matches', createMatchRouter(matchService, requireAuth));
+  app.use('/api/v1/players', createPlayersRouter(players, requireAuth));
+  app.use('/api/v1/matches', createMatchesRouter(matches, requireAuth));
+  app.use('/api/v1/tournaments', tournamentRouters.tournaments);
+  app.use('/api/v1/tournament-events', tournamentRouters.events);
+  app.use('/api/v1/entries', tournamentRouters.entries);
+  app.use('/api/v1/fixtures', tournamentRouters.fixtures);
+  app.use('/api/v1/courts', tournamentRouters.courts);
+  app.use('/api/v1/public', publicRouters.api);
+  app.use(publicRouters.pages);
   app.use('/api/v1/feed', createFeedRouter(deps.pool, feedRepository, requireAuth));
   app.use('/api/v1/posts', createSocialRouter(deps.pool, socialRepository, requireAuth));
   app.use('/api/v1/conversations', createChatRouter(new ChatService({ pool: deps.pool, repository: chatRepository, cache }), requireAuth));
 
   app.use(notFoundHandler);
   app.use(errorHandler);
-  return Object.assign(app, { services: { matchService } });
+  return Object.assign(app, { services: { matches, tournaments, db } });
 }

@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { validateBody } from '../../middleware/validate.js';
 import { sendSuccess } from '../../utils/api-response.js';
 import { AppError } from '../../utils/app-error.js';
-import { PostVisibility } from '../match/match.codes.js';
+import { PostVisibility } from '../feed/post.codes.js';
 import type { SocialRepository } from './social.repository.js';
 import { commentsQuerySchema, createCommentSchema, createPostSchema, uuidParam, type CreatePostInput } from './social.validation.js';
 

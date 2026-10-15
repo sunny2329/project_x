@@ -1,7 +1,7 @@
 import { SignJWT } from 'jose';
 import request from 'supertest';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { createTestContext, TEST_OTP } from './test-app.js';
+import { createTestContext, TEST_OTP } from '../../../test/harness.js';
 
 type Ctx = Awaited<ReturnType<typeof createTestContext>>;
 let ctx: Ctx;
@@ -13,7 +13,7 @@ let seq = 0;
 function newAccount() {
   seq += 1;
   const suffix = String(Date.now() % 1_000_000).padStart(6, '0') + String(seq).padStart(2, '0');
-  return { fullName: 'Test Athlete', email: `athlete${suffix}@example.com`, phone: `+9198${suffix}`, password: PASSWORD };
+  return { username: `athlete${suffix}`, fullName: 'Test Athlete', email: `athlete${suffix}@example.com`, phone: `+9198${suffix}`, password: PASSWORD };
 }
 
 async function register(account = newAccount()) {
@@ -55,13 +55,14 @@ describe('registration', () => {
     expect(res.body.data.tokens.accessToken).toEqual(expect.any(String));
     expect(res.body.data.tokens.refreshToken).toMatch(/^[0-9a-f-]{36}\.[\w-]+$/);
 
-    const { rows } = await ctx.pool.query('SELECT password_hash FROM users WHERE email = $1', [account.email]);
+    const { rows } = await ctx.pool.query('SELECT password_hash FROM usr_user WHERE email = $1', [account.email]);
     expect(rows[0].password_hash).toMatch(/^\$argon2id\$/);
   });
 
   it('normalizes email case and phone formatting', async () => {
     const account = newAccount();
     const spacedPhone = `${account.phone.slice(0, 3)} ${account.phone.slice(3, 8)}-${account.phone.slice(8)}`;
+    await request(ctx.app).post(`${API}/register/start`).send(account).expect(200);
     const res = await request(ctx.app)
       .post(`${API}/register/complete`)
       .send({ ...account, email: account.email.toUpperCase(), phone: spacedPhone, code: TEST_OTP })
@@ -95,11 +96,11 @@ describe('registration', () => {
   it('returns field-level validation errors', async () => {
     const res = await request(ctx.app)
       .post(`${API}/register/start`)
-      .send({ fullName: 'A', email: 'not-an-email', phone: '12345', password: 'short' })
+      .send({ username: '1', fullName: 'A', email: 'not-an-email', phone: '12345', password: 'short' })
       .expect(400);
     expect(res.body.success).toBe(false);
     expect(res.body.error.code).toBe('VALIDATION_ERROR');
-    expect(Object.keys(res.body.error.details).sort()).toEqual(['email', 'fullName', 'password', 'phone']);
+    expect(Object.keys(res.body.error.details).sort()).toEqual(['email', 'fullName', 'password', 'phone', 'username']);
   });
 
   it('rejects malformed JSON with a clean error', async () => {
@@ -137,7 +138,7 @@ describe('password login', () => {
 
   it('blocks suspended accounts', async () => {
     const { account, user } = await register();
-    await ctx.pool.query("UPDATE users SET status = 'suspended' WHERE id = $1", [user.id]);
+    await ctx.pool.query('UPDATE usr_user SET status = 2 WHERE id = $1', [user.id]);
     const res = await request(ctx.app).post(`${API}/login`).send({ identifier: account.email, password: PASSWORD }).expect(403);
     expect(res.body.error.code).toBe('ACCOUNT_DISABLED');
   });
@@ -159,6 +160,7 @@ describe('phone (OTP) login', () => {
 
   it('signs in with a valid code and rejects an invalid one', async () => {
     const { account } = await register();
+    await request(ctx.app).post(`${API}/phone/start`).send({ phone: account.phone }).expect(200);
     await request(ctx.app).post(`${API}/phone/verify`).send({ phone: account.phone, code: '111111' }).expect(400);
     const res = await request(ctx.app).post(`${API}/phone/verify`).send({ phone: account.phone, code: TEST_OTP }).expect(200);
     expect(res.body.data.user.phone).toBe(account.phone);
@@ -262,14 +264,10 @@ describe('sessions and tokens', () => {
 });
 
 describe('social sign-in', () => {
-  it('creates an account on first Google sign-in and reuses it afterwards', async () => {
-    const email = `google${Date.now()}@example.com`;
-    ctx.google.profile = { subject: `g-${Date.now()}`, email, emailVerified: true, fullName: 'Google Athlete' };
-
-    const first = await request(ctx.app).post(`${API}/google`).send({ idToken: 'stub' }).expect(200);
-    expect(first.body.data.user).toMatchObject({ email, fullName: 'Google Athlete', emailVerified: true, phone: null });
-    const second = await request(ctx.app).post(`${API}/google`).send({ idToken: 'stub' }).expect(200);
-    expect(second.body.data.user.id).toBe(first.body.data.user.id);
+  it('does not create accounts from Google sign-in (existing accounts only)', async () => {
+    ctx.google.profile = { subject: `g-${Date.now()}`, email: `google${Date.now()}@example.com`, emailVerified: true, fullName: 'Google Athlete' };
+    const res = await request(ctx.app).post(`${API}/google`).send({ idToken: 'stub' }).expect(404);
+    expect(res.body.error.code).toBe('ACCOUNT_NOT_FOUND');
   });
 
   it('links Google to an existing account with the same verified email', async () => {
@@ -284,16 +282,6 @@ describe('social sign-in', () => {
     ctx.apple.profile = { subject: `a-${Date.now()}`, email: null, emailVerified: false, fullName: null };
     const res = await request(ctx.app).post(`${API}/apple`).send({ identityToken: 'stub' }).expect(400);
     expect(res.body.error.code).toBe('EMAIL_NOT_VERIFIED');
-  });
-
-  it('uses the name the app forwards on first Apple sign-in', async () => {
-    const email = `apple${Date.now()}@privaterelay.appleid.com`;
-    ctx.apple.profile = { subject: `a-${Date.now()}`, email, emailVerified: true, fullName: null };
-    const res = await request(ctx.app)
-      .post(`${API}/apple`)
-      .send({ identityToken: 'stub', fullName: 'Apple Athlete' })
-      .expect(200);
-    expect(res.body.data.user.fullName).toBe('Apple Athlete');
   });
 });
 

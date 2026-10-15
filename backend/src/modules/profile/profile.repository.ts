@@ -1,19 +1,16 @@
 import type { Queryable } from '../../database/pool.js';
-import { UserStatus } from '../auth/auth.types.js';
-import { MatchStatus } from '../match/match.codes.js';
-import { FollowStatus, type MatchHistoryItem, type PlayerSearchResult, type PlayerSport, type Sport } from './profile.types.js';
+import { FollowStatus, type MatchHistoryItem, type PlayerSport } from './profile.types.js';
 
-/** Data access for the player profile: `usr_user_profile`, `usr_user_sport`, stats, ratings and match history. */
+const SPORT_JSON = "json_build_object('id', s.id::text, 'slug', s.slug, 'name', s.name, 'iconKey', s.icon_key, 'accentColor', s.accent_color)";
+
+/**
+ * Data access for the player profile: `usr_user_profile`, and the user's player row in the new
+ * core (`player_sports`, `player_sport_stats`, `player_ratings`, match history).
+ */
 export const profileRepository = {
-  async listSports(db: Queryable): Promise<Sport[]> {
-    const { rows } = await db.query<Sport>('SELECT id::text AS id, code, name FROM mst_sport ORDER BY id');
-    return rows;
-  },
-
-  async countExistingSports(db: Queryable, sportIds: string[]): Promise<number> {
-    const { rows } = await db.query<{ count: number }>('SELECT count(*)::int AS count FROM mst_sport WHERE id = ANY($1::bigint[])', [
-      sportIds,
-    ]);
+  /** Active sport ids among `sportIds`. */
+  async countActiveSports(db: Queryable, sportIds: string[]): Promise<number> {
+    const { rows } = await db.query<{ count: number }>('SELECT count(*)::int AS count FROM sports WHERE is_active AND id = ANY($1::int[])', [sportIds]);
     return rows[0]!.count;
   },
 
@@ -24,19 +21,19 @@ export const profileRepository = {
 
   async findPlayerSports(db: Queryable, userId: string): Promise<PlayerSport[]> {
     const { rows } = await db.query<PlayerSport>(
-      `SELECT s.id::text AS id, s.code, s.name, us.is_primary AS "isPrimary",
-              coalesce(r.rating, 1000)::float8 AS rating,
-              coalesce(st.matches_played, 0) AS "matchesPlayed",
-              coalesce(st.matches_won, 0) AS "matchesWon",
-              coalesce(st.matches_lost, 0) AS "matchesLost",
-              coalesce(st.points_scored, 0)::float8 AS "pointsScored",
-              coalesce(st.points_conceded, 0)::float8 AS "pointsConceded"
-         FROM usr_user_sport us
-         JOIN mst_sport s ON s.id = us.sport_id
-         LEFT JOIN usr_sport_rating r ON r.user_id = us.user_id AND r.sport_id = us.sport_id
-         LEFT JOIN usr_sport_stats st ON st.user_id = us.user_id AND st.sport_id = us.sport_id
-        WHERE us.user_id = $1
-        ORDER BY us.is_primary DESC, s.id`,
+      `SELECT s.id::text AS id, s.slug, s.name, s.icon_key AS "iconKey", s.accent_color AS "accentColor",
+              ps.is_primary AS "isPrimary",
+              coalesce(r.rating, 1000)::float8 AS rating, coalesce(r.rated_matches, 0) AS "ratedMatches",
+              coalesce(st.matches_played, 0) AS "matchesPlayed", coalesce(st.won, 0) AS "matchesWon", coalesce(st.lost, 0) AS "matchesLost",
+              coalesce(st.major_won, 0) AS "majorWon", coalesce(st.major_lost, 0) AS "majorLost",
+              coalesce(st.minor_won, 0) AS "minorWon", coalesce(st.minor_lost, 0) AS "minorLost"
+         FROM players p
+         JOIN player_sports ps ON ps.player_id = p.id
+         JOIN sports s ON s.id = ps.sport_id AND s.is_active
+         LEFT JOIN player_ratings r ON r.player_id = p.id AND r.sport_id = s.id
+         LEFT JOIN player_sport_stats st ON st.player_id = p.id AND st.sport_id = s.id
+        WHERE p.user_id = $1
+        ORDER BY ps.is_primary DESC, s.sort_order, s.id`,
       [userId],
     );
     return rows;
@@ -44,10 +41,9 @@ export const profileRepository = {
 
   async findRecord(db: Queryable, userId: string): Promise<{ played: number; won: number; lost: number }> {
     const { rows } = await db.query<{ played: number; won: number; lost: number }>(
-      `SELECT coalesce(sum(matches_played), 0)::int AS played,
-              coalesce(sum(matches_won), 0)::int AS won,
-              coalesce(sum(matches_lost), 0)::int AS lost
-         FROM usr_sport_stats WHERE user_id = $1`,
+      `SELECT coalesce(sum(st.matches_played), 0)::int AS played, coalesce(sum(st.won), 0)::int AS won, coalesce(sum(st.lost), 0)::int AS lost
+         FROM players p JOIN player_sport_stats st ON st.player_id = p.id
+        WHERE p.user_id = $1`,
       [userId],
     );
     return rows[0]!;
@@ -85,86 +81,50 @@ export const profileRepository = {
     );
   },
 
-  /**
-   * Replaces the user's sports. Stats and ratings are kept for removed sports (history), and
-   * created at their defaults for new ones.
-   */
-  async replacePlayerSports(db: Queryable, userId: string, sportIds: string[], primarySportId: string | null): Promise<void> {
-    await db.query('DELETE FROM usr_user_sport WHERE user_id = $1 AND NOT (sport_id = ANY($2::bigint[]))', [userId, sportIds]);
+  /** Replaces the player's sports ("sports I play"); records and ratings are kept for removed ones. */
+  async replacePlayerSports(db: Queryable, playerId: string, sportIds: string[], primarySportId: string | null): Promise<void> {
+    await db.query('DELETE FROM player_sports WHERE player_id = $1 AND NOT (sport_id = ANY($2::int[]))', [playerId, sportIds]);
+    // Clear the old primary first: one primary per player is a unique index.
+    await db.query('UPDATE player_sports SET is_primary = false WHERE player_id = $1 AND is_primary AND sport_id IS DISTINCT FROM $2::int', [playerId, primarySportId]);
     await db.query(
-      `INSERT INTO usr_user_sport (user_id, sport_id, is_primary)
-       SELECT $1, sport_id, sport_id = $3::bigint FROM unnest($2::bigint[]) AS sport_id
-       ON CONFLICT (user_id, sport_id)
-       DO UPDATE SET is_primary = EXCLUDED.is_primary, updated_at = CURRENT_TIMESTAMP
-        WHERE usr_user_sport.is_primary IS DISTINCT FROM EXCLUDED.is_primary`,
-      [userId, sportIds, primarySportId],
-    );
-    await db.query(
-      `INSERT INTO usr_sport_rating (user_id, sport_id) SELECT $1, unnest($2::bigint[])
-       ON CONFLICT (user_id, sport_id) DO NOTHING`,
-      [userId, sportIds],
-    );
-    await db.query(
-      `INSERT INTO usr_sport_stats (user_id, sport_id) SELECT $1, unnest($2::bigint[])
-       ON CONFLICT (user_id, sport_id) DO NOTHING`,
-      [userId, sportIds],
+      `INSERT INTO player_sports (player_id, sport_id, is_primary)
+       SELECT $1, sport_id, sport_id = $3::int FROM unnest($2::int[]) AS sport_id
+       ON CONFLICT (player_id, sport_id) DO UPDATE SET is_primary = EXCLUDED.is_primary`,
+      [playerId, sportIds, primarySportId],
     );
   },
 
-  /** Every match the user took part in, newest first. */
+  /** Every match the user's player took part in (not abandoned), newest first. */
   async findMatchHistory(db: Queryable, userId: string, limit: number): Promise<MatchHistoryItem[]> {
-    const { rows } = await db.query<Omit<MatchHistoryItem, 'playedAt'> & { playedAt: Date }>(
-      `SELECT m.id AS "matchId",
-              json_build_object('code', s.code, 'name', s.name) AS sport,
-              coalesce(m.completed_at, m.started_at, m.scheduled_at, m.created_at) AS "playedAt",
-              CASE
-                WHEN r.id IS NULL THEN 'in_progress'
-                WHEN r.winner_participant_id IS NULL AND r.winner_team_id IS NULL THEN 'draw'
-                WHEN r.winner_participant_id = p.id
-                  OR r.winner_team_id IN (SELECT tm.team_id FROM match_team_member tm WHERE tm.participant_id = p.id)
-                  THEN 'won'
-                ELSE 'lost'
-              END AS outcome,
-              coalesce(
-                (SELECT array_agg(coalesce(op.display_name, ou.username) ORDER BY o.participant_no)
-                   FROM match_participant o
-                   JOIN usr_user ou ON ou.id = o.user_id
-                   LEFT JOIN usr_user_profile op ON op.user_id = o.user_id
-                  WHERE o.match_id = m.id AND o.id <> p.id),
-                '{}'
-              ) AS "otherPlayers",
-              r.result_data AS result
-         FROM match_participant p
-         JOIN match_master m ON m.id = p.match_id
-         JOIN mst_sport s ON s.id = m.sport_id
-         LEFT JOIN match_result r ON r.match_id = m.id
-        WHERE p.user_id = $1 AND m.status_id <> $3
+    const { rows } = await db.query<Omit<MatchHistoryItem, 'playedAt' | 'headline'> & { playedAt: Date; headline: string | null; sideIndex: number; summary: { segments?: Array<{ complete: boolean; scores: number[] }> } | null }>(
+      `SELECT m.id AS "matchId", m.context::text AS context, ${SPORT_JSON} AS sport,
+              coalesce(m.completed_at, m.started_at, m.created_at) AS "playedAt",
+              CASE WHEN m.status = 'disputed' THEN 'disputed'
+                   WHEN ms.outcome IS NULL THEN 'in_progress'
+                   WHEN ms.outcome = 'drawn' THEN 'draw'
+                   ELSE ms.outcome::text END AS outcome,
+              m.result_type::text AS "resultType",
+              coalesce((SELECT array_agg(op.display_name ORDER BY os.side_index, o.sort_order)
+                          FROM match_participants o JOIN players op ON op.id = o.player_id JOIN match_sides os ON os.id = o.side_id
+                         WHERE o.match_id = m.id AND o.id <> mp.id), '{}') AS "otherPlayers",
+              m.summary->>'headline' AS headline, ms.side_index AS "sideIndex", m.summary AS summary,
+              (SELECT h.rating_after - h.rating_before FROM player_rating_history h WHERE h.match_id = m.id AND h.player_id = p.id) AS "ratingChange"
+         FROM players p
+         JOIN match_participants mp ON mp.player_id = p.id
+         JOIN match_sides ms ON ms.id = mp.side_id
+         JOIN matches m ON m.id = mp.match_id
+         JOIN sports s ON s.id = m.sport_id
+        WHERE p.user_id = $1 AND m.status <> 'abandoned'
         ORDER BY "playedAt" DESC
         LIMIT $2`,
-      [userId, limit, MatchStatus.ABANDONED],
+      [userId, limit],
     );
-    return rows.map((row) => ({ ...row, playedAt: row.playedAt.toISOString() }));
-  },
-
-  /**
-   * Active players whose username starts with, or whose name contains, `query`; never the
-   * searcher or anyone blocked in either direction. Exact username matches first.
-   */
-  async searchPlayers(db: Queryable, userId: string, query: string, limit: number): Promise<PlayerSearchResult[]> {
-    const pattern = query.toLowerCase().replace(/[\\%_]/g, (c) => `\\${c}`);
-    const { rows } = await db.query<PlayerSearchResult>(
-      `SELECT u.id, u.username, coalesce(p.display_name, u.username) AS "fullName"
-         FROM usr_user u
-         LEFT JOIN usr_user_profile p ON p.user_id = u.id
-        WHERE u.status = $2 AND u.id <> $1
-          AND (lower(u.username) LIKE $3 || '%' OR lower(p.display_name) LIKE '%' || $3 || '%')
-          AND NOT EXISTS (SELECT 1 FROM usr_user_block b
-                           WHERE (b.blocker_id = $1 AND b.blocked_id = u.id) OR (b.blocker_id = u.id AND b.blocked_id = $1))
-        ORDER BY lower(u.username) = $3 DESC, lower(u.username)
-        LIMIT $4`,
-      [userId, UserStatus.ACTIVE, pattern, limit],
-    );
-    return rows;
+    return rows.map(({ summary, sideIndex, ...row }) => {
+      // The score line from the user's side: "21-15, 18-21" reads "my points first".
+      const segments = (summary?.segments ?? []).filter((g) => g.complete || g.scores.some((n) => n > 0));
+      const own = segments.length ? segments.map((g) => `${g.scores[sideIndex]}-${g.scores[1 - sideIndex]}`).join(', ') : row.headline;
+      return { ...row, headline: own, playedAt: row.playedAt.toISOString() };
+    });
   },
 };
 

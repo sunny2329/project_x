@@ -1,4 +1,4 @@
-import { ScoringError, type Pair, type PeriodScore, type ScoringEngine, type Side, type TimedGoalsConfig } from './types.js';
+import { ScoringError, type Pair, type PeriodScore, type ScoringEngine, type Side, type TimedGoalsConfig } from './legacy-types.js';
 
 export interface TimedGoalsState {
   periods: Array<{ score: Pair; finished: boolean }>;

@@ -7,7 +7,7 @@ import {
   type PeriodScore,
   type ScoringEngine,
   type Side,
-} from './types.js';
+} from './legacy-types.js';
 
 interface Ball {
   label: string;

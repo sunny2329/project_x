@@ -4,21 +4,19 @@ import { AppError } from '../../utils/app-error.js';
 import type { AuthRepository } from '../auth/auth.repository.js';
 import { toPublicUser } from '../auth/auth.types.js';
 import type { ProfileRepository } from './profile.repository.js';
-import type { MatchHistoryItem, PlayerSearchResult, Profile, Sport } from './profile.types.js';
+import type { PlayersService } from '../players/players.service.js';
+import type { MatchHistoryItem, Profile } from './profile.types.js';
 import type { UpdateProfileInput, UpdateSportsInput } from './profile.validation.js';
 
 export interface ProfileServiceDeps {
   pool: pg.Pool;
   repository: ProfileRepository;
   users: Pick<AuthRepository, 'findUserById'>;
+  players: Pick<PlayersService, 'ensureForUser'>;
 }
 
 export class ProfileService {
   constructor(private readonly deps: ProfileServiceDeps) {}
-
-  listSports(): Promise<Sport[]> {
-    return this.deps.repository.listSports(this.deps.pool);
-  }
 
   async getProfile(userId: string): Promise<Profile> {
     const { repository, pool, users } = this.deps;
@@ -42,18 +40,15 @@ export class ProfileService {
 
   async updateSports(userId: string, input: UpdateSportsInput): Promise<Profile> {
     const { repository, pool } = this.deps;
-    if ((await repository.countExistingSports(pool, input.sportIds)) !== input.sportIds.length) {
+    if ((await repository.countActiveSports(pool, input.sportIds)) !== input.sportIds.length) {
       throw AppError.badRequest('VALIDATION_ERROR', 'Some fields are invalid.', { sportIds: ['Unknown sport'] });
     }
-    await withTransaction(pool, (db) => repository.replacePlayerSports(db, userId, input.sportIds, input.primarySportId));
+    const player = await this.deps.players.ensureForUser(userId);
+    await withTransaction(pool, (db) => repository.replacePlayerSports(db, player.playerId, input.sportIds, input.primarySportId));
     return this.getProfile(userId);
   }
 
   getMatchHistory(userId: string, limit: number): Promise<MatchHistoryItem[]> {
     return this.deps.repository.findMatchHistory(this.deps.pool, userId, limit);
-  }
-
-  searchPlayers(userId: string, query: string, limit: number): Promise<PlayerSearchResult[]> {
-    return this.deps.repository.searchPlayers(this.deps.pool, userId, query, limit);
   }
 }

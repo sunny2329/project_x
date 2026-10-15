@@ -307,4 +307,8 @@ export const tennisPlugin: ScoringPlugin<TennisConfig, TennisState, RallyWonEven
     }
     return events;
   },
+  walkoverScore: (config) => {
+    const sets = Math.ceil(config.bestOf / 2);
+    return { major: sets, minor: sets * config.setGames };
+  },
 };
