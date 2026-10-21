@@ -1,15 +1,24 @@
 import { apiRequest } from '@/shared/api/client';
-import type { AuthResult, MessageResponse, RegistrationForm, User } from '../types';
+import type { AuthResult, LinkedIdentity, MessageResponse, SessionInfo, SignupDetails, User } from '../types';
 
 const BASE = '/api/v1/auth';
 
-/** One function per backend endpoint; see wiki.md "Auth API" for the contracts. */
+/** One function per backend endpoint (backend/src/modules/auth/auth.routes.ts). */
 export const authApi = {
-  startRegistration: (form: RegistrationForm) =>
-    apiRequest<MessageResponse>(`${BASE}/register/start`, { method: 'POST', body: form }),
+  usernameAvailable: (username: string) =>
+    apiRequest<{ available: boolean; reason: string | null }>(`${BASE}/username-available?username=${encodeURIComponent(username)}`),
 
-  completeRegistration: (form: RegistrationForm, code: string) =>
-    apiRequest<AuthResult>(`${BASE}/register/complete`, { method: 'POST', body: { ...form, code } }),
+  /** Sign-up step 1: texts a code to the phone (the username is checked too). */
+  startRegistration: (phone: string, username: string) =>
+    apiRequest<MessageResponse>(`${BASE}/register/start`, { method: 'POST', body: { phone, username } }),
+
+  /** Step 2: the code -> a token proving the phone is verified. */
+  verifyRegistration: (phone: string, code: string) =>
+    apiRequest<{ registrationToken: string }>(`${BASE}/register/verify`, { method: 'POST', body: { phone, code } }),
+
+  /** Step 3: creates the account. */
+  completeRegistration: (details: SignupDetails) =>
+    apiRequest<AuthResult>(`${BASE}/register/complete`, { method: 'POST', body: details }),
 
   login: (identifier: string, password: string) =>
     apiRequest<AuthResult>(`${BASE}/login`, { method: 'POST', body: { identifier, password } }),
@@ -37,4 +46,20 @@ export const authApi = {
   logout: (refreshToken: string) => apiRequest<void>(`${BASE}/logout`, { method: 'POST', body: { refreshToken } }),
 
   me: () => apiRequest<{ user: User }>(`${BASE}/me`, { authenticated: true }),
+
+  sessions: () => apiRequest<{ sessions: SessionInfo[] }>(`${BASE}/sessions`, { authenticated: true }),
+
+  signOutOtherDevices: () =>
+    apiRequest<{ signedOut: number }>(`${BASE}/sessions/sign-out-others`, { method: 'POST', authenticated: true }),
+
+  identities: () => apiRequest<{ identities: LinkedIdentity[] }>(`${BASE}/identities`, { authenticated: true }),
+
+  linkGoogle: (idToken: string) =>
+    apiRequest<{ identities: LinkedIdentity[] }>(`${BASE}/identities/google`, { method: 'POST', body: { idToken }, authenticated: true }),
+
+  linkApple: (identityToken: string) =>
+    apiRequest<{ identities: LinkedIdentity[] }>(`${BASE}/identities/apple`, { method: 'POST', body: { identityToken }, authenticated: true }),
+
+  unlink: (provider: 'google' | 'apple') =>
+    apiRequest<{ identities: LinkedIdentity[] }>(`${BASE}/identities/${provider}`, { method: 'DELETE', authenticated: true }),
 };

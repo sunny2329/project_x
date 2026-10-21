@@ -14,8 +14,10 @@ import {
   type AuthResult,
   type ClientContext,
   type IdentityProvider,
+  type LinkedIdentity,
   type OtpPurposeCode,
   type PublicUser,
+  type SessionInfo,
   type SocialProfile,
   type UserRecord,
 } from './auth.types.js';
@@ -28,8 +30,11 @@ import type {
   PhoneVerifyInput,
   RegisterCompleteInput,
   RegisterStartInput,
+  RegisterVerifyInput,
   ResetPasswordInput,
 } from './auth.validation.js';
+import { usernameSchema } from './auth.validation.js';
+import { parseE164, toE164, type Phone } from './phone.js';
 import type { OtpService } from './otp.service.js';
 import { hashPassword, verifyAgainstDummy, verifyPassword } from './password.js';
 import type { SocialIdentityVerifier } from './providers/social-identity.js';
@@ -60,7 +65,8 @@ const errors = {
   phoneTaken: () => AppError.conflict('PHONE_TAKEN', 'An account with this phone number already exists.'),
   accountExists: () => AppError.conflict('ACCOUNT_EXISTS', 'An account with these details already exists.'),
   socialAccountNotFound: () =>
-    new AppError(404, 'ACCOUNT_NOT_FOUND', 'No account uses this email. Create an account first, then sign in with it.'),
+    new AppError(404, 'ACCOUNT_NOT_FOUND', 'No account is linked to this sign-in. Log in another way, then link it in Settings.'),
+  identityInUse: () => AppError.conflict('IDENTITY_IN_USE', 'That account is already linked to another ProjectX user.'),
 };
 
 function isUniqueViolation(error: unknown): boolean {
@@ -70,16 +76,23 @@ function isUniqueViolation(error: unknown): boolean {
 export class AuthService {
   constructor(private readonly deps: AuthServiceDeps) {}
 
-  /** Step 1 of sign-up: reject duplicates, then text a code to the phone number. */
+  /** Step 1 of sign-up: reject a taken username or phone, then text a code to the phone. */
   async startRegistration(input: RegisterStartInput): Promise<void> {
     await this.assertAvailable(input);
     await this.deps.otp.send(input.phone, OtpPurpose.REGISTRATION, null);
   }
 
-  /** Step 2 of sign-up: verify the code and create the account and its first session. */
-  async completeRegistration(input: RegisterCompleteInput, client: ClientContext): Promise<AuthResult> {
-    await this.assertAvailable(input);
+  /** Step 2: check the code. The token lets step 3 create the account for this phone. */
+  async verifyRegistration(input: RegisterVerifyInput): Promise<{ registrationToken: string }> {
     if (!(await this.deps.otp.verify(input.phone, OtpPurpose.REGISTRATION, input.code))) throw errors.invalidCode();
+    return { registrationToken: await this.deps.tokens.signRegistrationToken(toE164(input.phone)) };
+  }
+
+  /** Step 3: create the account, its profile and player, and the first session. */
+  async completeRegistration(input: RegisterCompleteInput, client: ClientContext): Promise<AuthResult> {
+    const phone = parseE164(await this.deps.tokens.verifyRegistrationToken(input.registrationToken));
+    if (!phone) throw AppError.badRequest('REGISTRATION_EXPIRED', 'Please verify your phone again.');
+    await this.assertAvailable({ username: input.username, email: input.email, phone });
     const passwordHash = await hashPassword(input.password);
 
     try {
@@ -87,8 +100,9 @@ export class AuthService {
         const user = await this.deps.repository.createUser(db, {
           username: input.username,
           fullName: input.fullName,
-          email: input.email,
-          phone: input.phone,
+          displayName: input.displayName ?? input.fullName,
+          email: input.email ?? null,
+          phone,
           passwordHash,
         });
         return this.issueSession(db, user, client);
@@ -98,6 +112,14 @@ export class AuthService {
       if (isUniqueViolation(error)) throw errors.accountExists();
       throw error;
     }
+  }
+
+  /** "@riya.smash is free": format problems come back as the reason. */
+  async usernameAvailability(raw: string): Promise<{ available: boolean; reason: string | null }> {
+    const parsed = usernameSchema.safeParse(raw);
+    if (!parsed.success) return { available: false, reason: parsed.error.issues[0]?.message ?? 'Not a valid username' };
+    const user = await this.deps.repository.findUserByIdentifier(this.deps.pool, { kind: 'username', value: parsed.data });
+    return user ? { available: false, reason: 'This username is already taken' } : { available: true, reason: null };
   }
 
   async login(input: LoginInput, client: ClientContext): Promise<AuthResult> {
@@ -241,17 +263,54 @@ export class AuthService {
     return auth;
   }
 
+  // ------------------------------------------------------------------------------------------
+  // Devices and linked accounts (Settings)
+  // ------------------------------------------------------------------------------------------
+
+  listSessions(auth: AuthContext): Promise<SessionInfo[]> {
+    return this.deps.repository.listSessions(this.deps.pool, auth.userId, auth.sessionId);
+  }
+
+  /** Signs out every device but this one. Returns how many were signed out. */
+  async signOutOtherDevices(auth: AuthContext): Promise<number> {
+    const revoked = await this.deps.repository.revokeOtherSessions(this.deps.pool, auth.userId, auth.sessionId);
+    await Promise.all(revoked.map((id) => this.deps.sessions?.revokeSession(id)));
+    return revoked.length;
+  }
+
+  listIdentities(userId: string): Promise<LinkedIdentity[]> {
+    return this.deps.repository.listIdentities(this.deps.pool, userId);
+  }
+
+  async linkIdentity(userId: string, provider: IdentityProvider, token: string): Promise<LinkedIdentity[]> {
+    const verifier = provider === 'google' ? this.requireVerifier(this.deps.google, 'Google') : this.requireVerifier(this.deps.apple, 'Apple');
+    const profile = await verifier.verify(token);
+    const owner = await this.deps.repository.findUserIdByIdentity(this.deps.pool, provider, profile.subject);
+    if (owner && owner !== userId) throw errors.identityInUse();
+    try {
+      await this.deps.repository.linkIdentity(this.deps.pool, userId, provider, profile.subject, profile.email);
+    } catch (error) {
+      if (isUniqueViolation(error)) throw errors.identityInUse();
+      throw error;
+    }
+    return this.listIdentities(userId);
+  }
+
+  async unlinkIdentity(userId: string, provider: IdentityProvider): Promise<LinkedIdentity[]> {
+    await this.deps.repository.unlinkIdentity(this.deps.pool, userId, provider);
+    return this.listIdentities(userId);
+  }
+
   /**
-   * The schema has no provider-identity table and `usr_user` requires a username, phone and
-   * password, so social sign-in only signs in an existing account whose email the provider has verified.
+   * Signs in the account the provider identity is linked to (Settings > Link). An account whose
+   * email the provider has verified is also accepted, and gets linked on the way.
    */
   private async socialSignIn(provider: IdentityProvider, profile: SocialProfile, client: ClientContext): Promise<AuthResult> {
     const { repository, pool } = this.deps;
-    if (!profile.email || !profile.emailVerified) {
-      throw AppError.badRequest('EMAIL_NOT_VERIFIED', 'Your account with this provider has no verified email.');
-    }
-    const identifier = { kind: 'email', value: profile.email } as const;
-    const user = await repository.findUserByIdentifier(pool, identifier);
+    const linkedUserId = await repository.findUserIdByIdentity(pool, provider, profile.subject);
+    if (!linkedUserId && (!profile.email || !profile.emailVerified)) throw errors.socialAccountNotFound();
+    const identifier = { kind: 'email', value: profile.email ?? '' } as const;
+    const user = linkedUserId ? await repository.findUserById(pool, linkedUserId) : await repository.findUserByIdentifier(pool, identifier);
     const attempt = {
       userId: user?.id ?? null,
       identifier,
@@ -263,11 +322,12 @@ export class AuthService {
       throw errors.socialAccountNotFound();
     }
     await this.assertActive(user, attempt);
+    if (!linkedUserId) await repository.linkIdentity(pool, user.id, provider, profile.subject, profile.email).catch(() => undefined);
 
     // A provider-verified email proves ownership of the address.
-    await repository.recordLogin(pool, user.id, { emailVerified: true });
+    await repository.recordLogin(pool, user.id, { emailVerified: profile.emailVerified && profile.email === user.email });
     await this.logAttempt(attempt);
-    return this.issueSession(pool, { ...user, isEmailVerified: true }, client);
+    return this.issueSession(pool, user, client);
   }
 
   private async issueSession(db: Queryable, user: UserRecord, client: ClientContext): Promise<AuthResult> {
@@ -295,7 +355,7 @@ export class AuthService {
     };
   }
 
-  private async assertAvailable(input: RegisterStartInput): Promise<void> {
+  private async assertAvailable(input: { username: string; email?: string | null | undefined; phone: Phone }): Promise<void> {
     const taken = await this.deps.repository.findTakenFields(this.deps.pool, input);
     if (taken.username) throw errors.usernameTaken();
     if (taken.email) throw errors.emailTaken();

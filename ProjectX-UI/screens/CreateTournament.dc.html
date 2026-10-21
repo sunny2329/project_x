@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Create tournament</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800;900&family=Instrument+Sans:wght@400;500;600;700&display=swap">
+<style>
+body{margin:0}
+:root,.dk{--bg:#0A0A0A;--surface:#161412;--raised:#221F1C;--raised2:#1B1917;--bar:#0F0E0D;--scrim:#000000;--line:#2C2825;--line2:#3F3A35;--fg:#F6F2EE;--soft:#D8D1CA;--muted:#ABA39B;--faint:#7D756E;--primary:#E85D04;--onPrimary:#0A0A0A;--accentText:#FF8A3D;--accentDeep:#1F1209;--accentLine:#5C2F10;--accentTint:rgba(232,93,4,0.14);--sideB:#F2EDE7;--onBrightMuted:#4A433D;--ink:#0A0A0A;--warnBg:#2A2113;--warnText:#FFD58A;--warnLine:#5C4A24;--good:#4ADE80;--bad:#FF8A98;--tBad:#C990FA;--tTT:#F2CC4D;--tPk:#FDA668;--tPd:#5FD4E8;--tTn:#B5E26A;--tVb:#5EDBC8;--av1:#3B2A55;--av2:#4A2433;--av3:#173A43;--av4:#3D2A17;--av5:#26361A}
+.lt{--bg:#FFFFFF;--surface:#F7F3EF;--raised:#EEE8E2;--raised2:#F2EDE8;--bar:#FFFFFF;--scrim:#CFC7BF;--line:#E6DED6;--line2:#D2C8BE;--fg:#16120F;--soft:#3B3430;--muted:#6B625B;--faint:#978D85;--primary:#C2410C;--onPrimary:#FFFFFF;--accentText:#C2410C;--accentDeep:#FFF1E7;--accentLine:#F8C6A3;--accentTint:rgba(234,88,12,0.10);--sideB:#1C1917;--onBrightMuted:rgba(255,255,255,0.8);--ink:#0A0A0A;--warnBg:#FEF3C7;--warnText:#92400E;--warnLine:#E9C46A;--good:#15803D;--bad:#BE123C;--tBad:#7E22CE;--tTT:#A16207;--tPk:#C2410C;--tPd:#0E7490;--tTn:#4D7C0F;--tVb:#0F766E;--av1:#EBD9FF;--av2:#FCE1EA;--av3:#CDF3F8;--av4:#FFE6CC;--av5:#E3F5C8}
+
+a{color:var(--fg);text-decoration:none}a:hover{color:var(--fg)}
+.d{font-family:'Big Shoulders Display','Arial Narrow',Impact,sans-serif}
+svg.i{fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+input{font:inherit;color:inherit;background:transparent;border:0;outline:0}
+input[type=radio]{accent-color:var(--primary);width:20px;height:20px;margin:0}
+</style>
+</helmet>
+<div class="{{themeClass}}" style="width: 390px; height: 844px; box-sizing: border-box; background: var(--bg); color: var(--fg); font-family: 'Instrument Sans', system-ui, sans-serif; display: flex; flex-direction: column; overflow: hidden; padding: 54px 20px 32px; gap: 16px">
+
+<div style="display: flex; align-items: center; justify-content: space-between">
+<a href="TournamentList.dc.html" aria-label="Close" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 14px; background: var(--surface)"><svg class="i" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></a>
+<span style="font-size: 13px; font-weight: 700; letter-spacing: 0.08em; color: var(--muted)">NEW TOURNAMENT</span>
+<span style="width: 44px"></span>
+</div>
+
+<h1 class="d" style="margin: 0; font-size: 42px; line-height: 40px; font-weight: 900; text-transform: uppercase">Set up your tournament</h1>
+
+<div style="display: flex; flex-direction: column; gap: 6px">
+<label for="ct-name" style="font-size: 13px; font-weight: 600; color: var(--muted)">Name</label>
+<input id="ct-name" value="Kabir Memorial Cup" style="height: 52px; border-radius: 14px; background: var(--surface); border: 1.5px solid var(--primary); padding: 0 14px; font-size: 17px; font-weight: 600">
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px">
+<div style="display: flex; flex-direction: column; gap: 6px">
+<label for="ct-start" style="font-size: 13px; font-weight: 600; color: var(--muted)">Starts</label>
+<input id="ct-start" value="Sat 15 Nov" style="height: 52px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); padding: 0 14px; font-size: 16px; font-weight: 600; min-width: 0">
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<label for="ct-end" style="font-size: 13px; font-weight: 600; color: var(--muted)">Ends</label>
+<input id="ct-end" value="Sun 16 Nov" style="height: 52px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); padding: 0 14px; font-size: 16px; font-weight: 600; min-width: 0">
+</div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 6px">
+<label for="ct-venue" style="font-size: 13px; font-weight: 600; color: var(--muted)">Venue</label>
+<input id="ct-venue" value="Courtyard Sports Club, Vaishali Nagar" style="height: 52px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); padding: 0 14px; font-size: 16px; font-weight: 600">
+</div>
+
+<fieldset style="margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; gap: 8px">
+<legend style="font-size: 13px; font-weight: 600; color: var(--muted); margin-bottom: 6px">Who can find it</legend>
+<label for="ct-v1" style="display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 14px; background: var(--accentTint); border: 1.5px solid var(--primary)">
+<input id="ct-v1" type="radio" name="ctv" checked>
+<span style="flex: 1; display: flex; flex-direction: column"><span style="font-weight: 700; font-size: 15px">Public</span><span style="font-size: 13px; color: var(--soft)">Listed in Tournaments, anyone can register</span></span>
+</label>
+<label for="ct-v2" style="display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line)">
+<input id="ct-v2" type="radio" name="ctv">
+<span style="flex: 1; display: flex; flex-direction: column"><span style="font-weight: 600; font-size: 15px">Unlisted</span><span style="font-size: 13px; color: var(--muted)">Only people with the link</span></span>
+</label>
+<label for="ct-v3" style="display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line)">
+<input id="ct-v3" type="radio" name="ctv">
+<span style="flex: 1; display: flex; flex-direction: column"><span style="font-weight: 600; font-size: 15px">Private</span><span style="font-size: 13px; color: var(--muted)">Only staff and players you add</span></span>
+</label>
+</fieldset>
+
+<div style="margin-top: auto; display: flex; flex-direction: column; gap: 10px">
+<span style="font-size: 13px; color: var(--muted); text-align: center">Saved as a draft. Nobody sees it until you open registration.</span>
+<a href="OrgDashboard.dc.html" style="display: flex; align-items: center; justify-content: center; height: 56px; border-radius: 16px; background: var(--primary); color: var(--onPrimary); font-weight: 800; font-size: 16px">Create draft</a>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() { return { themeClass: (this.props.theme ?? 'dark') === 'light' ? 'lt' : 'dk',}; }
+}
+</script>
+</body>
+</html>

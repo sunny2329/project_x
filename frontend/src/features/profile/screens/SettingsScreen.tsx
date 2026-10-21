@@ -1,156 +1,198 @@
-import Feather from '@expo/vector-icons/Feather';
-import Constants from 'expo-constants';
 import { router } from 'expo-router';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { Alert, Platform, View } from 'react-native';
+import { authApi } from '@/features/auth/api/auth.api';
+import { getAppleCredential } from '@/features/auth/social/apple';
+import { getGoogleIdToken } from '@/features/auth/social/google';
 import { useAuthStore } from '@/features/auth/store/auth.store';
-import { Avatar, FormMessage, ListGroup, ListRow, Screen, TopBar } from '@/shared/components';
+import type { LinkedIdentity, SessionInfo } from '@/features/auth/types';
+import { useResource } from '@/shared/hooks/useResource';
 import { useSubmit } from '@/shared/hooks/useSubmit';
-import { radius, spacing, typography, useTheme, useThemeStore, type ThemeMode } from '@/shared/theme';
-import { useProfileStore } from '../store/profile.store';
+import { useScoringPrefs } from '@/shared/prefs/scoring-prefs.store';
+import { useTheme, useThemeStore, type ThemeMode } from '@/shared/theme';
+import { Button, Group, GroupRow, Header, Icon, Label, Notice, Screen, Segmented, T, Toggle } from '@/shared/ui';
+import { ago, prettyPhone } from '@/shared/utils/format';
 
-/** Account card, account details, and log out. */
+function deviceLine(s: SessionInfo): string {
+  if (s.current) return 'Active now';
+  return s.lastUsedAt ? `Last used ${ago(s.lastUsedAt)}` : `Signed in ${ago(s.createdAt)}`;
+}
+
+/** Settings: account (phone, password, Google / Apple), devices, scoring preferences, log out. */
 export default function SettingsScreen() {
   const { colors } = useTheme();
-  const profileUser = useProfileStore((s) => s.profile?.user);
-  const authUser = useAuthStore((s) => s.user);
-  const user = profileUser ?? authUser;
+  const user = useAuthStore((s) => s.user);
   const signOut = useAuthStore((s) => s.signOut);
-  const signOutState = useSubmit();
-  if (!user) return null;
+  const identities = useResource(() => authApi.identities(), []);
+  const sessions = useResource(() => authApi.sessions(), []);
+  const prefs = useScoringPrefs();
+  const mode = useThemeStore((s) => s.mode);
+  const setMode = useThemeStore((s) => s.setMode);
+  const [message, setMessage] = useState<string | null>(null);
+  const link = useSubmit();
+  const others = useSubmit();
+
+  const linked = (p: LinkedIdentity['provider']) => identities.data?.identities.find((i) => i.provider === p) ?? null;
+
+  const linkProvider = (p: LinkedIdentity['provider']) =>
+    void link.submit(async () => {
+      if (p === 'google') {
+        const token = await getGoogleIdToken();
+        if (!token) return;
+        identities.setData(await authApi.linkGoogle(token));
+      } else {
+        const credential = await getAppleCredential();
+        if (!credential) return;
+        identities.setData(await authApi.linkApple(credential.identityToken));
+      }
+    });
+
+  const unlink = (p: LinkedIdentity['provider']) =>
+    Alert.alert(`Unlink ${p === 'google' ? 'Google' : 'Apple'}?`, 'You can still log in with your phone.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Unlink', style: 'destructive', onPress: () => void link.submit(async () => identities.setData(await authApi.unlink(p))) },
+    ]);
+
+  const providerRow = (p: LinkedIdentity['provider'], last: boolean) => {
+    const id = linked(p);
+    const name = p === 'google' ? 'Google' : 'Apple';
+    const unavailable = p === 'apple' && Platform.OS !== 'ios' && !id;
+    return (
+      <GroupRow last={last} onPress={id ? () => unlink(p) : undefined} label={id ? `${name} linked` : name}>
+        <T size={15} flex>
+          {name}
+        </T>
+        {id ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Icon name="check" size={16} color={colors.good} strokeWidth={2.4} />
+            <T size={14} w={600} color={colors.good}>
+              Linked
+            </T>
+          </View>
+        ) : (
+          <Button label="Link" variant="outline" height={34} radius={10} size={14} inline px={14} disabled={unavailable || link.submitting} onPress={() => linkProvider(p)} />
+        )}
+      </GroupRow>
+    );
+  };
+
+  const list = sessions.data?.sessions ?? [];
 
   return (
-    <Screen header={<TopBar title="Settings" back="/profile" />}>
-      <View style={styles.content}>
-        <Pressable
-          onPress={() => router.navigate('/profile')}
-          accessibilityRole="button"
-          accessibilityLabel="Open profile"
-          style={({ pressed }) => [
-            styles.account,
-            { backgroundColor: pressed ? colors.secondaryButtonPressed : colors.surface, borderColor: colors.surfaceBorder },
-          ]}
-        >
-          <Avatar name={user.fullName} size={56} ring />
-          <View style={styles.flex}>
-            <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>
-              {user.fullName}
-            </Text>
-            <Text style={[typography.body, { color: colors.textMuted }]}>@{user.username}</Text>
-          </View>
-          <Feather name="chevron-right" size={18} color={colors.icon} />
-        </Pressable>
+    <Screen gap={16}>
+      <Header display="Settings" displaySize={32} />
 
-        <ListGroup title="Account">
-          <ListRow icon="user" label="Edit profile" onPress={() => router.push('/edit-profile')} />
-          <ListRow icon="mail" label="Email" value={user.email ?? '—'} />
-          <ListRow icon="phone" label="Phone" value={`${user.phone}${user.phoneVerified ? ' ✓' : ''}`} />
-        </ListGroup>
+      {message ? <Notice tone="info" icon="check" text={message} /> : null}
+      {link.formError || others.formError ? <Notice tone="error" icon="alert" text={(link.formError ?? others.formError)!} /> : null}
 
-        <AppearancePicker />
-
-        <ListGroup title="Preferences">
-          <ListRow icon="target" label="Favourite sports" onPress={() => router.push('/edit-profile')} />
-        </ListGroup>
-
-        <FormMessage message={signOutState.formError} />
-        <Pressable
-          onPress={() => void signOutState.submit(signOut)}
-          disabled={signOutState.submitting}
-          accessibilityRole="button"
-          accessibilityLabel="Log out"
-          style={({ pressed }) => [
-            styles.logout,
-            { borderColor: colors.error, backgroundColor: pressed ? colors.errorSurface : 'transparent' },
-            signOutState.submitting && styles.busy,
-          ]}
-        >
-          <Feather name="log-out" size={17} color={colors.error} />
-          <Text style={[styles.logoutText, { color: colors.error }]}>Log out</Text>
-        </Pressable>
-        <Text style={[typography.caption, styles.version, { color: colors.textMuted }]}>
-          Project X · v{Constants.expoConfig?.version ?? '0.1.0'} (MVP)
-        </Text>
+      <View style={{ gap: 6 }}>
+        <Label style={{ paddingLeft: 4 }}>Account</Label>
+        <Group>
+          <GroupRow>
+            <T size={15} flex>
+              Phone
+            </T>
+            <T size={14} color={colors.muted}>
+              {user ? prettyPhone(user.phone) : ''}
+            </T>
+          </GroupRow>
+          <GroupRow label="Change password" onPress={() => router.push({ pathname: '/settings/password', params: { identifier: user?.phone ?? '', auto: '1' } })}>
+            <T size={15} flex>
+              Change password
+            </T>
+            <Icon name="chevronRight" size={18} color={colors.muted} />
+          </GroupRow>
+          {providerRow('google', false)}
+          {providerRow('apple', true)}
+        </Group>
       </View>
+
+      <View style={{ gap: 6 }}>
+        <Label style={{ paddingLeft: 4 }}>Devices</Label>
+        <Group>
+          {list.map((s) => (
+            <GroupRow key={s.id} minHeight={60}>
+              <Icon name="phone" size={20} color={colors.fg} />
+              <View style={{ flex: 1 }}>
+                <T size={15}>
+                  {s.deviceName ?? 'Unknown device'}
+                  {s.current ? ' · this phone' : ''}
+                </T>
+                <T size={12} color={colors.muted}>
+                  {deviceLine(s)}
+                </T>
+              </View>
+            </GroupRow>
+          ))}
+          <GroupRow
+            last
+            label="Sign out other devices"
+            onPress={
+              list.some((s) => !s.current)
+                ? () =>
+                    void others.submit(async () => {
+                      const { signedOut } = await authApi.signOutOtherDevices();
+                      setMessage(signedOut ? `Signed out ${signedOut} other device${signedOut === 1 ? '' : 's'}.` : 'No other devices were signed in.');
+                      await sessions.reload();
+                    })
+                : undefined
+            }
+          >
+            <T size={15} w={600} color={list.some((s) => !s.current) ? colors.bad : colors.faint}>
+              Sign out other devices
+            </T>
+          </GroupRow>
+        </Group>
+      </View>
+
+      <View style={{ gap: 6 }}>
+        <Label style={{ paddingLeft: 4 }}>While scoring</Label>
+        <Group>
+          <GroupRow minHeight={56}>
+            <T size={15} flex>
+              Keep screen on
+            </T>
+            <Toggle label="Keep screen on" value={prefs.keepAwake} onChange={(v) => prefs.set({ keepAwake: v })} />
+          </GroupRow>
+          <GroupRow minHeight={56} last>
+            <T size={15} flex>
+              Vibrate on each point
+            </T>
+            <Toggle label="Vibrate on each point" value={prefs.haptics} onChange={(v) => prefs.set({ haptics: v })} />
+          </GroupRow>
+        </Group>
+      </View>
+
+      <View style={{ gap: 6 }}>
+        <Label style={{ paddingLeft: 4 }}>Appearance</Label>
+        <Segmented<ThemeMode>
+          options={[
+            { value: 'system', label: 'System' },
+            { value: 'dark', label: 'Dark' },
+            { value: 'light', label: 'Light' },
+          ]}
+          value={mode}
+          onChange={setMode}
+          height={40}
+          size={14}
+        />
+      </View>
+
+      <Button
+        label="Log out"
+        variant="surface"
+        height={52}
+        radius={14}
+        size={15}
+        textColor={colors.bad}
+        style={{ marginTop: 'auto' }}
+        onPress={() =>
+          Alert.alert('Log out?', undefined, [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Log out', style: 'destructive', onPress: () => void signOut() },
+          ])
+        }
+      />
     </Screen>
   );
 }
-
-const MODES: { mode: ThemeMode; label: string; icon: 'smartphone' | 'sun' | 'moon' }[] = [
-  { mode: 'system', label: 'System', icon: 'smartphone' },
-  { mode: 'light', label: 'Light', icon: 'sun' },
-  { mode: 'dark', label: 'Dark', icon: 'moon' },
-];
-
-/** System / Light / Dark as three cards; saved on the device. */
-function AppearancePicker() {
-  const { colors } = useTheme();
-  const mode = useThemeStore((s) => s.mode);
-  const setMode = useThemeStore((s) => s.setMode);
-  return (
-    <View style={styles.appearance}>
-      <Text style={[typography.overline, styles.groupTitle, { color: colors.textMuted }]}>Appearance</Text>
-      <View style={styles.modes} accessibilityRole="radiogroup" accessibilityLabel="Appearance">
-        {MODES.map((option) => {
-          const selected = option.mode === mode;
-          return (
-            <Pressable
-              key={option.mode}
-              onPress={() => setMode(option.mode)}
-              accessibilityRole="radio"
-              accessibilityState={{ selected }}
-              accessibilityLabel={option.label}
-              style={[
-                styles.mode,
-                {
-                  backgroundColor: selected ? colors.primarySoft : colors.surface,
-                  borderColor: selected ? colors.primary : colors.surfaceBorder,
-                },
-              ]}
-            >
-              <Feather name={option.icon} size={22} color={selected ? colors.primary : colors.icon} />
-              <Text style={[styles.modeLabel, { color: selected ? colors.primary : colors.text }]}>{option.label}</Text>
-            </Pressable>
-          );
-        })}
-      </View>
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
-  appearance: { gap: spacing.sm },
-  groupTitle: { marginLeft: spacing.xs },
-  modes: { flexDirection: 'row', gap: spacing.sm + 2 },
-  mode: {
-    flex: 1,
-    alignItems: 'center',
-    gap: spacing.sm,
-    paddingVertical: spacing.lg,
-    borderRadius: radius.card,
-    borderWidth: 1.5,
-  },
-  modeLabel: { fontSize: 14, fontWeight: '700' },
-  content: { paddingTop: spacing.lg, gap: spacing.xl },
-  account: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    padding: spacing.lg,
-    borderRadius: radius.card,
-    borderWidth: StyleSheet.hairlineWidth * 2,
-  },
-  flex: { flex: 1, gap: 2 },
-  name: { fontSize: 17, fontWeight: '700' },
-  logout: {
-    height: 52,
-    borderRadius: radius.card,
-    borderWidth: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.sm,
-  },
-  logoutText: { fontSize: 16, fontWeight: '700' },
-  busy: { opacity: 0.5 },
-  version: { textAlign: 'center', marginTop: -spacing.md },
-});

@@ -49,6 +49,7 @@ npm install
 cp .env.example .env        # then fill in values (see "Environment variables")
 npm run seed                # inserts missing reference data (the 6 sports in mst_sport); safe to re-run
 npm run dev                 # http://localhost:4000, health check at GET /health
+                            # API docs (Swagger UI): http://localhost:4000/docs, spec: /docs/openapi.json
 npm test                    # Vitest + Supertest integration tests against the real DB (isolated schema)
 npm run typecheck && npm run build
 ```
@@ -113,7 +114,7 @@ in `app.config.ts`, never by hand-editing those folders.
   (`theme.store.ts`). Both themes follow Strava (`pics/image.png`, `pics/image copy*.png`): flat
   `#FC5200` orange, no glow; dark = `#141414` cards and app bars on a black canvas, light = white
   cards on `#F0F0F5`. Sport accents (`sportColor`), avatar/team tones (`toneFor`) and the welcome
-  screen's orange hero art are the only fixed colours.
+  screen (fixed dark in both themes, per `pics/0x · …@2x.png`) are the only fixed colours.
 - Config: `shared/config/env.ts` reads `EXPO_PUBLIC_*`. Those values are bundled into the app, so
   never put secrets there.
 
@@ -297,7 +298,7 @@ password on one screen. Shared shell: `features/auth/components/AuthScreenLayout
 
 | Route | Screen | Flow |
 | --- | --- | --- |
-| `/welcome` | WelcomeScreen | First signed-out screen. Swipeable slides (orange hero, "PROJECTX" wordmark, a phone-card mock of live scoring / feed / ratings / chat in `WelcomeArt.tsx`, one-line pitch, page dots), "Join for free" → `/sign-up`, "Log In" → `/sign-in` |
+| `/welcome` | WelcomeScreen | First signed-out screen. Fixed dark, matches `pics/01–04 · …@2x.png`. Swipeable slides: per-slide SVG court background (`CourtBackground`: blue / green / clay / night), "PROJECTX" wordmark with orange X, a phone mockup of live scoring / feed / ratings / crew chat (`WelcomeArt.tsx`), white pitch line; fixed controls below: pill page dots, orange "Join for free" → `/sign-up`, orange "Log in" link → `/sign-in` |
 | `/sign-in` | SignInScreen | "Log In to ProjectX": username, email or phone + password → `POST /login`. Links: Forgot password, Create an account; Continue with Google / phone / Apple (iOS only) |
 | `/sign-up` | SignUpScreen | "Create an Account": name, username, email, phone, password, confirm → `POST /register/start` (SMS code) → `/verify?flow=signup`. No Google button: Google/Apple can't create accounts (see Security model) |
 | `/phone` | PhoneSignInScreen | Phone → `POST /phone/start` → `/verify?flow=phone` |
@@ -394,7 +395,7 @@ Backend (`backend/.env`, template `backend/.env.example`): `NODE_ENV`, `PORT`, `
 tests), `DB_POOL_MAX`, `JWT_ACCESS_SECRET` (≥ 32 chars), `ACCESS_TOKEN_TTL_SECONDS`,
 `REFRESH_TOKEN_TTL_DAYS`, `SMS_PROVIDER` (`twilio` | `dev`), `TWILIO_ACCOUNT_SID`,
 `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER`, `DEV_OTP_CODE`, `GOOGLE_CLIENT_IDS`,
-`APPLE_BUNDLE_IDS`. Validated at start-up by `src/config/env.ts`; the server refuses to start if
+`APPLE_BUNDLE_IDS`, `API_DOCS` (`true`/`false`; unset = Swagger UI on outside production). Validated at start-up by `src/config/env.ts`; the server refuses to start if
 any is invalid. `SMS_PROVIDER=dev` (every code is `DEV_OTP_CODE`, sends nothing) is rejected in production.
 
 Frontend (`frontend/.env`, template `frontend/.env.example`): `EXPO_PUBLIC_API_URL`,
@@ -428,6 +429,22 @@ Frontend (`frontend/.env`, template `frontend/.env.example`): `EXPO_PUBLIC_API_U
   derived from it and should be checked against real designs when they exist.
 
 ## Changelog
+
+### 2026-10-19 — Welcome screen redesign
+- `/welcome` rebuilt to the four `pics/0x · …@2x.png` designs (Live scoring, Your people, Ratings,
+  Crew): court backgrounds and the rating sparkline are drawn with `react-native-svg` (new
+  dependency, in Expo Go; dev builds need one rebuild). Screen is dark in both themes; system font,
+  not the designs' typeface; sport icons from the existing icon set.
+- The old `pics/` screenshots (onboarding…settings, `image*.png`) were removed from the working tree.
+- Not yet checked on a device.
+
+### 2026-10-19 — API docs (Swagger)
+- OpenAPI 3.1 spec for all 82 operations in `backend/src/docs/openapi.ts`, served by
+  `swagger-ui-express` at `/docs` (spec at `/docs/openapi.json`). Request bodies are generated from
+  the routes' Zod schemas (`z.toJSONSchema`), so they track validation automatically; response
+  shapes and error codes are written by hand and must be updated when `*.types.ts` or the services change.
+  A new route must also be added there.
+- `API_DOCS` env var; the docs router relaxes the CSP's `upgrade-insecure-requests` so the UI loads over plain http.
 
 ### 2026-10-14 — Pivot: racket sports first, generic core, tournaments
 - Prisma adopted: `0_baseline` (46 existing tables, marked applied), `1_core_schema` (31 new tables),

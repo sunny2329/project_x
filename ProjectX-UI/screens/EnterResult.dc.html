@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Enter a result afterwards</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800;900&family=Instrument+Sans:wght@400;500;600;700&display=swap">
+<style>
+body{margin:0}
+:root,.dk{--bg:#0A0A0A;--surface:#161412;--raised:#221F1C;--raised2:#1B1917;--bar:#0F0E0D;--scrim:#000000;--line:#2C2825;--line2:#3F3A35;--fg:#F6F2EE;--soft:#D8D1CA;--muted:#ABA39B;--faint:#7D756E;--primary:#E85D04;--onPrimary:#0A0A0A;--accentText:#FF8A3D;--accentDeep:#1F1209;--accentLine:#5C2F10;--accentTint:rgba(232,93,4,0.14);--sideB:#F2EDE7;--onBrightMuted:#4A433D;--ink:#0A0A0A;--warnBg:#2A2113;--warnText:#FFD58A;--warnLine:#5C4A24;--good:#4ADE80;--bad:#FF8A98;--tBad:#C990FA;--tTT:#F2CC4D;--tPk:#FDA668;--tPd:#5FD4E8;--tTn:#B5E26A;--tVb:#5EDBC8;--av1:#3B2A55;--av2:#4A2433;--av3:#173A43;--av4:#3D2A17;--av5:#26361A}
+.lt{--bg:#FFFFFF;--surface:#F7F3EF;--raised:#EEE8E2;--raised2:#F2EDE8;--bar:#FFFFFF;--scrim:#CFC7BF;--line:#E6DED6;--line2:#D2C8BE;--fg:#16120F;--soft:#3B3430;--muted:#6B625B;--faint:#978D85;--primary:#C2410C;--onPrimary:#FFFFFF;--accentText:#C2410C;--accentDeep:#FFF1E7;--accentLine:#F8C6A3;--accentTint:rgba(234,88,12,0.10);--sideB:#1C1917;--onBrightMuted:rgba(255,255,255,0.8);--ink:#0A0A0A;--warnBg:#FEF3C7;--warnText:#92400E;--warnLine:#E9C46A;--good:#15803D;--bad:#BE123C;--tBad:#7E22CE;--tTT:#A16207;--tPk:#C2410C;--tPd:#0E7490;--tTn:#4D7C0F;--tVb:#0F766E;--av1:#EBD9FF;--av2:#FCE1EA;--av3:#CDF3F8;--av4:#FFE6CC;--av5:#E3F5C8}
+
+a{color:var(--fg);text-decoration:none}a:hover{color:var(--fg)}
+.d{font-family:'Big Shoulders Display','Arial Narrow',Impact,sans-serif}
+svg.i{fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+input{font:inherit;color:inherit;background:transparent;border:0;outline:0}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+</style>
+</helmet>
+<div class="{{themeClass}}" style="width: 390px; height: 844px; box-sizing: border-box; background: var(--bg); color: var(--fg); font-family: 'Instrument Sans', system-ui, sans-serif; display: flex; flex-direction: column; overflow: hidden; padding: 54px 20px 32px; gap: 18px">
+
+<div style="display: flex; align-items: center; gap: 12px">
+<a href="NewMatchSport.dc.html" aria-label="Back" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 14px; background: var(--surface)"><svg class="i" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg></a>
+<span style="font-size: 17px; font-weight: 700">Enter a result</span>
+</div>
+
+<div style="display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 14px; background: var(--surface)">
+<span style="width: 8px; height: 8px; border-radius: 4px; background: #A855F7"></span>
+<span style="flex: 1; font-size: 14px; font-weight: 600">Badminton · Singles · Best of 3 · 21</span>
+<a href="NewMatchSetup.dc.html" style="font-size: 13px; font-weight: 700; color: var(--soft)">Change</a>
+</div>
+
+<div style="display: grid; grid-template-columns: 60px minmax(0, 1fr) minmax(0, 1fr); gap: 8px; align-items: center">
+<span></span>
+<span style="font-size: 14px; font-weight: 700; text-align: center">You</span>
+<span style="font-size: 14px; font-weight: 700; text-align: center">Arjun T</span>
+
+<span style="font-size: 13px; color: var(--muted); font-weight: 600">Game 1</span>
+<input aria-label="Game 1, your points" value="21" class="d" style="height: 60px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); text-align: center; font-size: 30px; font-weight: 900">
+<input aria-label="Game 1, Arjun’s points" value="15" class="d" style="height: 60px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); text-align: center; font-size: 30px; font-weight: 900">
+
+<span style="font-size: 13px; color: var(--muted); font-weight: 600">Game 2</span>
+<input aria-label="Game 2, your points" value="18" class="d" style="height: 60px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); text-align: center; font-size: 30px; font-weight: 900">
+<input aria-label="Game 2, Arjun’s points" value="21" class="d" style="height: 60px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); text-align: center; font-size: 30px; font-weight: 900">
+
+<span style="font-size: 13px; color: var(--muted); font-weight: 600">Game 3</span>
+<input aria-label="Game 3, your points" value="21" aria-invalid="true" class="d" style="height: 60px; border-radius: 14px; background: rgba(255,84,104,0.08); border: 2px solid #FF5468; text-align: center; font-size: 30px; font-weight: 900">
+<input aria-label="Game 3, Arjun’s points" value="20" aria-invalid="true" class="d" style="height: 60px; border-radius: 14px; background: rgba(255,84,104,0.08); border: 2px solid #FF5468; text-align: center; font-size: 30px; font-weight: 900">
+</div>
+
+<div role="alert" style="display: flex; gap: 10px; padding: 12px 14px; border-radius: 14px; background: rgba(255,84,104,0.1); color: var(--bad); font-size: 14px; line-height: 20px">
+<svg class="i" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" style="flex: none"><circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 16.5v.5"/></svg>
+<span>21-20 can’t end a game. You need a 2-point lead, like 22-20, up to 30.</span>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 8px">
+<label for="er-date" style="font-size: 13px; font-weight: 600; color: var(--muted)">Played on</label>
+<input id="er-date" value="Sun, 18 Oct · Smash Arena" style="height: 52px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); padding: 0 16px; font-size: 16px; font-weight: 600">
+</div>
+
+<div style="margin-top: auto; display: flex; flex-direction: column; gap: 10px">
+<span style="font-size: 13px; line-height: 19px; color: var(--muted); text-align: center">Arjun gets a request. Ratings change only after he confirms.</span>
+<a href="MatchHistory.dc.html" style="display: flex; align-items: center; justify-content: center; height: 56px; border-radius: 16px; background: var(--primary); color: var(--onPrimary); font-weight: 800; font-size: 16px">Send to Arjun to confirm</a>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() { return { themeClass: (this.props.theme ?? 'dark') === 'light' ? 'lt' : 'dk',}; }
+}
+</script>
+</body>
+</html>

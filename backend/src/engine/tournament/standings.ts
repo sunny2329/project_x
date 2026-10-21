@@ -26,6 +26,11 @@ export interface GroupResult {
 export interface StandingRow {
   entryId: string;
   rank: number;
+  /**
+   * The tiebreaker that last split this entry from others level with it ("head_to_head"), "seed"
+   * when only the seed/id fallback did, or null when it was never level with anyone.
+   */
+  tiebreak: Tiebreaker | 'seed' | null;
   played: number;
   won: number;
   lost: number;
@@ -36,7 +41,9 @@ export interface StandingRow {
 }
 
 function tally(entryIds: readonly string[], results: readonly GroupResult[]): Map<string, StandingRow> {
-  const rows = new Map(entryIds.map((id) => [id, { entryId: id, rank: 0, played: 0, won: 0, lost: 0, majorWon: 0, majorLost: 0, minorWon: 0, minorLost: 0 }]));
+  const rows = new Map(
+    entryIds.map((id): [string, StandingRow] => [id, { entryId: id, rank: 0, tiebreak: null, played: 0, won: 0, lost: 0, majorWon: 0, majorLost: 0, minorWon: 0, minorLost: 0 }]),
+  );
   for (const r of results) {
     const one = rows.get(r.entry1Id);
     const two = rows.get(r.entry2Id);
@@ -91,9 +98,12 @@ export function rankGroup(
   seeds: ReadonlyMap<string, number | null> = new Map(),
 ): StandingRow[] {
   const overall = tally(entryIds, results);
+  const decidedBy = new Map<string, Tiebreaker | 'seed'>();
 
-  const fallback = (ids: string[]) =>
-    [...ids].sort((a, b) => (seeds.get(a) ?? Infinity) - (seeds.get(b) ?? Infinity) || a.localeCompare(b));
+  const fallback = (ids: string[]) => {
+    for (const id of ids) decidedBy.set(id, 'seed');
+    return [...ids].sort((a, b) => (seeds.get(a) ?? Infinity) - (seeds.get(b) ?? Infinity) || a.localeCompare(b));
+  };
 
   const resolve = (ids: string[], k: number): string[] => {
     if (ids.length <= 1) return ids;
@@ -107,9 +117,11 @@ export function rankGroup(
     return split(partition(ids, (id) => VALUE[tb](overall.get(id)!)));
 
     function split(buckets: string[][]): string[] {
+      // The first tiebreaker (usually match wins) is the ranking itself, not a tiebreak.
+      if (buckets.length > 1 && k > 0) for (const id of ids) decidedBy.set(id, tb);
       return buckets.flatMap((b) => (b.length < ids.length ? resolve(b, 0) : resolve(b, k + 1)));
     }
   };
 
-  return resolve([...entryIds], 0).map((id, i) => ({ ...overall.get(id)!, rank: i + 1 }));
+  return resolve([...entryIds], 0).map((id, i) => ({ ...overall.get(id)!, rank: i + 1, tiebreak: decidedBy.get(id) ?? null }));
 }

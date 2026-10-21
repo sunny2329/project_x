@@ -1,10 +1,12 @@
 import { Router, type RequestHandler } from 'express';
 import type pg from 'pg';
 import { z } from 'zod';
+import { withTransaction } from '../../database/pool.js';
 import { validateBody } from '../../middleware/validate.js';
 import { sendSuccess } from '../../utils/api-response.js';
 import { AppError } from '../../utils/app-error.js';
 import { PostVisibility } from '../feed/post.codes.js';
+import { mediaUrl, ownedMediaIds } from '../media/media.routes.js';
 import type { SocialRepository } from './social.repository.js';
 import { commentsQuerySchema, createCommentSchema, createPostSchema, uuidParam, type CreatePostInput } from './social.validation.js';
 
@@ -31,11 +33,22 @@ export function createSocialRouter(pool: pg.Pool, repository: SocialRepository, 
   router.post('/', validateBody(createPostSchema), async (req, res) => {
     const userId = req.auth!.userId;
     const body = req.body as CreatePostInput;
-    const postId = await repository.createPost(pool, {
-      userId,
-      content: body.content,
-      visibilityId: body.visibility === 'followers' ? PostVisibility.FOLLOWERS : PostVisibility.PUBLIC,
-    });
+    const mediaIds = await ownedMediaIds(pool, userId, body.mediaIds);
+    if (mediaIds.length !== body.mediaIds.length) {
+      throw AppError.badRequest('VALIDATION_ERROR', 'Some fields are invalid.', { mediaIds: ['Upload the photos first'] });
+    }
+    if (body.matchId && !(await repository.isMatchOfUser(pool, userId, body.matchId))) {
+      throw AppError.badRequest('VALIDATION_ERROR', 'Some fields are invalid.', { matchId: ['Attach one of your own matches'] });
+    }
+    const postId = await withTransaction(pool, (db) =>
+      repository.createPost(db, {
+        userId,
+        content: body.content,
+        visibilityId: body.visibility === 'followers' ? PostVisibility.FOLLOWERS : PostVisibility.PUBLIC,
+        mediaUrls: mediaIds.map(mediaUrl),
+        attachedMatchId: body.matchId ?? null,
+      }),
+    );
     sendSuccess(res, { post: await repository.findVisiblePost(pool, userId, postId) }, 201);
   });
 

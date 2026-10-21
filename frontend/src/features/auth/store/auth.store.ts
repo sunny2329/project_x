@@ -4,7 +4,7 @@ import { authApi } from '../api/auth.api';
 import { getAppleCredential } from '../social/apple';
 import { getGoogleIdToken, signOutOfGoogle } from '../social/google';
 import { sessionStorage, toStoredSession, type StoredSession } from '../storage/session-storage';
-import type { AuthResult, RegistrationForm, User } from '../types';
+import type { AuthResult, PendingSignup, User } from '../types';
 
 export type AuthStatus = 'checking' | 'authenticated' | 'unauthenticated';
 
@@ -14,14 +14,21 @@ const ACCESS_TOKEN_LEEWAY_MS = 30_000;
 interface AuthState {
   status: AuthStatus;
   user: User | null;
-  /** Sign-up form kept in memory (never in route params) while the phone is verified. */
-  pendingRegistration: RegistrationForm | null;
+  /** Sign-up in progress, kept in memory (never in route params). */
+  pendingSignup: PendingSignup | null;
+  /** Set right after sign-up: the app shows "What do you play?" and "Claim matches" before Home. */
+  onboarding: boolean;
 
   bootstrap(): Promise<void>;
   signIn(identifier: string, password: string): Promise<void>;
-  startRegistration(form: RegistrationForm): Promise<void>;
-  resendRegistrationCode(): Promise<void>;
-  completeRegistration(code: string): Promise<void>;
+  /** Step 1: phone + username, texts a code. */
+  startSignup(phone: string, username: string): Promise<void>;
+  resendSignupCode(): Promise<void>;
+  /** Step 2: checks the code. */
+  verifySignup(code: string): Promise<void>;
+  /** Step 3: creates the account and signs in. */
+  completeSignup(details: { fullName: string; displayName: string; password: string }): Promise<void>;
+  finishOnboarding(): void;
   startPhoneSignIn(phone: string): Promise<void>;
   verifyPhoneSignIn(phone: string, code: string): Promise<void>;
   requestPasswordReset(identifier: string): Promise<void>;
@@ -42,13 +49,13 @@ export const useAuthStore = create<AuthState>()((set, get) => {
   async function establishSession(result: AuthResult): Promise<void> {
     session = toStoredSession(result);
     await sessionStorage.save(session);
-    set({ status: 'authenticated', user: result.user, pendingRegistration: null });
+    set({ status: 'authenticated', user: result.user, pendingSignup: null });
   }
 
   async function clearLocalSession(): Promise<void> {
     session = null;
     await sessionStorage.clear();
-    set({ status: 'unauthenticated', user: null });
+    set({ status: 'unauthenticated', user: null, onboarding: false });
   }
 
   /**
@@ -88,7 +95,8 @@ export const useAuthStore = create<AuthState>()((set, get) => {
   return {
     status: 'checking',
     user: null,
-    pendingRegistration: null,
+    pendingSignup: null,
+    onboarding: false,
 
     async bootstrap() {
       const stored = await sessionStorage.load().catch(() => null);
@@ -108,20 +116,33 @@ export const useAuthStore = create<AuthState>()((set, get) => {
       await establishSession(await authApi.login(identifier, password));
     },
 
-    async startRegistration(form) {
-      await authApi.startRegistration(form);
-      set({ pendingRegistration: form });
+    async startSignup(phone, username) {
+      await authApi.startRegistration(phone, username);
+      set({ pendingSignup: { phone, username, registrationToken: null } });
     },
 
-    async resendRegistrationCode() {
-      const form = get().pendingRegistration;
-      if (form) await authApi.startRegistration(form);
+    async resendSignupCode() {
+      const pending = get().pendingSignup;
+      if (pending) await authApi.startRegistration(pending.phone, pending.username);
     },
 
-    async completeRegistration(code) {
-      const form = get().pendingRegistration;
-      if (!form) throw new ApiError(0, 'REGISTRATION_EXPIRED', 'Please fill in the sign-up form again.');
-      await establishSession(await authApi.completeRegistration(form, code));
+    async verifySignup(code) {
+      const pending = get().pendingSignup;
+      if (!pending) throw new ApiError(0, 'REGISTRATION_EXPIRED', 'Please enter your phone number again.');
+      const { registrationToken } = await authApi.verifyRegistration(pending.phone, code);
+      set({ pendingSignup: { ...pending, registrationToken } });
+    },
+
+    async completeSignup(details) {
+      const pending = get().pendingSignup;
+      if (!pending?.registrationToken) throw new ApiError(0, 'REGISTRATION_EXPIRED', 'Please verify your phone number again.');
+      const result = await authApi.completeRegistration({ ...details, username: pending.username, registrationToken: pending.registrationToken });
+      set({ onboarding: true });
+      await establishSession(result);
+    },
+
+    finishOnboarding() {
+      set({ onboarding: false });
     },
 
     async startPhoneSignIn(phone) {

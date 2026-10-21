@@ -30,12 +30,31 @@ const COMMENT_COLUMNS = `
   json_build_object('id', cu.id, 'username', cu.username, 'fullName', coalesce(cpr.display_name, cu.username)) AS author`;
 
 export const socialRepository = {
-  async createPost(db: Queryable, post: { userId: string; content: string; visibilityId: number }): Promise<string> {
+  async createPost(
+    db: Queryable,
+    post: { userId: string; content: string; visibilityId: number; mediaUrls?: string[]; attachedMatchId?: string | null },
+  ): Promise<string> {
     const { rows } = await db.query<{ id: string }>(
-      'INSERT INTO social_post (user_id, post_type_id, content, visibility_id) VALUES ($1, $2, $3, $4) RETURNING id',
-      [post.userId, PostType.TEXT, post.content, post.visibilityId],
+      'INSERT INTO social_post (user_id, post_type_id, content, visibility_id, attached_match_id) VALUES ($1, $2, $3, $4, $5) RETURNING id',
+      [post.userId, PostType.TEXT, post.content || null, post.visibilityId, post.attachedMatchId ?? null],
     );
-    return rows[0]!.id;
+    const id = rows[0]!.id;
+    // media_type_id 1 = image (social_post_media has no FK on it).
+    for (const [i, url] of (post.mediaUrls ?? []).entries()) {
+      await db.query('INSERT INTO social_post_media (post_id, media_type_id, media_url, media_order) VALUES ($1, 1, $2, $3)', [id, url, i + 1]);
+    }
+    return id;
+  },
+
+  /** True when the user played in or created the match (so they may attach it to a post or message). */
+  async isMatchOfUser(db: Queryable, userId: string, matchId: string): Promise<boolean> {
+    const { rows } = await db.query(
+      `SELECT 1 FROM matches m
+        WHERE m.id = $2 AND (m.created_by_user_id = $1
+              OR EXISTS (SELECT 1 FROM match_participants mp JOIN players p ON p.id = mp.player_id WHERE mp.match_id = m.id AND p.user_id = $1))`,
+      [userId, matchId],
+    );
+    return rows.length > 0;
   },
 
   /** The post if the viewer may see it. */

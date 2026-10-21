@@ -29,6 +29,9 @@ export function createMatchesRouter(service: MatchesService, requireAuth: Reques
   router.get('/:id', async (req, res) => {
     sendSuccess(res, { match: await service.get(me(req), matchId(req.params.id)) });
   });
+  router.get('/:id/details', async (req, res) => {
+    sendSuccess(res, { details: await service.details(matchId(req.params.id)) });
+  });
   router.post('/:id/events', validateBody(scoreEventSchema), async (req, res) => {
     sendSuccess(res, { match: await service.score(me(req), matchId(req.params.id), req.body) });
   });

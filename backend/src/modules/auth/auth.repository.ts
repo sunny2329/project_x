@@ -7,6 +7,9 @@ import {
   type OtpPurposeCode,
   type OtpRecord,
   type SessionRecord,
+  type IdentityProvider,
+  type LinkedIdentity,
+  type SessionInfo,
   type UserRecord,
 } from './auth.types.js';
 import type { Phone } from './phone.js';
@@ -28,7 +31,9 @@ function toUser({ phoneCountryCode, phoneNumber, ...row }: UserRow): UserRecord 
 export interface NewUser {
   username: string;
   fullName: string;
-  email: string;
+  /** Name on scoreboards (the player's display name). */
+  displayName: string;
+  email: string | null;
   phone: Phone;
   passwordHash: string;
 }
@@ -73,7 +78,7 @@ export const authRepository = {
 
   async findTakenFields(
     db: Queryable,
-    fields: { username: string; email: string; phone: Phone },
+    fields: { username: string; email?: string | null | undefined; phone: Phone },
   ): Promise<{ username: boolean; email: boolean; phone: boolean }> {
     const { rows } = await db.query<{ username: boolean; email: boolean; phone: boolean }>(
       `SELECT lower(username) = lower($1) AS username,
@@ -81,7 +86,7 @@ export const authRepository = {
               (phone_country_code = $3 AND phone_number = $4) AS phone
          FROM usr_user
         WHERE lower(username) = lower($1) OR email = $2 OR (phone_country_code = $3 AND phone_number = $4)`,
-      [fields.username, fields.email, fields.phone.countryCode, fields.phone.number],
+      [fields.username, fields.email ?? null, fields.phone.countryCode, fields.phone.number],
     );
     return {
       username: rows.some((row) => row.username),
@@ -90,7 +95,7 @@ export const authRepository = {
     };
   },
 
-  /** Creates the user, their profile and the first password history entry. */
+  /** Creates the user, their profile, their player (scoreboard name) and the first password history entry. */
   async createUser(db: Queryable, user: NewUser): Promise<UserRecord> {
     const { rows } = await db.query<{ id: string }>(
       `INSERT INTO usr_user (username, phone_country_code, phone_number, email, password_hash, status, is_phone_verified, last_login_at)
@@ -101,6 +106,11 @@ export const authRepository = {
     const id = rows[0]!.id;
     await db.query('INSERT INTO usr_user_profile (user_id, display_name) VALUES ($1, $2)', [id, user.fullName]);
     await db.query('INSERT INTO auth_password_history (user_id, password_hash) VALUES ($1, $2)', [id, user.passwordHash]);
+    await db.query('INSERT INTO players (user_id, display_name, phone) VALUES ($1, $2, $3)', [
+      id,
+      user.displayName,
+      `${user.phone.countryCode}${user.phone.number}`,
+    ]);
     return (await authRepository.findUserById(db, id))!;
   },
 
@@ -144,10 +154,17 @@ export const authRepository = {
 
   async createSession(db: Queryable, session: NewSession): Promise<string> {
     const { rows } = await db.query<{ id: string }>(
-      `INSERT INTO auth_session (user_id, refresh_token_hash, expires_at, user_agent, ip_address, last_used_at)
-       VALUES ($1, $2, $3, $4, $5, now())
+      `INSERT INTO auth_session (user_id, refresh_token_hash, expires_at, user_agent, ip_address, device_name, last_used_at)
+       VALUES ($1, $2, $3, $4, $5, $6, now())
        RETURNING id`,
-      [session.userId, session.refreshTokenHash, session.expiresAt, session.client.userAgent ?? null, session.client.ip ?? null],
+      [
+        session.userId,
+        session.refreshTokenHash,
+        session.expiresAt,
+        session.client.userAgent ?? null,
+        session.client.ip ?? null,
+        session.client.deviceName ?? null,
+      ],
     );
     return rows[0]!.id;
   },
@@ -176,6 +193,63 @@ export const authRepository = {
 
   async revokeAllUserSessions(db: Queryable, userId: string): Promise<void> {
     await db.query('UPDATE auth_session SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL', [userId]);
+  },
+
+  /** The user's signed-in devices, most recently used first. */
+  async listSessions(db: Queryable, userId: string, currentSessionId: string): Promise<SessionInfo[]> {
+    const { rows } = await db.query<{ id: string; deviceName: string | null; userAgent: string | null; createdAt: Date; lastUsedAt: Date | null }>(
+      `SELECT id, device_name AS "deviceName", user_agent AS "userAgent", created_at AS "createdAt", last_used_at AS "lastUsedAt"
+         FROM auth_session
+        WHERE user_id = $1 AND revoked_at IS NULL AND expires_at > now()
+        ORDER BY id = $2 DESC, coalesce(last_used_at, created_at) DESC`,
+      [userId, currentSessionId],
+    );
+    return rows.map((r) => ({
+      id: r.id,
+      deviceName: r.deviceName,
+      userAgent: r.userAgent,
+      createdAt: r.createdAt.toISOString(),
+      lastUsedAt: r.lastUsedAt?.toISOString() ?? null,
+      current: r.id === currentSessionId,
+    }));
+  },
+
+  /** Revokes every live session of the user except `keepSessionId`; returns the revoked ids. */
+  async revokeOtherSessions(db: Queryable, userId: string, keepSessionId: string): Promise<string[]> {
+    const { rows } = await db.query<{ id: string }>(
+      'UPDATE auth_session SET revoked_at = now() WHERE user_id = $1 AND id <> $2 AND revoked_at IS NULL RETURNING id',
+      [userId, keepSessionId],
+    );
+    return rows.map((r) => r.id);
+  },
+
+  async findUserIdByIdentity(db: Queryable, provider: IdentityProvider, subject: string): Promise<string | null> {
+    const { rows } = await db.query<{ userId: string }>('SELECT user_id AS "userId" FROM auth_identity WHERE provider = $1 AND subject = $2', [
+      provider,
+      subject,
+    ]);
+    return rows[0]?.userId ?? null;
+  },
+
+  async listIdentities(db: Queryable, userId: string): Promise<LinkedIdentity[]> {
+    const { rows } = await db.query<{ provider: IdentityProvider; email: string | null; linkedAt: Date }>(
+      'SELECT provider, email, created_at AS "linkedAt" FROM auth_identity WHERE user_id = $1 ORDER BY provider',
+      [userId],
+    );
+    return rows.map((r) => ({ ...r, linkedAt: r.linkedAt.toISOString() }));
+  },
+
+  /** Links (or re-links) the provider account; throws the pg unique violation when it belongs to someone else. */
+  async linkIdentity(db: Queryable, userId: string, provider: IdentityProvider, subject: string, email: string | null): Promise<void> {
+    await db.query(
+      `INSERT INTO auth_identity (user_id, provider, subject, email) VALUES ($1, $2, $3, $4)
+       ON CONFLICT (user_id, provider) DO UPDATE SET subject = EXCLUDED.subject, email = EXCLUDED.email, created_at = now()`,
+      [userId, provider, subject, email],
+    );
+  },
+
+  async unlinkIdentity(db: Queryable, userId: string, provider: IdentityProvider): Promise<void> {
+    await db.query('DELETE FROM auth_identity WHERE user_id = $1 AND provider = $2', [userId, provider]);
   },
 
   /** True when the session is live and belongs to an active user; checked on every authenticated request. */

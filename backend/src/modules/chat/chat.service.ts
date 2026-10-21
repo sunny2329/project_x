@@ -89,7 +89,7 @@ export class ChatService {
     return this.deps.repository.listMessages(this.deps.pool, conversationId, query);
   }
 
-  async sendMessage(userId: string, conversationId: string, content: string): Promise<ChatMessage> {
+  async sendMessage(userId: string, conversationId: string, content: string, matchId?: string): Promise<ChatMessage> {
     const members = await this.requireMemberIds(userId, conversationId);
     const conversation = members.length === 2 ? await this.getConversation(userId, conversationId) : null;
     if (conversation?.type === 'direct') {
@@ -97,7 +97,15 @@ export class ChatService {
       const reachable = await this.deps.repository.findReachableUsers(this.deps.pool, userId, [other]);
       if (!reachable.length) throw AppError.forbidden('CANNOT_MESSAGE', 'You can’t message this player.');
     }
-    const message = await this.deps.repository.insertMessage(this.deps.pool, { conversationId, senderId: userId, content });
+    if (matchId && !(await this.deps.repository.isMatchOfUser(this.deps.pool, userId, matchId))) {
+      throw AppError.badRequest('VALIDATION_ERROR', 'Some fields are invalid.', { matchId: ['Share one of your own matches'] });
+    }
+    const message = await this.deps.repository.insertMessage(this.deps.pool, {
+      conversationId,
+      senderId: userId,
+      content: content || 'Sent a match result',
+      matchId: matchId ?? null,
+    });
     await this.deps.cache.set(keys.last(conversationId), message.id, LAST_MESSAGE_TTL_SECONDS);
     return message;
   }

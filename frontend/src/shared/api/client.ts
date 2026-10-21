@@ -1,4 +1,8 @@
+import * as Device from 'expo-device';
 import { env } from '@/shared/config/env';
+
+/** "Pixel 8": shown under Settings > Devices for the session this phone signs in with. */
+const DEVICE_NAME = (Device.modelName ?? Device.deviceName ?? '').replace(/[^\w .()'-]/g, '').slice(0, 100);
 
 const REQUEST_TIMEOUT_MS = 15_000;
 
@@ -61,6 +65,7 @@ async function send<T>(path: string, options: RequestOptions, accessToken: strin
       method: options.method ?? 'GET',
       headers: {
         Accept: 'application/json',
+        ...(DEVICE_NAME ? { 'X-Device-Name': DEVICE_NAME } : {}),
         ...(options.body !== undefined ? { 'Content-Type': 'application/json' } : {}),
         ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
       },

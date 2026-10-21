@@ -13,9 +13,12 @@ import {
   loginSchema,
   phoneStartSchema,
   phoneVerifySchema,
+  linkAppleSchema,
+  linkGoogleSchema,
   refreshTokenSchema,
   registerCompleteSchema,
   registerStartSchema,
+  registerVerifySchema,
   resetPasswordSchema,
 } from './auth.validation.js';
 
@@ -43,7 +46,9 @@ export function createAuthRouter(service: AuthService, rateLimiting: boolean): R
   router.use(perIp);
 
   router.post('/register/start', validateBody(registerStartSchema), sendCodePerIp, sendCodePerTarget, controller.registerStart);
-  router.post('/register/complete', validateBody(registerCompleteSchema), checkCodePerTarget, controller.registerComplete);
+  router.post('/register/verify', validateBody(registerVerifySchema), checkCodePerTarget, controller.registerVerify);
+  router.post('/register/complete', validateBody(registerCompleteSchema), controller.registerComplete);
+  router.get('/username-available', controller.usernameAvailable);
   router.post('/login', validateBody(loginSchema), loginPerTarget, controller.login);
   router.post('/phone/start', validateBody(phoneStartSchema), sendCodePerIp, sendCodePerTarget, controller.phoneStart);
   router.post('/phone/verify', validateBody(phoneVerifySchema), checkCodePerTarget, controller.phoneVerify);
@@ -53,7 +58,14 @@ export function createAuthRouter(service: AuthService, rateLimiting: boolean): R
   router.post('/apple', validateBody(appleSignInSchema), controller.apple);
   router.post('/refresh', validateBody(refreshTokenSchema), controller.refresh);
   router.post('/logout', validateBody(refreshTokenSchema), controller.logout);
-  router.get('/me', authenticate((token) => service.authenticate(token)), controller.me);
+  const requireAuth = authenticate((token) => service.authenticate(token));
+  router.get('/me', requireAuth, controller.me);
+  router.get('/sessions', requireAuth, controller.sessions);
+  router.post('/sessions/sign-out-others', requireAuth, controller.signOutOthers);
+  router.get('/identities', requireAuth, controller.identities);
+  router.post('/identities/google', requireAuth, validateBody(linkGoogleSchema), controller.linkGoogle);
+  router.post('/identities/apple', requireAuth, validateBody(linkAppleSchema), controller.linkApple);
+  router.delete('/identities/:provider', requireAuth, controller.unlink);
 
   return router;
 }

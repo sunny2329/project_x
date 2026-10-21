@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import helmet from 'helmet';
 import { z } from 'zod';
 import { sendSuccess } from '../../utils/api-response.js';
 import { AppError } from '../../utils/app-error.js';
@@ -36,16 +37,31 @@ export function createPublicRouters(matches: MatchesService, tournaments: Tourna
   api.get('/tournaments/:slug', async (req, res) => {
     const slug = slugSchema.safeParse(req.params.slug);
     if (!slug.success) throw AppError.notFound('TOURNAMENT_NOT_FOUND', 'This tournament does not exist.');
-    sendSuccess(res, { tournament: await tournaments.getBySlug(slug.data) });
+    const t = await tournaments.getBySlug(slug.data);
+    sendSuccess(res, { tournament: { ...t, organizer: { userId: null, name: t.organizer.name } } });
   });
   api.get('/tournament-events/:id', async (req, res) => {
     const id = z.uuid().safeParse(req.params.id);
     if (!id.success) throw AppError.notFound('EVENT_NOT_FOUND', 'This event does not exist.');
     const event = await tournaments.eventDetail(null, id.data);
-    sendSuccess(res, { event: { ...event, entries: event.entries.map((e) => ({ ...e, players: e.players.map((p) => ({ displayName: p.displayName })) })) } });
+    const anonymous = <T extends { players: Array<{ displayName: string }> }>(e: T) => ({ ...e, players: e.players.map((p) => ({ displayName: p.displayName })) });
+    sendSuccess(res, {
+      event: {
+        ...event,
+        entries: event.entries.map(anonymous),
+        fixtures: event.fixtures.map((f) => ({
+          ...f,
+          entries: f.entries.map((e) => (e ? anonymous(e) : null)),
+          court: f.court ? { ...f.court, scorers: [] } : null,
+        })),
+        podium: null,
+      },
+    });
   });
 
   const pages = Router();
+  // The global CSP upgrades requests to https, which breaks the page's own API calls over plain-http dev servers.
+  pages.use(['/s', '/t', '/public-assets'], helmet.contentSecurityPolicy({ directives: { 'upgrade-insecure-requests': null } }));
   pages.get('/public-assets/page.js', (_req, res) => {
     res.type('application/javascript').set('Cache-Control', 'public, max-age=300').send(PUBLIC_PAGE_SCRIPT);
   });

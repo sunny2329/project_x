@@ -1,6 +1,6 @@
 import { apiRequest } from '@/shared/api/client';
 import { env } from '@/shared/config/env';
-import type { MatchCard, MatchView, NewMatch, PlayerOption, PlayerRef, PluginEvent, SportSummary } from '../types';
+import type { MatchCard, MatchDetails, MatchView, NewMatch, PlayerOption, PlayerRef, PluginEvent, SportSummary } from '../types';
 
 type MatchResponse = { match: MatchView };
 const auth = { authenticated: true } as const;
@@ -13,6 +13,7 @@ export const matchApi = {
   pendingConfirmations: () => apiRequest<{ matches: MatchCard[] }>('/api/v1/matches/pending-confirmations', auth),
   create: (match: NewMatch) => apiRequest<MatchResponse>('/api/v1/matches', post(match)),
   get: (id: string) => apiRequest<MatchResponse>(`/api/v1/matches/${id}`, auth),
+  details: (id: string) => apiRequest<{ details: MatchDetails }>(`/api/v1/matches/${id}/details`, auth),
 
   /** `version` is the version the scorer is looking at; `clientEventId` makes a retry harmless. */
   score: (id: string, event: PluginEvent, version: number, clientEventId: string) =>
@@ -22,10 +23,15 @@ export const matchApi = {
   retire: (id: string, version: number, retiredSideIndex: number) =>
     apiRequest<MatchResponse>(`/api/v1/matches/${id}/retire`, post({ version, retiredSideIndex })),
   abandon: (id: string) => apiRequest<MatchResponse>(`/api/v1/matches/${id}/abandon`, post()),
+  /** Before the first point only. Null winner = neither side turned up. */
+  walkover: (id: string, winnerSideIndex: number | null, reason: 'walkover' | 'no_show') =>
+    apiRequest<MatchResponse>(`/api/v1/matches/${id}/walkover`, post({ winnerSideIndex, reason })),
+  addScorer: (id: string, userId: string) => apiRequest<MatchResponse>(`/api/v1/matches/${id}/scorers`, post({ userId })),
   confirm: (id: string, decision: 'confirmed' | 'disputed', comment?: string) =>
     apiRequest<MatchResponse>(`/api/v1/matches/${id}/confirm`, post({ decision, ...(comment ? { comment } : {}) })),
 
-  searchPlayers: (query: string) => apiRequest<{ players: PlayerOption[] }>(`/api/v1/players?q=${encodeURIComponent(query)}`, auth),
+  searchPlayers: (query: string, sport?: string) =>
+    apiRequest<{ players: PlayerOption[] }>(`/api/v1/players?q=${encodeURIComponent(query)}${sport ? `&sport=${encodeURIComponent(sport)}` : ''}`, auth),
   recentGuests: () => apiRequest<{ players: PlayerRef[] }>('/api/v1/players/guests', auth),
   me: () => apiRequest<{ player: PlayerRef }>('/api/v1/players/me', auth),
   claimGuests: () => apiRequest<{ claimed: number }>('/api/v1/players/claim', post()),

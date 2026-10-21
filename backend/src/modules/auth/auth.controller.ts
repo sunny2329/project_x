@@ -6,8 +6,14 @@ import type { ClientContext } from './auth.types.js';
 const CODE_SENT = { message: 'Verification code sent.' };
 const CODE_SENT_IF_REGISTERED = { message: 'If an account exists for these details, a code has been sent to its phone.' };
 
+/** Printable characters only; the header is free text from the app. */
+function deviceName(req: Request): string | undefined {
+  const raw = req.get('x-device-name')?.replace(/[^\p{L}\p{N} ._()'-]/gu, '').trim();
+  return raw ? raw.slice(0, 100) : undefined;
+}
+
 function clientContext(req: Request): ClientContext {
-  return { ip: req.ip, userAgent: req.get('user-agent')?.slice(0, 255) };
+  return { ip: req.ip, userAgent: req.get('user-agent')?.slice(0, 255), deviceName: deviceName(req) };
 }
 
 /** Thin HTTP adapters: bodies arrive already validated by `validateBody`. */
@@ -16,6 +22,43 @@ export function createAuthController(service: AuthService) {
     async registerStart(req: Request, res: Response) {
       await service.startRegistration(req.body);
       sendSuccess(res, CODE_SENT);
+    },
+
+    async registerVerify(req: Request, res: Response) {
+      sendSuccess(res, await service.verifyRegistration(req.body));
+    },
+
+    async usernameAvailable(req: Request, res: Response) {
+      sendSuccess(res, await service.usernameAvailability(String(req.query.username ?? '')));
+    },
+
+    async sessions(req: Request, res: Response) {
+      sendSuccess(res, { sessions: await service.listSessions(req.auth!) });
+    },
+
+    async signOutOthers(req: Request, res: Response) {
+      sendSuccess(res, { signedOut: await service.signOutOtherDevices(req.auth!) });
+    },
+
+    async identities(req: Request, res: Response) {
+      sendSuccess(res, { identities: await service.listIdentities(req.auth!.userId) });
+    },
+
+    async linkGoogle(req: Request, res: Response) {
+      sendSuccess(res, { identities: await service.linkIdentity(req.auth!.userId, 'google', req.body.idToken) });
+    },
+
+    async linkApple(req: Request, res: Response) {
+      sendSuccess(res, { identities: await service.linkIdentity(req.auth!.userId, 'apple', req.body.identityToken) });
+    },
+
+    async unlink(req: Request, res: Response) {
+      const provider = req.params.provider === 'apple' ? 'apple' : req.params.provider === 'google' ? 'google' : null;
+      if (!provider) {
+        res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Unknown provider.' } });
+        return;
+      }
+      sendSuccess(res, { identities: await service.unlinkIdentity(req.auth!.userId, provider) });
     },
 
     async registerComplete(req: Request, res: Response) {

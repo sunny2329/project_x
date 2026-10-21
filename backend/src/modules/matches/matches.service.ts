@@ -28,7 +28,7 @@ import {
   toStatic,
   versionOf,
 } from './matches.db.js';
-import type { ConfirmationView, MatchCard, MatchStatusName, MatchView, RatingChange, ResultTypeName } from './matches.types.js';
+import type { ConfirmationView, MatchCard, MatchDetails, MatchStatusName, MatchView, RatingChange, ResultTypeName } from './matches.types.js';
 import type { CreateMatchInput, ScoreEventInput } from './matches.validation.js';
 import { rebuildPlayerStats, rebuildTeamStats } from './stats.js';
 
@@ -145,6 +145,11 @@ export class MatchesService {
       const ids = resolved.flat().map((p) => p.playerId);
       if (new Set(ids).size !== ids.length) throw AppError.badRequest('VALIDATION_ERROR', 'Some fields are invalid.', { sides: ['A player can only be on one side, once'] });
 
+      let venueId = input.venueId ?? null;
+      if (!venueId && input.venueName) {
+        const existing = await tx.venue.findFirst({ where: { name: { equals: input.venueName, mode: 'insensitive' } }, select: { id: true } });
+        venueId = existing?.id ?? (await tx.venue.create({ data: { name: input.venueName, createdByUserId: userId } })).id;
+      }
       const id = await this.createMatchRecord(tx, {
         sportId: sport.id,
         sportFormatId: format.id,
@@ -153,10 +158,17 @@ export class MatchesService {
         config: { ...(ruleset.config as object), ...(input.rulesOverride ?? {}) },
         context: 'friendly',
         createdByUserId: userId,
-        venueId: input.venueId ?? null,
+        venueId,
         sides: input.sides.map((side, i) => ({ name: side.name ?? null, teamId: side.teamId ?? null, playerIds: resolved[i]!.map((p) => p.playerId) })),
       });
-      if (input.manualScores) await this.recordManualResult(tx, id, userId, input.manualScores);
+      if (input.manualScores) {
+        await this.recordManualResult(tx, id, userId, input.manualScores);
+        if (input.playedOn) {
+          // Noon UTC keeps the day the same in every timezone the app is used in.
+          const at = new Date(`${input.playedOn}T12:00:00Z`);
+          await tx.match.update({ where: { id }, data: { startedAt: at, completedAt: at } });
+        }
+      }
       return id;
     });
     return this.get(userId, matchId);
@@ -250,6 +262,27 @@ export class MatchesService {
     const state = await this.loadLive(matchId);
     if (!state) throw notFound();
     return this.view(userId, state);
+  }
+
+  /** Ratings, photos and scorer names for a match's watching and confirming screens. */
+  async details(matchId: string): Promise<MatchDetails> {
+    const { db } = this.deps;
+    const state = await this.loadLive(matchId);
+    if (!state) throw notFound();
+    const m = await db.match.findUniqueOrThrow({ where: { id: matchId }, select: { sportId: true } });
+    const playerIds = state.match.view.sides.flatMap((s) => s.players.map((p) => p.playerId));
+    const rows = await db.$queryRaw<MatchDetails['players']>`
+      SELECT pl.id AS "playerId", pl.user_id AS "userId", u.username, pr.profile_photo AS "photoUrl",
+             (SELECT round(r.rating)::int FROM player_ratings r WHERE r.player_id = pl.id AND r.sport_id = ${m.sportId}) AS rating
+        FROM players pl LEFT JOIN usr_user u ON u.id = pl.user_id LEFT JOIN usr_user_profile pr ON pr.user_id = pl.user_id
+       WHERE pl.id = ANY(${playerIds}::uuid[])`;
+    const scorerIds = [...new Set([state.match.view.createdByUserId, ...state.match.scorerUserIds])];
+    const names = await db.$queryRaw<Array<{ userId: string; name: string }>>`
+      SELECT u.id AS "userId", coalesce(pl.display_name, pr.display_name, u.username) AS name
+        FROM usr_user u LEFT JOIN usr_user_profile pr ON pr.user_id = u.id LEFT JOIN players pl ON pl.user_id = u.id
+       WHERE u.id = ANY(${scorerIds}::uuid[])`;
+    const order = new Map(scorerIds.map((id, i) => [id, i]));
+    return { players: rows, scorers: names.sort((a, b) => order.get(a.userId)! - order.get(b.userId)!) };
   }
 
   async getByShareToken(token: string): Promise<MatchView> {
@@ -624,6 +657,8 @@ export class MatchesService {
     if (live) {
       return {
         ...view,
+        rulesetConfig: state.match.rulesetConfig,
+        events: activeEvents(state.events),
         status: 'live',
         resultType: null,
         score: summaryOf(state),
@@ -648,6 +683,8 @@ export class MatchesService {
     };
     return {
       ...toStatic(m),
+      rulesetConfig: m.rulesetConfig,
+      events: activeEvents(state.events),
       status: m.status as MatchStatusName,
       resultType: m.resultType,
       score: (m.summary as unknown as ScoreSummary | null) ?? summaryOf(state),

@@ -18,12 +18,19 @@ interface Account {
   username: string;
 }
 
+/** Sign-up in three steps: phone + username -> code -> details. */
+async function signUp(account: { username: string; fullName: string; email: string; phone: string; password: string }) {
+  await request(ctx.app).post('/api/v1/auth/register/start').send({ phone: account.phone, username: account.username }).expect(200);
+  const verify = await request(ctx.app).post('/api/v1/auth/register/verify').send({ phone: account.phone, code: TEST_OTP }).expect(200);
+  const { phone: _phone, ...rest } = account;
+  return request(ctx.app).post('/api/v1/auth/register/complete').send({ ...rest, registrationToken: verify.body.data.registrationToken }).expect(201);
+}
+
 async function register(name = 'Test Player'): Promise<Account> {
   seq += 1;
   const suffix = String(Date.now() % 1_000_000).padStart(6, '0') + String(seq).padStart(2, '0');
   const account = { username: `p${suffix}`, fullName: name, email: `p${suffix}@example.com`, phone: `+9197${suffix}`, password: 'Sprint2026' };
-  await request(ctx.app).post('/api/v1/auth/register/start').send(account).expect(200);
-  const res = await request(ctx.app).post('/api/v1/auth/register/complete').send({ ...account, code: TEST_OTP }).expect(201);
+  const res = await signUp(account);
   return { userId: res.body.data.user.id, token: res.body.data.tokens.accessToken, phone: account.phone, username: account.username };
 }
 
@@ -192,14 +199,17 @@ describe('friendly match', () => {
       const done = (await request(ctx.app).post(`/api/v1/matches/${m.id}/complete`).set(as(alice)).send({ version: live.version }).expect(200)).body.data.match;
       expect(done.ratingChanges).toEqual([]); // guests involved: unrated
 
-      // Chitra signs up with the guest's phone: her history is hers.
+      // Chitra signs up with the guest's phone, is offered the match, and claims it.
       seq += 1;
       const account = { username: `chitra${seq}${Date.now() % 10000}`, fullName: 'Chitra Rao', email: `c${seq}${Date.now()}@example.com`, phone: guestPhone, password: 'Sprint2026' };
-      await request(ctx.app).post('/api/v1/auth/register/start').send(account).expect(200);
-      const reg = await request(ctx.app).post('/api/v1/auth/register/complete').send({ ...account, code: TEST_OTP }).expect(201);
+      const reg = await signUp(account);
       const chitra = { Authorization: `Bearer ${reg.body.data.tokens.accessToken}` };
+      const guestId = m.sides[0].players[1].playerId;
+      const offered = await request(ctx.app).get('/api/v1/players/claimable').set(chitra).expect(200);
+      expect(offered.body.data.matches).toEqual([expect.objectContaining({ matchId: m.id, guestPlayerId: guestId })]);
+      await request(ctx.app).post('/api/v1/players/claim').set(chitra).send({ playerIds: [guestId] }).expect(200);
       const me = (await request(ctx.app).get('/api/v1/players/me').set(chitra).expect(200)).body.data.player;
-      expect(me).toMatchObject({ playerId: m.sides[0].players[1].playerId, isGuest: false });
+      expect(me).toMatchObject({ isGuest: false });
       const history = await request(ctx.app).get('/api/v1/profile/me/matches').set(chitra).expect(200);
       expect(history.body.data.matches[0]).toMatchObject({ matchId: m.id, outcome: 'won' });
     },

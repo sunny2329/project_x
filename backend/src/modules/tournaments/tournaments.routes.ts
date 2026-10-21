@@ -14,6 +14,7 @@ import {
   drawSchema,
   fixtureManualResultSchema,
   fixtureWalkoverSchema,
+  listTournamentsQuerySchema,
   scheduleFixtureSchema,
   updateEntrySchema,
   updateEventSchema,
@@ -36,11 +37,19 @@ export function createTournamentRouters(service: TournamentsService, requireAuth
 
   const tournaments = Router();
   tournaments.use(requireAuth);
-  tournaments.get('/', async (req, res) => sendSuccess(res, { tournaments: await service.list(me(req)) }));
+  tournaments.get('/', async (req, res) => {
+    const query = listTournamentsQuerySchema.safeParse(req.query);
+    if (!query.success) throw AppError.badRequest('VALIDATION_ERROR', 'Invalid query.', z.flattenError(query.error).fieldErrors);
+    sendSuccess(res, { tournaments: await service.list(me(req), query.data) });
+  });
+  tournaments.get('/me/matches', async (req, res) => sendSuccess(res, await service.myMatches(me(req))));
   tournaments.post('/', validateBody(createTournamentSchema), async (req, res) => {
     sendSuccess(res, { tournament: await service.create(me(req), req.body) }, 201);
   });
   tournaments.get('/:id', async (req, res) => sendSuccess(res, { tournament: await service.get(me(req), id(req.params.id, 'tournament')) }));
+  tournaments.get('/:id/fixtures', async (req, res) => {
+    sendSuccess(res, { fixtures: await service.tournamentFixtures(me(req), id(req.params.id, 'tournament')) });
+  });
   tournaments.patch('/:id', validateBody(updateTournamentSchema), async (req, res) => {
     sendSuccess(res, { tournament: await service.update(me(req), id(req.params.id, 'tournament'), req.body) });
   });
@@ -95,7 +104,10 @@ export function createTournamentRouters(service: TournamentsService, requireAuth
   const courts = Router();
   courts.use(requireAuth);
   courts.post('/:id/scorers', validateBody(courtScorerSchema), async (req, res) => {
-    sendSuccess(res, { tournament: await service.assignCourtScorer(me(req), id(req.params.id, 'court'), req.body.userId) });
+    sendSuccess(res, { tournament: await service.assignCourtScorer(me(req), id(req.params.id, 'court'), req.body.userId, req.body.replace) });
+  });
+  courts.delete('/:id/scorers/:userId', async (req, res) => {
+    sendSuccess(res, { tournament: await service.removeCourtScorer(me(req), id(req.params.id, 'court'), id(req.params.userId, 'user')) });
   });
 
   return { tournaments, events, entries, fixtures, courts };

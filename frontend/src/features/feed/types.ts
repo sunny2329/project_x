@@ -3,8 +3,12 @@ export interface FeedPost {
   id: string;
   content: string | null;
   createdAt: string;
-  author: { id: string; username: string; fullName: string };
+  author: { id: string; username: string; fullName: string; photoUrl: string | null };
   match: FeedMatch | null;
+  /** The automatic post written when a match is decided. */
+  isResult: boolean;
+  /** Photo URLs relative to the API origin. */
+  media: string[];
   visibility: PostVisibility;
   likeCount: number;
   commentCount: number;
@@ -19,6 +23,9 @@ export interface FeedMatch {
   /** "Singles", "Doubles". */
   format: string | null;
   durationSeconds: number | null;
+  venue: string | null;
+  authorSideIndex: number | null;
+  authorRatingChange: number | null;
   result: {
     headline: string;
     winnerSideIndex: number | null;
@@ -26,6 +33,8 @@ export interface FeedMatch {
     sides: { index: number; name: string; primary: string }[];
     /** Games or sets played. */
     segmentCount: number;
+    /** [side0, side1] per game/set. */
+    segments: number[][];
   } | null;
 }
 
@@ -42,7 +51,7 @@ export interface PostComment {
   id: string;
   content: string;
   createdAt: string;
-  author: { id: string; username: string; fullName: string };
+  author: { id: string; username: string; fullName: string; photoUrl?: string | null };
 }
 
 export interface LikeState {

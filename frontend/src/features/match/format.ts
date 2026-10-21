@@ -1,16 +1,7 @@
-import type MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import type { ComponentProps } from 'react';
 import type { MatchCard, MatchView, SegmentSummary } from './types';
 
-export type IconName = ComponentProps<typeof MaterialCommunityIcons>['name'];
-
-/** Sports carry their own icon key (sports.icon_key), so there is no per-sport table here. */
-export function sportIcon(sport: { iconKey: string } | null | undefined): IconName {
-  return (sport?.iconKey as IconName | undefined) ?? 'trophy-outline';
-}
-
 export function sportColor(sport: { accentColor: string } | null | undefined): string {
-  return sport?.accentColor ?? '#FF6B00';
+  return sport?.accentColor ?? '#E85D04';
 }
 
 /** Top-level segments that have started (games / sets), for compact score rows. */

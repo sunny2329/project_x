@@ -63,6 +63,10 @@ export interface ConfirmationView {
 }
 
 export interface MatchView extends MatchStatic {
+  /** The ruleset snapshot the match is scored with (lets the app preview a point before the server answers). */
+  rulesetConfig: unknown;
+  /** Plugin events in order (undone ones left out): replaying them gives `score`. */
+  events: unknown[];
   status: MatchStatusName;
   resultType: ResultTypeName | null;
   score: ScoreSummary;
@@ -86,4 +90,10 @@ export interface MatchCard {
   mine: boolean;
   startedAt: string | null;
   updatedAt: string;
+}
+
+/** Extra facts for the watching and confirming screens: ratings, photos and who is scoring. */
+export interface MatchDetails {
+  players: Array<{ playerId: string; userId: string | null; username: string | null; photoUrl: string | null; rating: number | null }>;
+  scorers: Array<{ userId: string; name: string }>;
 }

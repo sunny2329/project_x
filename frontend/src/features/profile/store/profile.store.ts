@@ -35,6 +35,7 @@ export const useProfileStore = create<ProfileState>()((set) => {
 
     async load() {
       const [{ profile }, { matches }] = await Promise.all([profileApi.me(), profileApi.matches(MATCH_HISTORY_LIMIT)]);
+      // Keep the auth user's name and photo current for headers elsewhere.
       applyProfile(profile);
       set({ matches });
     },

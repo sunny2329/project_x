@@ -22,12 +22,34 @@ export interface AuthResult {
   tokens: AuthTokens;
 }
 
-export interface RegistrationForm {
+/** Sign-up in progress: phone + username (step 1), then the token from the code (step 2). */
+export interface PendingSignup {
+  phone: string;
+  username: string;
+  registrationToken: string | null;
+}
+
+export interface SignupDetails {
+  registrationToken: string;
   username: string;
   fullName: string;
-  email: string;
-  phone: string;
+  displayName: string;
   password: string;
+}
+
+export interface SessionInfo {
+  id: string;
+  deviceName: string | null;
+  userAgent: string | null;
+  createdAt: string;
+  lastUsedAt: string | null;
+  current: boolean;
+}
+
+export interface LinkedIdentity {
+  provider: 'google' | 'apple';
+  email: string | null;
+  linkedAt: string;
 }
 
 export interface MessageResponse {

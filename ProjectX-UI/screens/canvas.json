@@ -1,0 +1,984 @@
+{
+  "v": 3,
+  "attachments": {},
+  "boards": {
+    "AddEvent.dc.html": {
+      "h": 1180,
+      "is_interactive": true,
+      "page": "torg",
+      "radius": 40,
+      "title": "Add event",
+      "w": 390,
+      "x": 940,
+      "y": 0
+    },
+    "AddPlayer.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "scoring",
+      "radius": 40,
+      "title": "Add player or guest",
+      "w": 390,
+      "x": 940,
+      "y": 0
+    },
+    "BracketView.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "tplayer",
+      "radius": 40,
+      "title": "Bracket",
+      "w": 390,
+      "x": 0,
+      "y": 1244
+    },
+    "ChatList.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "home",
+      "radius": 40,
+      "title": "Chats",
+      "w": 390,
+      "x": 1880,
+      "y": 0
+    },
+    "ChatThread.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "home",
+      "radius": 40,
+      "title": "Chat thread",
+      "w": 390,
+      "x": 2350,
+      "y": 0
+    },
+    "ClaimMatches.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "auth",
+      "radius": 40,
+      "title": "Claim guest matches",
+      "w": 390,
+      "x": 2350,
+      "y": 0
+    },
+    "ConfirmResult.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "scoring",
+      "radius": 40,
+      "title": "Confirm a result",
+      "w": 390,
+      "x": 470,
+      "y": 1244
+    },
+    "CourtBoard.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "torg",
+      "radius": 40,
+      "title": "Court board",
+      "w": 390,
+      "x": 1410,
+      "y": 1580
+    },
+    "CreateTournament.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "torg",
+      "radius": 40,
+      "title": "Create tournament",
+      "w": 390,
+      "x": 0,
+      "y": 0
+    },
+    "DrawGroups.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "torg",
+      "radius": 40,
+      "title": "Draw preview · groups",
+      "w": 390,
+      "x": 470,
+      "y": 1580
+    },
+    "DrawPreview.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "torg",
+      "radius": 40,
+      "title": "Draw preview · knockout",
+      "w": 390,
+      "x": 0,
+      "y": 1580
+    },
+    "EditProfile.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "profile",
+      "radius": 40,
+      "title": "Edit profile",
+      "w": 390,
+      "x": 1410,
+      "y": 0
+    },
+    "EnterResult.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "scoring",
+      "radius": 40,
+      "title": "Enter a result afterwards",
+      "w": 390,
+      "x": 0,
+      "y": 1244
+    },
+    "Entries.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "torg",
+      "radius": 40,
+      "title": "Entries",
+      "w": 390,
+      "x": 1880,
+      "y": 0
+    },
+    "EventPage.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "tplayer",
+      "radius": 40,
+      "title": "Event",
+      "w": 390,
+      "x": 940,
+      "y": 0
+    },
+    "Fixture.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "torg",
+      "radius": 40,
+      "title": "Fixture",
+      "w": 390,
+      "x": 1880,
+      "y": 1580
+    },
+    "ForgotPassword.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "auth",
+      "radius": 40,
+      "title": "Forgot password",
+      "w": 390,
+      "x": 470,
+      "y": 1244
+    },
+    "GroupTable.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "tplayer",
+      "radius": 40,
+      "title": "Group table",
+      "w": 390,
+      "x": 470,
+      "y": 1244
+    },
+    "Home.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "home",
+      "radius": 40,
+      "title": "Home feed",
+      "w": 390,
+      "x": 0,
+      "y": 0
+    },
+    "Light-BracketView.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "light",
+      "radius": 40,
+      "title": "Bracket · light",
+      "w": 390,
+      "x": 1410,
+      "y": 1244
+    },
+    "Light-GroupTable.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "light",
+      "radius": 40,
+      "title": "Group table · light",
+      "w": 390,
+      "x": 1880,
+      "y": 1244
+    },
+    "Light-Home.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "light",
+      "radius": 40,
+      "title": "Home feed · light",
+      "w": 390,
+      "x": 940,
+      "y": 0
+    },
+    "Light-Login.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "light",
+      "radius": 40,
+      "title": "Log in · light",
+      "w": 390,
+      "x": 470,
+      "y": 0
+    },
+    "Light-MatchResult.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "light",
+      "radius": 40,
+      "title": "Match result · light",
+      "w": 390,
+      "x": 0,
+      "y": 1244
+    },
+    "Light-NewMatchSport.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "light",
+      "radius": 40,
+      "title": "New match · sport · light",
+      "w": 390,
+      "x": 1410,
+      "y": 0
+    },
+    "Light-OrgDashboard.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "light",
+      "radius": 40,
+      "title": "Tournament dashboard · light",
+      "w": 390,
+      "x": 2350,
+      "y": 1244
+    },
+    "Light-Profile.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "light",
+      "radius": 40,
+      "title": "My profile · light",
+      "w": 390,
+      "x": 470,
+      "y": 1244
+    },
+    "Light-ScoreBadminton.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "light",
+      "radius": 40,
+      "title": "Live scoring · badminton · light",
+      "w": 390,
+      "x": 1880,
+      "y": 0
+    },
+    "Light-ScorePickleball.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "light",
+      "radius": 40,
+      "title": "Pickleball · side-out · light",
+      "w": 390,
+      "x": 2350,
+      "y": 0
+    },
+    "Light-TournamentList.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "light",
+      "radius": 40,
+      "title": "Tournaments · light",
+      "w": 390,
+      "x": 940,
+      "y": 1244
+    },
+    "Light-Welcome.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "light",
+      "radius": 40,
+      "title": "Welcome · light",
+      "w": 390,
+      "x": 0,
+      "y": 0
+    },
+    "Login.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "auth",
+      "radius": 40,
+      "title": "Log in",
+      "w": 390,
+      "x": 0,
+      "y": 1244
+    },
+    "Main.dc.html": {
+      "h": 1540,
+      "page": "map",
+      "title": "Flow map",
+      "w": 1940,
+      "x": 0,
+      "y": 0
+    },
+    "MatchComplete.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "scoring",
+      "radius": 40,
+      "title": "Match over · finish",
+      "w": 390,
+      "x": 3290,
+      "y": 0
+    },
+    "MatchHistory.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "profile",
+      "radius": 40,
+      "title": "Match history",
+      "w": 390,
+      "x": 470,
+      "y": 0
+    },
+    "MatchResult.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "scoring",
+      "radius": 40,
+      "title": "Match result",
+      "w": 390,
+      "x": 3760,
+      "y": 0
+    },
+    "MyMatches.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "tplayer",
+      "radius": 40,
+      "title": "My matches & scorer duties",
+      "w": 390,
+      "x": 1880,
+      "y": 0
+    },
+    "NewMatchSetup.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "scoring",
+      "radius": 40,
+      "title": "New match · rules & players",
+      "w": 390,
+      "x": 470,
+      "y": 0
+    },
+    "NewMatchSport.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "scoring",
+      "radius": 40,
+      "title": "New match · sport",
+      "w": 390,
+      "x": 0,
+      "y": 0
+    },
+    "NewPost.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "home",
+      "radius": 40,
+      "title": "New post",
+      "w": 390,
+      "x": 940,
+      "y": 0
+    },
+    "OrgDashboard.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "torg",
+      "radius": 40,
+      "title": "Tournament dashboard",
+      "w": 390,
+      "x": 470,
+      "y": 0
+    },
+    "PickSports.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "auth",
+      "radius": 40,
+      "title": "Pick your sports",
+      "w": 390,
+      "x": 1880,
+      "y": 0
+    },
+    "PlayerProfile.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "profile",
+      "radius": 40,
+      "title": "Another player",
+      "w": 390,
+      "x": 940,
+      "y": 0
+    },
+    "Podium.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "tplayer",
+      "radius": 40,
+      "title": "Podium",
+      "w": 390,
+      "x": 940,
+      "y": 1244
+    },
+    "PostDetail.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "home",
+      "radius": 40,
+      "title": "Post & comments",
+      "w": 390,
+      "x": 1410,
+      "y": 0
+    },
+    "Profile.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "profile",
+      "radius": 40,
+      "title": "My profile",
+      "w": 390,
+      "x": 0,
+      "y": 0
+    },
+    "PublicMatch.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "scoring",
+      "radius": 40,
+      "title": "Public match link (web)",
+      "w": 390,
+      "x": 1410,
+      "y": 1244
+    },
+    "PublicTournament.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "tplayer",
+      "radius": 40,
+      "title": "Public tournament (web)",
+      "w": 390,
+      "x": 1410,
+      "y": 1244
+    },
+    "Register.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "tplayer",
+      "radius": 40,
+      "title": "Register",
+      "w": 390,
+      "x": 1410,
+      "y": 0
+    },
+    "RetireSheet.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "scoring",
+      "radius": 40,
+      "title": "Retire / walkover",
+      "w": 390,
+      "x": 2820,
+      "y": 0
+    },
+    "Schedule.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "torg",
+      "radius": 40,
+      "title": "Schedule",
+      "w": 390,
+      "x": 940,
+      "y": 1580
+    },
+    "ScoreBadminton.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "scoring",
+      "radius": 40,
+      "title": "Live scoring · badminton",
+      "w": 390,
+      "x": 1880,
+      "y": 0
+    },
+    "ScorePadel.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "sports",
+      "radius": 40,
+      "title": "Padel · tiebreak",
+      "w": 390,
+      "x": 1410,
+      "y": 0
+    },
+    "ScorePickleball.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "sports",
+      "radius": 40,
+      "title": "Pickleball · side-out",
+      "w": 390,
+      "x": 470,
+      "y": 0
+    },
+    "ScoreTableTennis.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "sports",
+      "radius": 40,
+      "title": "Table tennis",
+      "w": 390,
+      "x": 0,
+      "y": 0
+    },
+    "ScoreTennis.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "sports",
+      "radius": 40,
+      "title": "Tennis",
+      "w": 390,
+      "x": 940,
+      "y": 0
+    },
+    "ScoreVolleyball.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "sports",
+      "radius": 40,
+      "title": "Volleyball (hidden for now)",
+      "w": 390,
+      "x": 1880,
+      "y": 0
+    },
+    "ScorerMenu.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "scoring",
+      "radius": 40,
+      "title": "Scorer menu",
+      "w": 390,
+      "x": 2350,
+      "y": 0
+    },
+    "Search.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "home",
+      "radius": 40,
+      "title": "Search",
+      "w": 390,
+      "x": 470,
+      "y": 0
+    },
+    "ServeFirst.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "scoring",
+      "radius": 40,
+      "title": "Who serves first",
+      "w": 390,
+      "x": 1410,
+      "y": 0
+    },
+    "Settings.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "profile",
+      "radius": 40,
+      "title": "Settings",
+      "w": 390,
+      "x": 1880,
+      "y": 0
+    },
+    "SignupDetails.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "auth",
+      "radius": 40,
+      "title": "Your details",
+      "w": 390,
+      "x": 1410,
+      "y": 0
+    },
+    "SignupPhone.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "auth",
+      "radius": 40,
+      "title": "Sign up · phone",
+      "w": 390,
+      "x": 470,
+      "y": 0
+    },
+    "Spectator.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "scoring",
+      "radius": 40,
+      "title": "Match view · spectator",
+      "w": 390,
+      "x": 940,
+      "y": 1244
+    },
+    "StaffCourts.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "torg",
+      "radius": 40,
+      "title": "Staff & courts",
+      "w": 390,
+      "x": 1410,
+      "y": 0
+    },
+    "TabBar.dc.html": {
+      "h": 84,
+      "is_interactive": true,
+      "page": "map",
+      "title": "Component · Tab bar",
+      "w": 390,
+      "x": 0,
+      "y": 1780
+    },
+    "TournamentList.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "tplayer",
+      "radius": 40,
+      "title": "Tournaments",
+      "w": 390,
+      "x": 0,
+      "y": 0
+    },
+    "TournamentPage.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "tplayer",
+      "radius": 40,
+      "title": "Tournament page",
+      "w": 390,
+      "x": 470,
+      "y": 0
+    },
+    "VerifyCode.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "auth",
+      "radius": 40,
+      "title": "Verify code",
+      "w": 390,
+      "x": 940,
+      "y": 0
+    },
+    "Welcome.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "auth",
+      "radius": 40,
+      "title": "Welcome",
+      "w": 390,
+      "x": 0,
+      "y": 0
+    }
+  },
+  "createdOnFiles": {
+    "at": "2026-10-20T17:30:00Z",
+    "v": 1
+  },
+  "designSystems": [],
+  "launch": {
+    "page": "map",
+    "view": "canvas"
+  },
+  "notes": {
+    "s_auth": {
+      "page": "auth",
+      "text": "Flow\n• Welcome › Get started → Sign up\n• Welcome › Log in → Log in\n• Google / Apple works only for existing accounts\n• Claim screen shows only if guest matches match your phone number\n• Forgot password signs you out on every device",
+      "w": 360,
+      "x": -440,
+      "y": 0
+    },
+    "s_home": {
+      "page": "home",
+      "text": "Flow\n• Tab bar: Home · Tournaments · + New match · Chats · Profile\n• Live strip card → Spectator view\n• Result card → Match result\n• Post → Post & comments\n• Search → Another player → Message → Chat thread",
+      "w": 360,
+      "x": -440,
+      "y": 0
+    },
+    "s_sc": {
+      "page": "scoring",
+      "text": "Flow\n• + in tab bar → pick sport\n• Start match → live scoring\n• ⋯ menu → retire, walkover (before first point), abandon, add scorer\n• Finish appears when the engine says complete\n• Result posts to the feed and moves ratings",
+      "w": 360,
+      "x": -440,
+      "y": 0
+    },
+    "s_sports": {
+      "page": "sports",
+      "text": "Same layout for every sport\n• Top: games / sets history\n• Callout: Match point, Deuce, 4-7-2\n• Two side buttons, labels from actions[]\n• Undo always one tap\nBadminton lives on the scoring page",
+      "w": 360,
+      "x": -440,
+      "y": 0
+    },
+    "s_to": {
+      "page": "torg",
+      "text": "Lifecycle\nDraft → Registration open → closed → Drawn → In progress → Completed\n• Draw preview can reshuffle until saved\n• Reset draw until first match is played\n• Winners advance automatically",
+      "w": 360,
+      "x": -440,
+      "y": 0
+    },
+    "s_tp": {
+      "page": "tplayer",
+      "text": "Flow\n• Tournaments tab → list → tournament → event\n• Register → entry pending until approved\n• My matches shows Ready / Live fixtures and scorer duties\n• Ready + assigned scorer → Start → live scoring",
+      "w": 360,
+      "x": -440,
+      "y": 0
+    },
+    "t_auth1": {
+      "kind": "title1",
+      "maxW": 2740,
+      "page": "auth",
+      "text": "Sign up: Welcome → phone → code → details → sports → claim guest matches → Home",
+      "w": 240,
+      "x": 0,
+      "y": -260
+    },
+    "t_auth2": {
+      "kind": "title1",
+      "maxW": 860,
+      "page": "auth",
+      "text": "Log in & forgot password",
+      "w": 240,
+      "x": 0,
+      "y": 984
+    },
+    "t_home": {
+      "kind": "title1",
+      "maxW": 2740,
+      "page": "home",
+      "text": "Home feed, search, posts and chat",
+      "w": 240,
+      "x": 0,
+      "y": -260
+    },
+    "t_light": {
+      "kind": "title1",
+      "maxW": 2740,
+      "page": "light",
+      "text": "Light mode: orange on white. Every screen has a Dark / Light switch in Tweaks",
+      "w": 240,
+      "x": 0,
+      "y": -260
+    },
+    "t_profile": {
+      "kind": "title1",
+      "maxW": 2270,
+      "page": "profile",
+      "text": "Profile, ratings, records and settings",
+      "w": 240,
+      "x": 0,
+      "y": -260
+    },
+    "t_sc1": {
+      "kind": "title1",
+      "maxW": 4150,
+      "page": "scoring",
+      "text": "Friendly match: sport → rules & players → serve → live scoring → finish → result",
+      "w": 240,
+      "x": 0,
+      "y": -260
+    },
+    "t_sc2": {
+      "kind": "title1",
+      "maxW": 1800,
+      "page": "scoring",
+      "text": "Result typed in afterwards, confirmation, and watching",
+      "w": 240,
+      "x": 0,
+      "y": 984
+    },
+    "t_sports": {
+      "kind": "title1",
+      "maxW": 2270,
+      "page": "sports",
+      "text": "One scoreboard, every sport: buttons come from the engine",
+      "w": 240,
+      "x": 0,
+      "y": -260
+    },
+    "t_tab": {
+      "kind": "title1",
+      "maxW": 900,
+      "page": "map",
+      "text": "Shared component",
+      "w": 240,
+      "x": 0,
+      "y": 1520
+    },
+    "t_to1": {
+      "kind": "title1",
+      "maxW": 2270,
+      "page": "torg",
+      "text": "Organizer setup: create → dashboard → events → staff & courts → entries",
+      "w": 240,
+      "x": 0,
+      "y": -260
+    },
+    "t_to2": {
+      "kind": "title1",
+      "maxW": 2270,
+      "page": "torg",
+      "text": "Draw, schedule and match day",
+      "w": 240,
+      "x": 0,
+      "y": 1320
+    },
+    "t_tp1": {
+      "kind": "title1",
+      "maxW": 2270,
+      "page": "tplayer",
+      "text": "Find a tournament → register → play",
+      "w": 240,
+      "x": 0,
+      "y": -260
+    },
+    "t_tp2": {
+      "kind": "title1",
+      "maxW": 1800,
+      "page": "tplayer",
+      "text": "Following the draw: bracket, groups, podium, public page",
+      "w": 240,
+      "x": 0,
+      "y": 984
+    }
+  },
+  "order": [
+    "Main.dc.html",
+    "TabBar.dc.html",
+    "Welcome.dc.html",
+    "SignupPhone.dc.html",
+    "VerifyCode.dc.html",
+    "SignupDetails.dc.html",
+    "PickSports.dc.html",
+    "ClaimMatches.dc.html",
+    "Login.dc.html",
+    "ForgotPassword.dc.html",
+    "Home.dc.html",
+    "Search.dc.html",
+    "NewPost.dc.html",
+    "PostDetail.dc.html",
+    "ChatList.dc.html",
+    "ChatThread.dc.html",
+    "NewMatchSport.dc.html",
+    "NewMatchSetup.dc.html",
+    "AddPlayer.dc.html",
+    "ServeFirst.dc.html",
+    "ScoreBadminton.dc.html",
+    "ScorerMenu.dc.html",
+    "RetireSheet.dc.html",
+    "MatchComplete.dc.html",
+    "MatchResult.dc.html",
+    "EnterResult.dc.html",
+    "ConfirmResult.dc.html",
+    "Spectator.dc.html",
+    "PublicMatch.dc.html",
+    "ScoreTableTennis.dc.html",
+    "ScorePickleball.dc.html",
+    "ScoreTennis.dc.html",
+    "ScorePadel.dc.html",
+    "ScoreVolleyball.dc.html",
+    "Profile.dc.html",
+    "MatchHistory.dc.html",
+    "PlayerProfile.dc.html",
+    "EditProfile.dc.html",
+    "Settings.dc.html",
+    "TournamentList.dc.html",
+    "TournamentPage.dc.html",
+    "EventPage.dc.html",
+    "Register.dc.html",
+    "MyMatches.dc.html",
+    "BracketView.dc.html",
+    "GroupTable.dc.html",
+    "Podium.dc.html",
+    "PublicTournament.dc.html",
+    "CreateTournament.dc.html",
+    "OrgDashboard.dc.html",
+    "AddEvent.dc.html",
+    "StaffCourts.dc.html",
+    "Entries.dc.html",
+    "DrawPreview.dc.html",
+    "DrawGroups.dc.html",
+    "Schedule.dc.html",
+    "CourtBoard.dc.html",
+    "Fixture.dc.html",
+    "Light-Welcome.dc.html",
+    "Light-Login.dc.html",
+    "Light-Home.dc.html",
+    "Light-NewMatchSport.dc.html",
+    "Light-ScoreBadminton.dc.html",
+    "Light-ScorePickleball.dc.html",
+    "Light-MatchResult.dc.html",
+    "Light-Profile.dc.html",
+    "Light-TournamentList.dc.html",
+    "Light-BracketView.dc.html",
+    "Light-GroupTable.dc.html",
+    "Light-OrgDashboard.dc.html"
+  ],
+  "pages": [
+    {
+      "id": "map",
+      "name": "Flow map"
+    },
+    {
+      "id": "auth",
+      "name": "Onboarding & sign-in"
+    },
+    {
+      "id": "home",
+      "name": "Home & social"
+    },
+    {
+      "id": "scoring",
+      "name": "Friendly match scoring"
+    },
+    {
+      "id": "sports",
+      "name": "Scoreboards by sport"
+    },
+    {
+      "id": "profile",
+      "name": "Profile"
+    },
+    {
+      "id": "tplayer",
+      "name": "Tournaments · player"
+    },
+    {
+      "id": "torg",
+      "name": "Tournaments · organizer"
+    },
+    {
+      "id": "light",
+      "name": "Light mode"
+    }
+  ],
+  "title": "ProjectX App Screens"
+}

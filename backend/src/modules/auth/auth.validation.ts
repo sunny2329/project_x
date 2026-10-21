@@ -68,8 +68,21 @@ const identifier = z
     return z.NEVER;
   });
 
-export const registerStartSchema = z.object({ username, fullName, email, phone, password: newPassword });
-export const registerCompleteSchema = registerStartSchema.extend({ code: otpCode });
+/** Step 1: the phone to text a code to, and the username to reserve. */
+export const registerStartSchema = z.object({ phone, username });
+/** Step 2: the code; answers with a short-lived registration token. */
+export const registerVerifySchema = z.object({ phone, code: otpCode });
+/** Step 3: the details; the token proves the phone was verified. */
+export const registerCompleteSchema = z.object({
+  registrationToken: z.string().min(16).max(2048),
+  username,
+  fullName,
+  /** "Name on scoreboards"; defaults to the full name. */
+  displayName: z.string().trim().min(1, 'Enter a name for scoreboards').max(40, 'At most 40 characters').optional(),
+  email: email.optional(),
+  password: newPassword,
+});
+export const usernameQuerySchema = z.object({ username: z.string().trim().max(60) });
 export const loginSchema = z.object({ identifier, password: z.string().min(1, 'Enter your password').max(128) });
 export const phoneStartSchema = z.object({ phone });
 export const phoneVerifySchema = z.object({ phone, code: otpCode });
@@ -81,8 +94,12 @@ export const appleSignInSchema = z.object({
   fullName: z.string().trim().max(100).optional(),
 });
 export const refreshTokenSchema = z.object({ refreshToken: z.string().min(1).max(512) });
+export const linkGoogleSchema = googleSignInSchema;
+export const linkAppleSchema = z.object({ identityToken: z.string().min(1).max(4096) });
+export { username as usernameSchema };
 
 export type RegisterStartInput = z.infer<typeof registerStartSchema>;
+export type RegisterVerifyInput = z.infer<typeof registerVerifySchema>;
 export type RegisterCompleteInput = z.infer<typeof registerCompleteSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type PhoneStartInput = z.infer<typeof phoneStartSchema>;

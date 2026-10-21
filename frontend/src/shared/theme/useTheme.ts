@@ -7,7 +7,7 @@ export interface Theme {
   colors: Palette;
 }
 
-/** The player's choice in Settings (Light / Dark), or the device appearance for "System". */
+/** Follows the phone's appearance (every design has a dark and a light version). */
 export function useTheme(): Theme {
   const mode = useThemeStore((s) => s.mode);
   const device = useColorScheme();

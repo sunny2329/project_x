@@ -1,182 +1,167 @@
-import Feather from '@expo/vector-icons/Feather';
 import { router } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
-import { validateFullName } from '@/features/auth/validation';
-import { FormMessage, PrimaryButton, Screen, SectionHeader, TextField, TopBar } from '@/shared/components';
+import { useEffect, useState } from 'react';
+import { Pressable, View } from 'react-native';
+import { authApi } from '@/features/auth/api/auth.api';
+import { validateFullName, validateUsername } from '@/features/auth/validation';
+import { useDebounced } from '@/shared/hooks/useCountdown';
 import { useSubmit } from '@/shared/hooks/useSubmit';
-import { radius, spacing, typography, useTheme } from '@/shared/theme';
-import { makePrimary, sameSelection, toggleSport, type SportSelection } from '../sportSelection';
+import { pickPhoto, uploadPhoto } from '@/shared/media/upload';
+import { useTheme, withAlpha } from '@/shared/theme';
+import { Avatar, Button, Field, Loading, Notice, Row, Screen, T, TextButton } from '@/shared/ui';
+import { sameSelection, toggleSport, type SportSelection } from '../sportSelection';
 import { useProfileStore } from '../store/profile.store';
-import type { Profile } from '../types';
 
-const BIO_MAX = 500;
-
-/** Edit name, bio and the sports the player plays (with one primary sport). */
+/** Edit profile: photo, names, city, username, bio and the sports I play. */
 export default function EditProfileScreen() {
   const { colors } = useTheme();
   const profile = useProfileStore((s) => s.profile);
-  const load = useProfileStore((s) => s.load);
-  const loadState = useSubmit();
-  const submitLoad = loadState.submit;
-
-  useEffect(() => {
-    // Opened directly (e.g. before Home finished loading): the form needs the current values.
-    if (!profile) void submitLoad(load);
-  }, [profile, load, submitLoad]);
-
-  if (profile) return <EditProfileForm profile={profile} />;
-  return (
-    <Screen header={<TopBar title="Edit profile" back="/profile" />}>
-      {loadState.formError ? <FormMessage message={loadState.formError} /> : <ActivityIndicator color={colors.primary} />}
-    </Screen>
-  );
-}
-
-function EditProfileForm({ profile }: { profile: Profile }) {
-  const { colors } = useTheme();
   const catalogue = useProfileStore((s) => s.catalogue);
-  const loadCatalogue = useProfileStore((s) => s.loadCatalogue);
-  const saveDetails = useProfileStore((s) => s.saveDetails);
-  const saveSports = useProfileStore((s) => s.saveSports);
-  const { submitting, formError, serverFieldErrors, submit } = useSubmit();
-  const catalogueState = useSubmit();
-
-  const initialSelection = useMemo<SportSelection>(
-    () => ({
-      sportIds: profile.sports.map((sport) => sport.id),
-      primarySportId: profile.sports.find((sport) => sport.isPrimary)?.id ?? null,
-    }),
-    [profile],
-  );
-  const [fullName, setFullName] = useState(profile.user.fullName);
-  const [bio, setBio] = useState(profile.bio ?? '');
-  const [selection, setSelection] = useState(initialSelection);
-  const [nameError, setNameError] = useState<string | undefined>();
+  const [fullName, setFullName] = useState(profile?.user.fullName ?? '');
+  const [displayName, setDisplayName] = useState(profile?.displayName ?? '');
+  const [city, setCity] = useState(profile?.city ?? '');
+  const [username, setUsername] = useState(profile?.user.username ?? '');
+  const [bio, setBio] = useState(profile?.bio ?? '');
+  const [photo, setPhoto] = useState<{ uri: string; width: number; height: number } | null>(null);
+  const [removePhoto, setRemovePhoto] = useState(false);
+  const initialSports: SportSelection = { sportIds: profile?.sports.map((s) => s.id) ?? [], primarySportId: profile?.sports.find((s) => s.isPrimary)?.id ?? null };
+  const [sports, setSports] = useState<SportSelection>(initialSports);
+  const [taken, setTaken] = useState<{ for: string; reason: string | null } | null>(null);
+  const { submit, submitting, formError, serverFieldErrors } = useSubmit();
 
   useEffect(() => {
-    void catalogueState.submit(loadCatalogue);
-    // Load once when the screen opens.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    void useProfileStore.getState().loadCatalogue().catch(() => undefined);
+    if (!profile) void useProfileStore.getState().load().catch(() => undefined);
+  }, [profile]);
 
-  async function handleSave() {
-    const error = validateFullName(fullName);
-    setNameError(error);
-    if (error) return;
+  const handle = username.trim().replace(/^@/, '');
+  const debounced = useDebounced(handle, 350);
+  useEffect(() => {
+    if (!debounced || debounced === profile?.user.username || validateUsername(debounced)) return;
+    let cancelled = false;
+    authApi.usernameAvailable(debounced).then((r) => !cancelled && setTaken(r.available ? null : { for: debounced, reason: r.reason }), () => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [debounced, profile?.user.username]);
 
-    const nameChanged = fullName.trim() !== profile.user.fullName;
-    const bioChanged = bio.trim() !== (profile.bio ?? '');
-    const sportsChanged = !sameSelection(selection, initialSelection);
+  if (!profile) return <Loading />;
 
-    const saved = await submit(async () => {
-      if (nameChanged || bioChanged) {
-        await saveDetails({ ...(nameChanged ? { fullName: fullName.trim() } : {}), ...(bioChanged ? { bio: bio.trim() } : {}) });
-      }
-      if (sportsChanged) await saveSports(selection.sportIds, selection.primarySportId);
+  const usernameError = (handle ? validateUsername(handle) : 'Choose a username') ?? (taken?.for === handle ? (taken.reason ?? 'That username is taken') : null) ?? serverFieldErrors.username;
+  const nameError = validateFullName(fullName) ?? serverFieldErrors.fullName;
+
+  const save = () => {
+    // The fields already show what's wrong.
+    if (usernameError || nameError) return;
+    void submit(async () => {
+      const media = photo ? await uploadPhoto(photo) : null;
+      const store = useProfileStore.getState();
+      await store.saveDetails({
+        fullName: fullName.trim(),
+        displayName: displayName.trim() || fullName.trim(),
+        city: city.trim(),
+        bio: bio.trim(),
+        ...(handle !== profile.user.username ? { username: handle } : {}),
+        ...(media ? { photoMediaId: media.id } : removePhoto ? { photoMediaId: null } : {}),
+      });
+      if (!sameSelection(sports, initialSports)) await store.saveSports(sports.sportIds, sports.primarySportId);
+      router.back();
     });
-    if (saved) router.back();
-  }
+  };
+
+  const shownPhoto = photo?.uri ?? (removePhoto ? null : profile.photoUrl);
 
   return (
-    <Screen header={<TopBar title="Edit profile" back="/profile" />}>
+    <Screen gap={16}>
+      <Row between>
+        <TextButton label="Cancel" size={16} weight={600} color={colors.muted} onPress={() => router.back()} />
+        <T size={17} w={700}>
+          Edit profile
+        </T>
+        <Button label="Save" height={40} radius={12} size={15} weight={700} inline px={18} loading={submitting} onPress={save} />
+      </Row>
 
-      <View style={styles.fields}>
-        <TextField
-          icon="user"
-          placeholder="Full name"
-          value={fullName}
-          onChangeText={setFullName}
-          error={nameError ?? serverFieldErrors.fullName}
-          autoCapitalize="words"
-          autoComplete="name"
-          textContentType="name"
-          maxLength={100}
+      <Row gap={16}>
+        <Avatar name={profile.user.fullName} id={profile.user.id} photoUrl={shownPhoto} size={72} display />
+        <Button
+          label="Change photo"
+          variant="outline"
+          height={40}
+          radius={12}
+          size={14}
+          inline
+          px={14}
+          onPress={() =>
+            void pickPhoto({ square: true }).then((p) => {
+              if (p) {
+                setPhoto(p);
+                setRemovePhoto(false);
+              }
+            })
+          }
         />
-        <TextField
-          icon="edit-3"
-          placeholder="Bio (optional)"
-          value={bio}
-          onChangeText={setBio}
-          error={serverFieldErrors.bio}
-          multiline
-          maxLength={BIO_MAX}
+        {shownPhoto ? (
+          <TextButton
+            label="Remove"
+            size={14}
+            color={colors.muted}
+            onPress={() => {
+              setPhoto(null);
+              setRemovePhoto(true);
+            }}
+          />
+        ) : null}
+      </Row>
+
+      <View style={{ gap: 12 }}>
+        <Field label="Full name" value={fullName} onChangeText={setFullName} height={50} size={16} autoCapitalize="words" error={fullName ? nameError : 'Enter your full name'} />
+        <Row gap={10} style={{ alignItems: 'flex-start' }}>
+          <Field label="Scoreboard name" value={displayName} onChangeText={setDisplayName} height={50} size={16} maxLength={40} style={{ flex: 1 }} error={serverFieldErrors.displayName} />
+          <Field label="City" value={city} onChangeText={setCity} height={50} size={16} maxLength={60} style={{ flex: 1 }} error={serverFieldErrors.city} />
+        </Row>
+        <Field
+          label="Username"
+          value={username}
+          onChangeText={setUsername}
+          height={50}
+          size={16}
+          autoCapitalize="none"
+          autoCorrect={false}
+          prefix={
+            <T w={600} color={colors.faint}>
+              @
+            </T>
+          }
+          error={usernameError}
         />
-        <Text style={[typography.caption, styles.counter, { color: colors.textMuted }]}>
-          {bio.length}/{BIO_MAX}
-        </Text>
+        <Field label="Bio" value={bio} onChangeText={setBio} multiline height={72} size={15} maxLength={300} error={serverFieldErrors.bio} />
       </View>
 
-      <SectionHeader title="Sports you play" />
-      <Text style={[typography.body, styles.hint, { color: colors.textMuted }]}>
-        Tap to add or remove. Tap the star to set your primary sport.
-      </Text>
-
-      {catalogueState.submitting && catalogue.length === 0 ? <ActivityIndicator color={colors.primary} /> : null}
-      <FormMessage message={catalogueState.formError} />
-
-      <View style={styles.sports}>
-        {catalogue.map((sport) => {
-          const selected = selection.sportIds.includes(sport.id);
-          const primary = selection.primarySportId === sport.id;
-          return (
-            <Pressable
-              key={sport.id}
-              onPress={() => setSelection((prev) => toggleSport(prev, sport.id))}
-              accessibilityRole="checkbox"
-              accessibilityState={{ checked: selected }}
-              accessibilityLabel={sport.name}
-              style={[
-                styles.sportRow,
-                { backgroundColor: colors.surface, borderColor: selected ? colors.primary : colors.surfaceBorder },
-              ]}
-            >
-              <Feather name={selected ? 'check-circle' : 'circle'} size={20} color={selected ? colors.primary : colors.icon} />
-              <Text style={[styles.sportName, { color: colors.text }]}>{sport.name}</Text>
-              {selected ? (
-                <Pressable
-                  onPress={() => setSelection((prev) => makePrimary(prev, sport.id))}
-                  hitSlop={10}
-                  accessibilityRole="button"
-                  accessibilityLabel={primary ? `${sport.name} is your primary sport` : `Make ${sport.name} your primary sport`}
-                  style={styles.star}
-                >
-                  <Feather name="star" size={18} color={primary ? colors.primary : colors.icon} />
-                  {primary ? <Text style={[styles.primaryLabel, { color: colors.primary }]}>Primary</Text> : null}
-                </Pressable>
-              ) : null}
-            </Pressable>
-          );
-        })}
+      <View style={{ gap: 8 }}>
+        <T size={13} w={600} color={colors.muted}>
+          Sports I play
+        </T>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+          {catalogue.map((s) => {
+            const on = sports.sportIds.includes(s.id);
+            return (
+              <Pressable
+                key={s.id}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: on }}
+                accessibilityLabel={s.name}
+                onPress={() => setSports((sel) => toggleSport(sel, s.id))}
+                style={{ height: 38, paddingHorizontal: 14, borderRadius: 19, justifyContent: 'center', backgroundColor: on ? withAlpha(s.accentColor, 0.16) : 'transparent', borderWidth: on ? 1.5 : 1, borderColor: on ? s.accentColor : colors.line }}
+              >
+                <T size={14} w={on ? 700 : 600} color={on ? colors.fg : colors.soft}>
+                  {s.name}
+                </T>
+              </Pressable>
+            );
+          })}
+        </View>
       </View>
-      {serverFieldErrors.sportIds || serverFieldErrors.primarySportId ? (
-        <FormMessage message={serverFieldErrors.sportIds ?? serverFieldErrors.primarySportId ?? null} />
-      ) : null}
 
-      <FormMessage message={formError} />
-      <View style={styles.save}>
-        <PrimaryButton title="Save" onPress={handleSave} loading={submitting} showChevron={false} />
-      </View>
+      {formError ? <Notice tone="error" icon="alert" text={formError} /> : null}
     </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  fields: { gap: spacing.md, paddingTop: spacing.lg, marginBottom: spacing.xl },
-  counter: { alignSelf: 'flex-end', marginTop: -spacing.xs },
-  hint: { marginTop: -spacing.sm, marginBottom: spacing.md },
-  sports: { gap: spacing.sm, marginBottom: spacing.lg },
-  sportRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    borderRadius: radius.field,
-    borderWidth: StyleSheet.hairlineWidth * 2,
-    paddingHorizontal: spacing.lg,
-    height: 52,
-  },
-  sportName: { flex: 1, fontSize: 15, fontWeight: '600' },
-  star: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-  primaryLabel: { fontSize: 12, fontWeight: '700' },
-  save: { marginTop: spacing.sm },
-});

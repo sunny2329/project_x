@@ -16,12 +16,20 @@ function newAccount() {
   return { username: `athlete${suffix}`, fullName: 'Test Athlete', email: `athlete${suffix}@example.com`, phone: `+9198${suffix}`, password: PASSWORD };
 }
 
+/** Sign-up in three steps: phone + username -> code -> details. */
+async function startAndVerify(account: { phone: string; username: string }) {
+  await request(ctx.app).post(`${API}/register/start`).send({ phone: account.phone, username: account.username }).expect(200);
+  const res = await request(ctx.app).post(`${API}/register/verify`).send({ phone: account.phone, code: TEST_OTP }).expect(200);
+  return res.body.data.registrationToken as string;
+}
+
+function details(account: ReturnType<typeof newAccount>, registrationToken: string) {
+  return { registrationToken, username: account.username, fullName: account.fullName, email: account.email, password: account.password };
+}
+
 async function register(account = newAccount()) {
-  await request(ctx.app).post(`${API}/register/start`).send(account).expect(200);
-  const res = await request(ctx.app)
-    .post(`${API}/register/complete`)
-    .send({ ...account, code: TEST_OTP })
-    .expect(201);
+  const registrationToken = await startAndVerify(account);
+  const res = await request(ctx.app).post(`${API}/register/complete`).send(details(account, registrationToken)).expect(201);
   return { account, ...(res.body.data as { user: { id: string }; tokens: { accessToken: string; refreshToken: string } }) };
 }
 
@@ -36,14 +44,12 @@ afterAll(async () => {
 describe('registration', () => {
   it('sends a code, then creates the account with a verified phone and returns tokens', async () => {
     const account = newAccount();
-    const start = await request(ctx.app).post(`${API}/register/start`).send(account).expect(200);
+    const start = await request(ctx.app).post(`${API}/register/start`).send({ phone: account.phone, username: account.username }).expect(200);
     expect(start.body).toEqual({ success: true, data: { message: 'Verification code sent.' } });
     expect(ctx.sms.sentTo).toContain(account.phone);
 
-    const res = await request(ctx.app)
-      .post(`${API}/register/complete`)
-      .send({ ...account, code: TEST_OTP })
-      .expect(201);
+    const verify = await request(ctx.app).post(`${API}/register/verify`).send({ phone: account.phone, code: TEST_OTP }).expect(200);
+    const res = await request(ctx.app).post(`${API}/register/complete`).send(details(account, verify.body.data.registrationToken)).expect(201);
     expect(res.body.data.user).toMatchObject({
       fullName: account.fullName,
       email: account.email,
@@ -62,45 +68,61 @@ describe('registration', () => {
   it('normalizes email case and phone formatting', async () => {
     const account = newAccount();
     const spacedPhone = `${account.phone.slice(0, 3)} ${account.phone.slice(3, 8)}-${account.phone.slice(8)}`;
-    await request(ctx.app).post(`${API}/register/start`).send(account).expect(200);
+    const token = await startAndVerify({ phone: spacedPhone, username: account.username });
     const res = await request(ctx.app)
       .post(`${API}/register/complete`)
-      .send({ ...account, email: account.email.toUpperCase(), phone: spacedPhone, code: TEST_OTP })
+      .send({ ...details(account, token), email: account.email.toUpperCase() })
       .expect(201);
     expect(res.body.data.user.email).toBe(account.email);
     expect(res.body.data.user.phone).toBe(account.phone);
   });
 
   it('rejects a wrong code', async () => {
-    const res = await request(ctx.app)
-      .post(`${API}/register/complete`)
-      .send({ ...newAccount(), code: '000000' })
-      .expect(400);
+    const account = newAccount();
+    await request(ctx.app).post(`${API}/register/start`).send({ phone: account.phone, username: account.username }).expect(200);
+    const res = await request(ctx.app).post(`${API}/register/verify`).send({ phone: account.phone, code: '000000' }).expect(400);
     expect(res.body.error.code).toBe('INVALID_CODE');
   });
 
-  it('rejects duplicate email and phone', async () => {
+  it('rejects a forged registration token', async () => {
+    const res = await request(ctx.app)
+      .post(`${API}/register/complete`)
+      .send(details(newAccount(), 'not-a-real-registration-token'))
+      .expect((r) => expect([400, 401]).toContain(r.status));
+    expect(res.body.success).toBe(false);
+  });
+
+  it('rejects duplicate username, phone and email', async () => {
     const { account } = await register();
-    const dupEmail = await request(ctx.app)
-      .post(`${API}/register/start`)
-      .send({ ...newAccount(), email: account.email })
-      .expect(409);
-    expect(dupEmail.body.error.code).toBe('EMAIL_TAKEN');
     const dupPhone = await request(ctx.app)
       .post(`${API}/register/start`)
-      .send({ ...newAccount(), phone: account.phone })
+      .send({ phone: account.phone, username: newAccount().username })
       .expect(409);
     expect(dupPhone.body.error.code).toBe('PHONE_TAKEN');
+    const dupUsername = await request(ctx.app)
+      .post(`${API}/register/start`)
+      .send({ phone: newAccount().phone, username: account.username })
+      .expect(409);
+    expect(dupUsername.body.error.code).toBe('USERNAME_TAKEN');
+    const other = newAccount();
+    const token = await startAndVerify(other);
+    const dupEmail = await request(ctx.app)
+      .post(`${API}/register/complete`)
+      .send({ ...details(other, token), email: account.email })
+      .expect(409);
+    expect(dupEmail.body.error.code).toBe('EMAIL_TAKEN');
   });
 
   it('returns field-level validation errors', async () => {
-    const res = await request(ctx.app)
-      .post(`${API}/register/start`)
-      .send({ username: '1', fullName: 'A', email: 'not-an-email', phone: '12345', password: 'short' })
+    const start = await request(ctx.app).post(`${API}/register/start`).send({ username: '1', phone: '12345' }).expect(400);
+    expect(start.body.success).toBe(false);
+    expect(start.body.error.code).toBe('VALIDATION_ERROR');
+    expect(Object.keys(start.body.error.details).sort()).toEqual(['phone', 'username']);
+    const complete = await request(ctx.app)
+      .post(`${API}/register/complete`)
+      .send({ registrationToken: 'x'.repeat(20), username: 'valid_name', fullName: 'A', email: 'not-an-email', password: 'short' })
       .expect(400);
-    expect(res.body.success).toBe(false);
-    expect(res.body.error.code).toBe('VALIDATION_ERROR');
-    expect(Object.keys(res.body.error.details).sort()).toEqual(['email', 'fullName', 'password', 'phone', 'username']);
+    expect(Object.keys(complete.body.error.details).sort()).toEqual(['email', 'fullName', 'password']);
   });
 
   it('rejects malformed JSON with a clean error', async () => {
@@ -270,18 +292,17 @@ describe('social sign-in', () => {
     expect(res.body.error.code).toBe('ACCOUNT_NOT_FOUND');
   });
 
-  it('links Google to an existing account with the same verified email', async () => {
+  it('signs in to an existing account with the same verified email', async () => {
     const { account, user } = await register();
     ctx.google.profile = { subject: `g-link-${Date.now()}`, email: account.email, emailVerified: true, fullName: null };
     const res = await request(ctx.app).post(`${API}/google`).send({ idToken: 'stub' }).expect(200);
     expect(res.body.data.user.id).toBe(user.id);
-    expect(res.body.data.user.emailVerified).toBe(true);
   });
 
-  it('refuses identities without a verified email', async () => {
+  it('refuses unknown Apple identities, even without an email', async () => {
     ctx.apple.profile = { subject: `a-${Date.now()}`, email: null, emailVerified: false, fullName: null };
-    const res = await request(ctx.app).post(`${API}/apple`).send({ identityToken: 'stub' }).expect(400);
-    expect(res.body.error.code).toBe('EMAIL_NOT_VERIFIED');
+    const res = await request(ctx.app).post(`${API}/apple`).send({ identityToken: 'stub' }).expect(404);
+    expect(res.body.error.code).toBe('ACCOUNT_NOT_FOUND');
   });
 });
 

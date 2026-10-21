@@ -24,8 +24,8 @@ export function createProfileRouter(service: ProfileService, requireAuth: Reques
 
   router.get('/me/matches', async (req, res) => {
     const query = matchHistoryQuerySchema.safeParse(req.query);
-    if (!query.success) throw AppError.badRequest('VALIDATION_ERROR', 'Invalid query.', { limit: ['Must be 1-50'] });
-    sendSuccess(res, { matches: await service.getMatchHistory(req.auth!.userId, query.data.limit) });
+    if (!query.success) throw AppError.badRequest('VALIDATION_ERROR', 'Invalid query.', { limit: ['Must be 1-100'] });
+    sendSuccess(res, await service.getMatchHistory(req.auth!.userId, query.data.limit, query.data.sport));
   });
 
   return router;

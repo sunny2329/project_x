@@ -12,6 +12,14 @@ export const createTournamentSchema = z.object({
   endsOn: isoDate.optional(),
   venueId: z.uuid().optional(),
   venueName: z.string().trim().min(2).max(120).optional(),
+  /** Free text per player ("₹500"); empty = free. */
+  entryFee: z.string().trim().max(40).optional(),
+});
+
+export const listTournamentsQuerySchema = z.object({
+  /** open: registration open · live: under way · mine: organizing, staff or entered · all (default). */
+  filter: z.enum(['all', 'open', 'live', 'mine']).default('all'),
+  q: z.string().trim().max(60).optional(),
 });
 
 export const updateTournamentSchema = createTournamentSchema.partial().extend({
@@ -21,7 +29,8 @@ export const updateTournamentSchema = createTournamentSchema.partial().extend({
 export const addStaffSchema = z.object({ userId: z.uuid(), role: z.enum(['co_organizer', 'scorer', 'referee']) });
 
 export const addCourtSchema = z.object({ name: z.string().trim().min(1).max(60), sport: z.string().max(40).optional() });
-export const courtScorerSchema = z.object({ userId: z.uuid() });
+/** `replace`: the court gets only this scorer ("Change"). */
+export const courtScorerSchema = z.object({ userId: z.uuid(), replace: z.boolean().default(false) });
 
 export const createEventSchema = z.object({
   name: z.string().trim().min(2).max(80),

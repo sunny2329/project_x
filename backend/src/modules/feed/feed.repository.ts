@@ -7,9 +7,13 @@ export interface FeedPost {
   id: string;
   content: string | null;
   createdAt: string;
-  author: { id: string; username: string; fullName: string };
-  /** The match the post is about, when there is one. */
+  author: { id: string; username: string; fullName: string; photoUrl: string | null };
+  /** The match the post is about (its automatic result post, or one attached to a written post). */
   match: FeedMatch | null;
+  /** True for the automatic post written when a match is decided. */
+  isResult: boolean;
+  /** Photo URLs (relative to the API origin), in order. */
+  media: string[];
   visibility: 'public' | 'followers';
   likeCount: number;
   commentCount: number;
@@ -24,6 +28,10 @@ export interface FeedMatch {
   format: string | null;
   /** From start to the result being saved; null when either time is missing. */
   durationSeconds: number | null;
+  venue: string | null;
+  /** The post author's side and rating change in this match, when they played in it. */
+  authorSideIndex: number | null;
+  authorRatingChange: number | null;
   /** From the match's ScoreSummary; null while it is not decided. */
   result: {
     headline: string;
@@ -33,6 +41,8 @@ export interface FeedMatch {
     sides: { index: number; name: string; primary: string }[];
     /** Games or sets played. */
     segmentCount: number;
+    /** Top-level game/set scores, one array per segment ([side0, side1]). */
+    segments: number[][];
   } | null;
 }
 
@@ -44,7 +54,9 @@ export type FeedRow = Omit<FeedPost, 'createdAt'> & { createdAt: Date };
  */
 export const POST_COLUMNS = `
   sp.id, sp.content, sp.created_at AS "createdAt",
-  json_build_object('id', u.id, 'username', u.username, 'fullName', coalesce(pr.display_name, u.username)) AS author,
+  json_build_object('id', u.id, 'username', u.username, 'fullName', coalesce(pr.display_name, u.username), 'photoUrl', pr.profile_photo) AS author,
+  sp.match_id IS NOT NULL AS "isResult",
+  (SELECT coalesce(json_agg(pm.media_url ORDER BY pm.media_order), '[]'::json) FROM social_post_media pm WHERE pm.post_id = sp.id) AS media,
   CASE WHEN m.id IS NULL THEN NULL
        ELSE json_build_object(
          'id', m.id,
@@ -53,6 +65,11 @@ export const POST_COLUMNS = `
          'format', f.name,
          'durationSeconds', CASE WHEN m.started_at IS NOT NULL AND m.completed_at IS NOT NULL
                                  THEN greatest(extract(epoch FROM m.completed_at - m.started_at), 0)::int END,
+         'venue', (SELECT v.name FROM venues v WHERE v.id = m.venue_id),
+         'authorSideIndex', (SELECT ams.side_index FROM match_participants amp JOIN players apl ON apl.id = amp.player_id
+                               JOIN match_sides ams ON ams.id = amp.side_id WHERE amp.match_id = m.id AND apl.user_id = u.id LIMIT 1),
+         'authorRatingChange', (SELECT round(h.rating_after - h.rating_before)::int FROM player_rating_history h JOIN players hp ON hp.id = h.player_id
+                                  WHERE h.match_id = m.id AND hp.user_id = u.id),
          'result', CASE WHEN m.status NOT IN ('completed', 'retired', 'walkover') THEN NULL ELSE json_build_object(
            'headline', m.summary->>'headline',
            'winnerSideIndex', m.summary->'winnerSideIndex',
@@ -63,7 +80,9 @@ export const POST_COLUMNS = `
                                                      FROM match_participants mp JOIN players pl ON pl.id = mp.player_id WHERE mp.side_id = ms.id)),
                         'primary', m.summary->'sides'->ms.side_index->>'primary') ORDER BY ms.side_index), '[]'::json)
                        FROM match_sides ms WHERE ms.match_id = m.id),
-           'segmentCount', jsonb_array_length(coalesce(m.summary->'segments', '[]'::jsonb))) END) END AS match,
+           'segmentCount', jsonb_array_length(coalesce(m.summary->'segments', '[]'::jsonb)),
+           'segments', (SELECT coalesce(json_agg(seg->'scores' ORDER BY ord), '[]'::json)
+                          FROM jsonb_array_elements(coalesce(m.summary->'segments', '[]'::jsonb)) WITH ORDINALITY AS x(seg, ord))) END) END AS match,
   CASE WHEN sp.visibility_id = ${PostVisibility.FOLLOWERS} THEN 'followers' ELSE 'public' END AS visibility,
   (SELECT count(*)::int FROM social_post_like l WHERE l.post_id = sp.id) AS "likeCount",
   (SELECT count(*)::int FROM social_post_comment c WHERE c.post_id = sp.id) AS "commentCount",
@@ -73,7 +92,7 @@ export const POST_FROM = `
   FROM social_post sp
   JOIN usr_user u ON u.id = sp.user_id
   LEFT JOIN usr_user_profile pr ON pr.user_id = u.id
-  LEFT JOIN matches m ON m.id = sp.match_id
+  LEFT JOIN matches m ON m.id = coalesce(sp.match_id, sp.attached_match_id)
   LEFT JOIN sports s ON s.id = m.sport_id
   LEFT JOIN sport_formats f ON f.id = m.sport_format_id`;
 

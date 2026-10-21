@@ -5,6 +5,8 @@ import type { AuthContext } from './auth.types.js';
 
 const ISSUER = 'project-x-api';
 const AUDIENCE = 'project-x-app';
+const REGISTRATION_AUDIENCE = 'project-x-register';
+const REGISTRATION_TTL_MINUTES = 30;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export interface TokenServiceOptions {
@@ -52,6 +54,31 @@ export class TokenService {
         throw AppError.unauthorized('ACCESS_TOKEN_EXPIRED', 'Your session has expired.');
       }
       throw AppError.unauthorized('INVALID_ACCESS_TOKEN', 'Invalid access token.');
+    }
+  }
+
+  /**
+   * Proof that `phone` passed the sign-up code check, so the details can be sent in a later
+   * request. A different audience keeps it from ever working as an access token.
+   */
+  async signRegistrationToken(phone: string): Promise<string> {
+    return new SignJWT({ phone })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setIssuer(ISSUER)
+      .setAudience(REGISTRATION_AUDIENCE)
+      .setIssuedAt()
+      .setExpirationTime(`${REGISTRATION_TTL_MINUTES}m`)
+      .sign(this.accessKey);
+  }
+
+  /** The E.164 phone the token was issued for. */
+  async verifyRegistrationToken(token: string): Promise<string> {
+    try {
+      const { payload } = await jwtVerify(token, this.accessKey, { issuer: ISSUER, audience: REGISTRATION_AUDIENCE, algorithms: ['HS256'] });
+      if (typeof payload.phone !== 'string') throw new Error('Missing phone');
+      return payload.phone;
+    } catch {
+      throw AppError.badRequest('REGISTRATION_EXPIRED', 'Your sign-up took too long. Please verify your phone again.');
     }
   }
 

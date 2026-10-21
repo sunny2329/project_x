@@ -22,6 +22,9 @@ import { ChatService } from './modules/chat/chat.service.js';
 import { feedRepository } from './modules/feed/feed.repository.js';
 import { createFeedRouter } from './modules/feed/feed.routes.js';
 import { createPrisma, type Db } from './database/prisma.js';
+import { createDocsRouter } from './docs/docs.routes.js';
+import { createMediaRouters } from './modules/media/media.routes.js';
+import { createUsersRouter } from './modules/users/users.routes.js';
 import type { LiveStore } from './modules/matches/live/live-store.js';
 import { createMatchesRouter } from './modules/matches/matches.routes.js';
 import { MatchesService } from './modules/matches/matches.service.js';
@@ -69,6 +72,8 @@ export function createApp(deps: AppDependencies): Express & { services: AppServi
   app.use(helmet());
   // Native mobile clients send no Origin header, so CORS only matters for browser tooling.
   app.use(cors({ origin: env.CORS_ORIGINS.length ? env.CORS_ORIGINS : false }));
+  // Photo uploads arrive base64-encoded in JSON; everything else stays small.
+  app.use('/api/v1/media', express.json({ limit: '5mb' }));
   app.use(express.json({ limit: '100kb' }));
   app.use(
     pinoHttp({
@@ -106,6 +111,7 @@ export function createApp(deps: AppDependencies): Express & { services: AppServi
   });
 
   app.get('/health', (_req, res) => sendSuccess(res, { status: 'ok' }));
+  if (env.API_DOCS ? env.API_DOCS === 'true' : env.NODE_ENV !== 'production') app.use('/docs', createDocsRouter());
   const requireAuth = authenticate((token) => authService.authenticate(token));
   const db = deps.db ?? createPrisma(deps.pool);
   const players = new PlayersService(db);
@@ -137,6 +143,10 @@ export function createApp(deps: AppDependencies): Express & { services: AppServi
   app.use('/api/v1/feed', createFeedRouter(deps.pool, feedRepository, requireAuth));
   app.use('/api/v1/posts', createSocialRouter(deps.pool, socialRepository, requireAuth));
   app.use('/api/v1/conversations', createChatRouter(new ChatService({ pool: deps.pool, repository: chatRepository, cache }), requireAuth));
+  app.use('/api/v1/users', createUsersRouter(deps.pool, requireAuth));
+  const media = createMediaRouters(deps.pool, requireAuth);
+  app.use('/api/v1/media', media.api);
+  app.use(media.files);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

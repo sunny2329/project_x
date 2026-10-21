@@ -31,6 +31,10 @@ export const createMatchSchema = z
     rulesOverride: z.record(z.string(), z.unknown()).optional(),
     /** Present = result entered afterwards: one score per side for each game / set ([[21, 15], [21, 18]]). */
     manualScores: z.array(z.array(z.number().int().min(0).max(999)).length(2)).min(1).max(9).optional(),
+    /** Results entered afterwards: the day it was played (YYYY-MM-DD). */
+    playedOn: z.iso.date().optional(),
+    /** Where it was played; a venue with this name is found or created. */
+    venueName: z.string().trim().min(2, 'Enter the venue name').max(120).optional(),
   })
   .refine(
     (body) => {

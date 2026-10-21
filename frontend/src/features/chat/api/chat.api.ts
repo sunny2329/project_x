@@ -30,8 +30,12 @@ export const chatApi = {
     return apiRequest<{ messages: ChatMessage[] }>(`/api/v1/conversations/${id}/messages${query}`, { authenticated: true });
   },
 
-  send: (id: string, content: string) =>
-    apiRequest<{ message: ChatMessage }>(`/api/v1/conversations/${id}/messages`, { method: 'POST', body: { content }, authenticated: true }),
+  send: (id: string, content: string, matchId?: string) =>
+    apiRequest<{ message: ChatMessage }>(`/api/v1/conversations/${id}/messages`, {
+      method: 'POST',
+      body: matchId ? { content, matchId } : { content },
+      authenticated: true,
+    }),
 
   deleteMessage: (id: string, messageId: string) =>
     apiRequest<{ deleted: true }>(`/api/v1/conversations/${id}/messages/${messageId}`, { method: 'DELETE', authenticated: true }),

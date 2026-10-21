@@ -32,9 +32,20 @@ export interface PlayerSport extends Sport {
   minorLost: number;
 }
 
+/** Rating after each rated match, oldest first, starting from 1000 (the trend line). */
+export interface RatingTrend {
+  sportId: string;
+  points: number[];
+}
+
 export interface Profile {
   user: PublicUser;
   bio: string | null;
+  /** Name on scoreboards. */
+  displayName: string;
+  city: string | null;
+  photoUrl: string | null;
+  ratingTrends: RatingTrend[];
   sports: PlayerSport[];
   /** Totals across every sport, including ones no longer in the user's list. */
   record: { played: number; won: number; lost: number };
@@ -54,6 +65,15 @@ export interface MatchHistoryItem {
   resultType: string | null;
   /** Display names of the other participants (opponents and, in doubles, the partner). */
   otherPlayers: string[];
+  partners: string[];
+  opponents: string[];
+  /** "Singles", "Doubles". */
+  format: string | null;
+  status: string;
+  verification: string;
+  /** Manual result waiting for someone: who must confirm ("Arjun T"), or "you". */
+  awaiting: string | null;
+  tournament: { name: string; eventName: string; roundName: string | null } | null;
   /** Score line from the side of the user ("21-15, 18-21, 21-19"). */
   headline: string | null;
   /** Rating change in this match, when it was rated. */

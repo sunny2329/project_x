@@ -43,6 +43,9 @@ const envSchema = z
 
     GOOGLE_CLIENT_IDS: csv,
     APPLE_BUNDLE_IDS: csv,
+
+    /** Swagger UI at /docs. Unset = on outside production. */
+    API_DOCS: z.enum(['true', 'false']).optional(),
   })
   .superRefine((env, ctx) => {
     if (env.SMS_PROVIDER === 'twilio') {

@@ -1,232 +1,194 @@
-import Feather from '@expo/vector-icons/Feather';
-import { router } from 'expo-router';
-import { useCallback, useEffect, useState, type ComponentProps } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
+import { useWindowDimensions, View } from 'react-native';
 import { useAuthStore } from '@/features/auth/store/auth.store';
-import {
-  AppHeader,
-  Avatar,
-  Card,
-  ChoiceChips,
-  EmptyState,
-  FormMessage,
-  IconButton,
-  Screen,
-  UnderlineTabs,
-} from '@/shared/components';
-import { useSubmit } from '@/shared/hooks/useSubmit';
-import { radius, spacing, typography, useTheme, useThemeStore } from '@/shared/theme';
-import { MatchRow } from '../components/MatchRow';
-import { StatsGrid, winRate } from '../components/SportStatsCard';
+import { errorMessage } from '@/shared/hooks/useResource';
+import { sportText, useTheme } from '@/shared/theme';
+import { Avatar, Button, Chip, D, EmptyState, IconButton, Label, Loading, Notice, Row, Screen, Sparkline, T, Tap, TextButton } from '@/shared/ui';
+import { shortDay } from '@/shared/utils/format';
+import { FormTile } from '../components/ProfileBits';
 import { useProfileStore } from '../store/profile.store';
+import type { MatchHistoryItem } from '../types';
 
-type Tab = 'stats' | 'matches';
-const OVERALL = 'overall';
+/** "with Kabir vs Arjun & Meera" / "vs Arjun T". */
+function versusLine(m: MatchHistoryItem): string {
+  const vs = m.opponents.length ? `vs ${m.opponents.join(' & ')}` : '';
+  return [m.partners.length ? `with ${m.partners.join(' & ')}` : '', vs].filter(Boolean).join(' ') || m.sport.name;
+}
 
-/** The signed-in player's profile: identity, counts, per-sport stats and ratings, match history. */
+/** My profile tab: ratings per sport with the trend, record, recent matches. */
 export default function ProfileScreen() {
-  const { colors, scheme } = useTheme();
-  const setThemeMode = useThemeStore((s) => s.setMode);
+  const { colors } = useTheme();
+  const { width } = useWindowDimensions();
+  const user = useAuthStore((s) => s.user);
   const profile = useProfileStore((s) => s.profile);
   const matches = useProfileStore((s) => s.matches);
-  const load = useProfileStore((s) => s.load);
-  const fallbackUser = useAuthStore((s) => s.user);
-  const { submitting: refreshing, formError: error, submit } = useSubmit();
-  const [tab, setTab] = useState<Tab>('stats');
-  const [sportId, setSportId] = useState<string>(OVERALL);
+  const [sportId, setSportId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const refresh = useCallback(() => {
-    void submit(load);
-  }, [submit, load]);
-
-  useEffect(refresh, [refresh]);
-
-  const user = profile?.user ?? fallbackUser;
-  if (!user) return null;
-  const record = profile?.record ?? { played: 0, won: 0, lost: 0 };
-  const sports = profile?.sports ?? [];
-  const primary = sports.find((s) => s.isPrimary);
-  const sport = sports.find((s) => s.id === sportId);
-
-  const header = (
-    <AppHeader
-      title="You"
-      actions={
-        <>
-          <IconButton
-            icon={scheme === 'dark' ? 'sun' : 'moon'}
-            label={scheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-            onPress={() => setThemeMode(scheme === 'dark' ? 'light' : 'dark')}
-          />
-          <IconButton icon="sliders" label="Settings" onPress={() => router.push('/settings')} />
-        </>
-      }
-    />
+  const load = useCallback(async () => {
+    try {
+      await useProfileStore.getState().load();
+      setError(null);
+    } catch (e) {
+      setError(errorMessage(e));
+    }
+  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      void load();
+    }, [load]),
   );
 
+  if (!profile) {
+    return error ? (
+      <Screen>
+        <Notice tone="error" icon="alert" text={error} />
+      </Screen>
+    ) : (
+      <Loading />
+    );
+  }
+
+  const sports = [...profile.sports].sort((a, b) => Number(b.isPrimary) - Number(a.isPrimary) || b.matchesPlayed - a.matchesPlayed);
+  const sport = sports.find((s) => s.id === sportId) ?? sports[0] ?? null;
+  const trend = sport ? (profile.ratingTrends.find((t) => t.sportId === sport.id)?.points ?? []) : [];
+  const since = sport ? Math.round(sport.rating - 1000) : 0;
+  const recent = matches.filter((m) => !sport || m.sport.id === sport.id).slice(0, 4);
+  const winRate = sport && sport.matchesPlayed ? Math.round((sport.matchesWon / sport.matchesPlayed) * 100) : 0;
+
   return (
-    <Screen edges={['top']} header={header} onRefresh={refresh} refreshing={refreshing}>
-      <View style={styles.identity}>
-        <Avatar name={user.fullName} size={104} ring />
-        <View style={styles.counts}>
-          <Count value={record.played} label="Matches" />
-          <Count value={profile?.followers ?? 0} label="Followers" />
-          <Count value={profile?.following ?? 0} label="Following" />
+    <Screen
+      gap={16}
+      refreshing={refreshing}
+      onRefresh={async () => {
+        setRefreshing(true);
+        await load();
+        setRefreshing(false);
+      }}
+    >
+      <Row gap={8} style={{ justifyContent: 'flex-end' }}>
+        <Button label="Edit profile" variant="surface" height={40} radius={12} size={14} inline px={14} onPress={() => router.push('/profile/edit')} />
+        <IconButton icon="sliders" label="Settings" size={40} radius={12} onPress={() => router.push('/settings')} />
+      </Row>
+
+      <Row gap={16}>
+        <Avatar name={profile.user.fullName} id={profile.user.id} photoUrl={profile.photoUrl} size={76} display ring={sport?.accentColor ?? colors.primary} />
+        <View style={{ flex: 1, gap: 2 }}>
+          <D size={34} lh={34} upper numberOfLines={2}>
+            {profile.user.fullName}
+          </D>
+          <T size={14} color={colors.muted}>
+            @{user?.username ?? profile.user.username}
+            {profile.city ? ` · ${profile.city}` : ''}
+          </T>
+          <T size={14} color={colors.soft}>
+            <T size={14} w={700}>
+              {profile.followers}
+            </T>{' '}
+            followers ·{' '}
+            <T size={14} w={700}>
+              {profile.following}
+            </T>{' '}
+            following
+          </T>
         </View>
-      </View>
+      </Row>
+      {profile.bio ? (
+        <T size={14} color={colors.soft}>
+          {profile.bio}
+        </T>
+      ) : null}
 
-      <Text style={[styles.name, { color: colors.text }]}>{user.fullName}</Text>
-      <Text style={[typography.body, { color: colors.textMuted }]}>@{user.username}</Text>
-      {profile?.bio ? <Text style={[styles.bio, { color: colors.text }]}>{profile.bio}</Text> : null}
+      {sports.length ? (
+        <>
+          <Row gap={8} style={{ flexWrap: 'wrap' }}>
+            {sports.map((s) => (
+              <Chip key={s.id} label={s.name} dot={s.accentColor} active={s.id === sport?.id} activeColor={s.accentColor} onPress={() => setSportId(s.id)} />
+            ))}
+          </Row>
 
-      <View style={styles.tags}>
-        {primary ? <Tag icon="award" label={primary.name} highlight /> : null}
-        {primary ? <Tag icon="trending-up" label={`${Math.round(primary.rating)} rating`} /> : null}
-        <Tag icon="zap" label={`${winRate(record.won, record.played)} wins`} />
-      </View>
-
-      <View style={styles.buttons}>
-        <PillButton icon="edit-2" label="Edit profile" onPress={() => router.push('/edit-profile')} />
-        <PillButton icon="settings" label="Settings" onPress={() => router.push('/settings')} />
-      </View>
-
-      <FormMessage message={error} />
-
-      <View style={styles.bleed}>
-        <UnderlineTabs
-          tabs={[
-            { label: 'Stats', value: 'stats' },
-            { label: 'Matches', value: 'matches' },
-          ]}
-          value={tab}
-          onChange={setTab}
-        />
-      </View>
-
-      {tab === 'stats' ? (
-        <View style={styles.tabBody}>
-          {sports.length ? (
-            <ChoiceChips
-              accessibilityLabel="Sport"
-              options={[{ label: 'Overall', value: OVERALL }, ...sports.map((s) => ({ label: s.name, value: s.id }))]}
-              value={sport ? sport.id : OVERALL}
-              onChange={setSportId}
-            />
-          ) : null}
           {sport ? (
-            <StatsGrid
-              headline={{
-                label: `${sport.name} rating`,
-                value: String(Math.round(sport.rating)),
-                caption: sport.ratedMatches ? `Elo · ${sport.ratedMatches} rated match${sport.ratedMatches === 1 ? '' : 'es'}` : 'Elo · everyone starts at 1000',
-                badge: sport.isPrimary ? 'Primary' : undefined,
-              }}
-              tiles={[
-                { label: 'Played', value: String(sport.matchesPlayed) },
-                { label: 'Won', value: String(sport.matchesWon) },
-                { label: 'Win %', value: winRate(sport.matchesWon, sport.matchesPlayed) },
-                { label: 'Lost', value: String(sport.matchesLost) },
-                { label: 'Games won', value: String(sport.majorWon), hint: `${sport.majorLost} lost` },
-                { label: 'Points won', value: String(sport.minorWon), hint: `${sport.minorLost} lost` },
-              ]}
-            />
-          ) : (
-            <StatsGrid
-              headline={{ label: 'All sports', value: winRate(record.won, record.played), caption: 'Win rate across every match' }}
-              tiles={[
-                { label: 'Played', value: String(record.played) },
-                { label: 'Won', value: String(record.won) },
-                { label: 'Lost', value: String(record.lost) },
-              ]}
-            />
-          )}
-          {sports.length ? null : (
-            <Card>
-              <EmptyState
-                icon="target"
-                title="No sports yet"
-                message="Pick the sports you play. Everyone starts at a 1000 rating."
-                action={{ label: 'Add sports', onPress: () => router.push('/edit-profile') }}
-              />
-            </Card>
-          )}
-        </View>
+            <View style={{ padding: 16, borderRadius: 20, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, gap: 10 }}>
+              <View>
+                <Label>Rating</Label>
+                <Row gap={8} style={{ alignItems: 'baseline' }}>
+                  <D size={52} lh={50}>
+                    {Math.round(sport.rating)}
+                  </D>
+                  {sport.ratedMatches ? (
+                    <T size={14} w={800} color={since >= 0 ? colors.good : colors.bad}>
+                      {since >= 0 ? `+${since}` : since} since joining
+                    </T>
+                  ) : (
+                    <T size={14} color={colors.muted}>
+                      Starting rating
+                    </T>
+                  )}
+                </Row>
+              </View>
+              {trend.length >= 2 ? <Sparkline points={trend} width={width - 72} height={70} color={sportText(colors, sport.slug)} /> : null}
+              <View style={{ flexDirection: 'row', gap: 8, paddingTop: 6, borderTopWidth: 1, borderTopColor: colors.raised }}>
+                {[
+                  [sport.matchesPlayed, 'Played'],
+                  [sport.matchesWon, 'Won'],
+                  [sport.matchesLost, 'Lost'],
+                  [`${winRate}%`, 'Win rate'],
+                ].map(([v, l]) => (
+                  <View key={l} style={{ flex: 1 }}>
+                    <D size={26}>{v}</D>
+                    <T size={12} color={colors.muted}>
+                      {l}
+                    </T>
+                  </View>
+                ))}
+              </View>
+            </View>
+          ) : null}
+        </>
       ) : (
-        <View style={styles.tabBody}>
-          <Card style={styles.history}>
-            {matches.length ? (
-              matches.map((match) => <MatchRow key={match.matchId} match={match} />)
-            ) : (
-              <EmptyState icon="activity" title="No matches yet" message="Every match you score is saved here with its result." />
-            )}
-          </Card>
-        </View>
+        <EmptyState title="No sports yet" body="Pick what you play to get a rating for each sport." action={<Button label="Pick sports" inline height={44} onPress={() => router.push('/profile/edit')} />} />
+      )}
+
+      <Row between>
+        <Label>Recent matches</Label>
+        <TextButton label="See all" onPress={() => router.push('/profile/matches')} style={{ paddingVertical: 8 }} />
+      </Row>
+      {recent.length ? (
+        recent.map((m) => <RecentRow key={m.matchId} m={m} />)
+      ) : (
+        <T size={14} color={colors.muted}>
+          No matches yet. Tap + to score one.
+        </T>
       )}
     </Screen>
   );
 }
 
-function Count({ value, label }: { value: number; label: string }) {
+function RecentRow({ m }: { m: MatchHistoryItem }) {
   const { colors } = useTheme();
   return (
-    <View style={styles.count}>
-      <Text style={[styles.countValue, { color: colors.text }]}>{value}</Text>
-      <Text style={[typography.caption, { color: colors.textMuted, fontWeight: '600' }]}>{label}</Text>
-    </View>
-  );
-}
-
-function Tag({ icon, label, highlight = false }: { icon: ComponentProps<typeof Feather>['name']; label: string; highlight?: boolean }) {
-  const { colors } = useTheme();
-  const fg = highlight ? colors.primary : colors.textMuted;
-  return (
-    <View style={[styles.tag, { backgroundColor: highlight ? colors.primarySoft : colors.secondaryButton }]}>
-      <Feather name={icon} size={12} color={fg} />
-      <Text style={[styles.tagText, { color: highlight ? colors.primary : colors.text }]}>{label}</Text>
-    </View>
-  );
-}
-
-function PillButton({ icon, label, onPress }: { icon: ComponentProps<typeof Feather>['name']; label: string; onPress: () => void }) {
-  const { colors } = useTheme();
-  return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      style={({ pressed }) => [
-        styles.pill,
-        { backgroundColor: pressed ? colors.secondaryButtonPressed : colors.surface, borderColor: colors.surfaceBorder },
-      ]}
+    <Tap
+      label={versusLine(m)}
+      onPress={() => router.push({ pathname: '/match/[id]/result', params: { id: m.matchId } })}
+      style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 14, backgroundColor: colors.surface }}
     >
-      <Feather name={icon} size={16} color={colors.text} />
-      <Text style={[typography.secondaryButton, { color: colors.text }]}>{label}</Text>
-    </Pressable>
+      {m.outcome === 'won' || m.outcome === 'lost' ? <FormTile result={m.outcome === 'won' ? 'W' : 'L'} size={32} /> : <View style={{ width: 32 }} />}
+      <View style={{ flex: 1 }}>
+        <T size={14} w={600} numberOfLines={1}>
+          {versusLine(m)}
+        </T>
+        <T size={12} color={colors.muted}>
+          {shortDay(m.playedAt)}
+          {m.format ? ` · ${m.format}` : ''}
+        </T>
+      </View>
+      {m.headline ? (
+        <D size={17} w={800}>
+          {m.headline.replace(/,\s*/g, ' ')}
+        </D>
+      ) : null}
+    </Tap>
   );
 }
-
-const styles = StyleSheet.create({
-  identity: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg, paddingTop: spacing.lg, marginBottom: spacing.md },
-  counts: { flex: 1, flexDirection: 'row', justifyContent: 'space-around' },
-  count: { alignItems: 'center', gap: 2 },
-  countValue: { fontSize: 20, fontWeight: '800' },
-  name: { fontSize: 22, fontWeight: '700' },
-  bio: { ...typography.body, lineHeight: 20, marginTop: spacing.sm },
-  tags: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.md },
-  tag: { flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: radius.pill, paddingHorizontal: spacing.sm + 2, paddingVertical: 5 },
-  tagText: { fontSize: 12, fontWeight: '700' },
-  buttons: { flexDirection: 'row', gap: spacing.md, marginVertical: spacing.lg },
-  pill: {
-    flex: 1,
-    height: 46,
-    borderRadius: radius.pill,
-    borderWidth: StyleSheet.hairlineWidth * 2,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.sm,
-  },
-  bleed: { marginHorizontal: -spacing.screen },
-  tabBody: { paddingTop: spacing.lg, gap: spacing.lg },
-  history: { paddingVertical: spacing.xs },
-});

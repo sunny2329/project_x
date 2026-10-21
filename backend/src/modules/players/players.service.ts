@@ -10,6 +10,22 @@ export interface PlayerOption {
   username: string | null;
   displayName: string;
   isGuest: boolean;
+  /** Rating in the sport asked about (registered players with a rating only). */
+  rating: number | null;
+  photoUrl: string | null;
+}
+
+/** A match someone scored with the user as a guest (their phone number), offered after sign-up. */
+export interface ClaimableMatch {
+  matchId: string;
+  guestPlayerId: string;
+  sport: { slug: string; name: string; accentColor: string };
+  playedAt: string;
+  scoredBy: string;
+  outcome: 'won' | 'lost' | 'drawn' | null;
+  partners: string[];
+  opponents: string[];
+  headline: string | null;
 }
 
 export interface PlayerRef {
@@ -102,16 +118,48 @@ export class PlayersService {
     return toPlayerRef(player);
   }
 
-  /** Merges guests that carry the user's verified phone into the user's player. Returns how many. */
-  async claimGuests(userId: string): Promise<number> {
+  /**
+   * Merges guests that carry the user's verified phone into the user's player (only `playerIds`
+   * when given). Returns how many guests were merged.
+   */
+  async claimGuests(userId: string, playerIds?: string[]): Promise<number> {
     return this.db.$transaction(async (tx) => {
       const player = await this.ensureForUser(userId, tx);
       const user = await loadUser(tx, userId);
       if (!user?.phoneVerified) throw AppError.forbidden('PHONE_NOT_VERIFIED', 'Verify your phone number to claim matches played as a guest.');
-      const guests = await this.claimableGuests(tx, user.phone);
+      const guests = (await this.claimableGuests(tx, user.phone)).filter((g) => !playerIds || playerIds.includes(g.id));
       for (const guest of guests) await mergeGuest(tx, guest.id, player.playerId);
       return guests.length;
     });
+  }
+
+  /** Decided matches of guests carrying the user's verified phone, newest first. */
+  async claimableMatches(userId: string): Promise<ClaimableMatch[]> {
+    const user = await loadUser(this.db, userId);
+    if (!user?.phoneVerified) return [];
+    const rows = await this.db.$queryRaw<Array<Omit<ClaimableMatch, 'playedAt'> & { playedAt: Date }>>`
+      SELECT m.id AS "matchId", g.id AS "guestPlayerId",
+             json_build_object('slug', s.slug, 'name', s.name, 'accentColor', s.accent_color) AS sport,
+             coalesce(m.completed_at, m.created_at) AS "playedAt",
+             coalesce(cp.display_name, cu.username) AS "scoredBy",
+             ms.outcome::text AS outcome,
+             coalesce((SELECT array_agg(op.display_name ORDER BY o.sort_order) FROM match_participants o JOIN players op ON op.id = o.player_id
+                        WHERE o.side_id = mp.side_id AND o.id <> mp.id), '{}') AS partners,
+             coalesce((SELECT array_agg(op.display_name ORDER BY o.sort_order) FROM match_participants o JOIN players op ON op.id = o.player_id
+                        WHERE o.match_id = m.id AND o.side_id <> mp.side_id), '{}') AS opponents,
+             m.summary->>'headline' AS headline
+        FROM players g
+        JOIN match_participants mp ON mp.player_id = g.id
+        JOIN match_sides ms ON ms.id = mp.side_id
+        JOIN matches m ON m.id = mp.match_id
+        JOIN sports s ON s.id = m.sport_id
+        JOIN usr_user cu ON cu.id = m.created_by_user_id
+        LEFT JOIN players cp ON cp.user_id = cu.id
+       WHERE g.phone = ${user.phone} AND g.user_id IS NULL AND g.merged_into_id IS NULL
+         AND m.status IN ('completed', 'retired', 'walkover')
+       ORDER BY "playedAt" DESC
+       LIMIT 50`;
+    return rows.map((r) => ({ ...r, playedAt: r.playedAt.toISOString() }));
   }
 
   private claimableGuests(db: DbTx, phone: string) {
@@ -144,10 +192,13 @@ export class PlayersService {
    * Registered players matching `query` by username or name (never blocked ones), then the
    * caller's own guests. Exact username matches first.
    */
-  async search(userId: string, query: string, limit: number): Promise<PlayerOption[]> {
-    const pattern = query.toLowerCase().replace(/[\\%_]/g, (c) => `\\${c}`);
-    const users = await this.db.$queryRaw<Array<{ userId: string; username: string; displayName: string; playerId: string | null }>>`
-      SELECT u.id AS "userId", u.username, coalesce(pr.display_name, u.username) AS "displayName", pl.id AS "playerId"
+  async search(userId: string, query: string, limit: number, sportSlug?: string): Promise<PlayerOption[]> {
+    const pattern = query.toLowerCase().replace(/^@/, '').replace(/[\\%_]/g, (c) => `\\${c}`);
+    const users = await this.db.$queryRaw<Array<{ userId: string; username: string; displayName: string; playerId: string | null; rating: number | null; photoUrl: string | null }>>`
+      SELECT u.id AS "userId", u.username, coalesce(pr.display_name, u.username) AS "displayName", pl.id AS "playerId",
+             pr.profile_photo AS "photoUrl",
+             (SELECT round(r.rating)::int FROM player_ratings r JOIN sports s ON s.id = r.sport_id
+               WHERE r.player_id = pl.id AND s.slug = ${sportSlug ?? null}) AS rating
         FROM usr_user u
         LEFT JOIN usr_user_profile pr ON pr.user_id = u.id
         LEFT JOIN players pl ON pl.user_id = u.id
@@ -164,8 +215,16 @@ export class PlayersService {
       take: limit,
     });
     return [
-      ...users.map((u) => ({ playerId: u.playerId, userId: u.userId, username: u.username, displayName: u.displayName, isGuest: false })),
-      ...guests.map((g) => ({ playerId: g.id, userId: null, username: null, displayName: g.displayName, isGuest: true })),
+      ...users.map((u) => ({
+        playerId: u.playerId,
+        userId: u.userId,
+        username: u.username,
+        displayName: u.displayName,
+        isGuest: false,
+        rating: u.rating,
+        photoUrl: u.photoUrl,
+      })),
+      ...guests.map((g) => ({ playerId: g.id, userId: null, username: null, displayName: g.displayName, isGuest: true, rating: null, photoUrl: null })),
     ].slice(0, limit);
   }
 

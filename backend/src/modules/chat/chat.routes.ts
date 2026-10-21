@@ -51,7 +51,7 @@ export function createChatRouter(service: ChatService, requireAuth: RequestHandl
   });
 
   router.post('/:id/messages', validateBody(sendMessageSchema), async (req, res) => {
-    sendSuccess(res, { message: await service.sendMessage(req.auth!.userId, conversationId(req.params.id), req.body.content) }, 201);
+    sendSuccess(res, { message: await service.sendMessage(req.auth!.userId, conversationId(req.params.id), req.body.content, req.body.matchId) }, 201);
   });
 
   router.delete('/:id/messages/:messageId', async (req, res) => {

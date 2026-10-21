@@ -96,6 +96,9 @@ export interface PlayerOption {
   username: string | null;
   displayName: string;
   isGuest: boolean;
+  /** Rating in the sport searched for (registered players with a rating). */
+  rating: number | null;
+  photoUrl: string | null;
 }
 
 export type ParticipantInput = { playerId: string } | { userId: string } | { guest: { displayName: string; phone?: string | null } };
@@ -131,6 +134,10 @@ export interface ConfirmationView {
 
 export interface MatchView {
   id: string;
+  /** The ruleset snapshot the match is scored with. */
+  rulesetConfig: unknown;
+  /** Plugin events in order; replaying them gives `score`. */
+  events: PluginEvent[];
   context: 'friendly' | 'tournament';
   sport: SportRef;
   format: { code: string; name: string; playersPerSide: number };
@@ -174,4 +181,15 @@ export interface NewMatch {
   sides: { name?: string; players: ParticipantInput[] }[];
   /** Result entered afterwards: one [side 0, side 1] score per game/set. */
   manualScores?: number[][];
+  /** Results afterwards: YYYY-MM-DD. */
+  playedOn?: string;
+  venueName?: string;
+  /** Plugin options on top of the ruleset (who serves first). */
+  rulesOverride?: Record<string, unknown>;
+}
+
+/** Ratings, photos and scorer names for the watching and confirming screens. */
+export interface MatchDetails {
+  players: { playerId: string; userId: string | null; username: string | null; photoUrl: string | null; rating: number | null }[];
+  scorers: { userId: string; name: string }[];
 }

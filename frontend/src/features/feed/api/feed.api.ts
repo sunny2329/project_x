@@ -6,8 +6,8 @@ export const feedApi = {
   list: (cursor?: string, limit = 20) =>
     apiRequest<FeedPage>(`/api/v1/feed?limit=${limit}${cursor ? `&cursor=${cursor}` : ''}`, { authenticated: true }),
 
-  createPost: (content: string, visibility: PostVisibility) =>
-    apiRequest<{ post: FeedPost }>('/api/v1/posts', { method: 'POST', body: { content, visibility }, authenticated: true }),
+  createPost: (post: { content: string; visibility: PostVisibility; mediaIds?: string[]; matchId?: string }) =>
+    apiRequest<{ post: FeedPost }>('/api/v1/posts', { method: 'POST', body: post, authenticated: true }),
 
   getPost: (id: string) => apiRequest<{ post: FeedPost }>(`/api/v1/posts/${id}`, { authenticated: true }),
 

@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Tournament page</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800;900&family=Instrument+Sans:wght@400;500;600;700&display=swap">
+<style>
+body{margin:0}
+:root,.dk{--bg:#0A0A0A;--surface:#161412;--raised:#221F1C;--raised2:#1B1917;--bar:#0F0E0D;--scrim:#000000;--line:#2C2825;--line2:#3F3A35;--fg:#F6F2EE;--soft:#D8D1CA;--muted:#ABA39B;--faint:#7D756E;--primary:#E85D04;--onPrimary:#0A0A0A;--accentText:#FF8A3D;--accentDeep:#1F1209;--accentLine:#5C2F10;--accentTint:rgba(232,93,4,0.14);--sideB:#F2EDE7;--onBrightMuted:#4A433D;--ink:#0A0A0A;--warnBg:#2A2113;--warnText:#FFD58A;--warnLine:#5C4A24;--good:#4ADE80;--bad:#FF8A98;--tBad:#C990FA;--tTT:#F2CC4D;--tPk:#FDA668;--tPd:#5FD4E8;--tTn:#B5E26A;--tVb:#5EDBC8;--av1:#3B2A55;--av2:#4A2433;--av3:#173A43;--av4:#3D2A17;--av5:#26361A}
+.lt{--bg:#FFFFFF;--surface:#F7F3EF;--raised:#EEE8E2;--raised2:#F2EDE8;--bar:#FFFFFF;--scrim:#CFC7BF;--line:#E6DED6;--line2:#D2C8BE;--fg:#16120F;--soft:#3B3430;--muted:#6B625B;--faint:#978D85;--primary:#C2410C;--onPrimary:#FFFFFF;--accentText:#C2410C;--accentDeep:#FFF1E7;--accentLine:#F8C6A3;--accentTint:rgba(234,88,12,0.10);--sideB:#1C1917;--onBrightMuted:rgba(255,255,255,0.8);--ink:#0A0A0A;--warnBg:#FEF3C7;--warnText:#92400E;--warnLine:#E9C46A;--good:#15803D;--bad:#BE123C;--tBad:#7E22CE;--tTT:#A16207;--tPk:#C2410C;--tPd:#0E7490;--tTn:#4D7C0F;--tVb:#0F766E;--av1:#EBD9FF;--av2:#FCE1EA;--av3:#CDF3F8;--av4:#FFE6CC;--av5:#E3F5C8}
+
+a{color:var(--fg);text-decoration:none}a:hover{color:var(--fg)}
+.d{font-family:'Big Shoulders Display','Arial Narrow',Impact,sans-serif}
+svg.i{fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+</style>
+</helmet>
+<div class="{{themeClass}}" style="width: 390px; height: 844px; box-sizing: border-box; background: var(--bg); color: var(--fg); font-family: 'Instrument Sans', system-ui, sans-serif; display: flex; flex-direction: column; overflow: hidden">
+
+<div style="position: relative; padding: 54px 20px 22px; background: var(--accentDeep); display: flex; flex-direction: column; gap: 16px; overflow: hidden">
+<span aria-hidden="true" style="position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: linear-gradient(90deg, #A855F7 0 34%, #F97316 34% 67%, #A855F7 67%)"></span>
+<div style="display: flex; justify-content: space-between">
+<a href="TournamentList.dc.html" aria-label="Back" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 14px; background: rgba(255,255,255,0.08)"><svg class="i" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg></a>
+<a href="PublicTournament.dc.html" aria-label="Share tournament" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 14px; background: rgba(255,255,255,0.08)"><svg class="i" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7M16 6l-4-4-4 4M12 2v14"/></svg></a>
+</div>
+<span style="align-self: flex-start; padding: 4px 8px; border-radius: 6px; background: #4ADE80; color: var(--ink); font-size: 11px; font-weight: 800; letter-spacing: 0.06em">REGISTRATION OPEN</span>
+<h1 class="d" style="margin: 0; font-size: 46px; line-height: 44px; font-weight: 900; text-transform: uppercase">Jaipur Open 2026</h1>
+<div style="display: flex; flex-direction: column; gap: 8px; font-size: 14px; color: var(--soft)">
+<span style="display: flex; align-items: center; gap: 10px"><svg class="i" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>Sat 8 – Sun 9 Nov · entries close 5 Nov</span>
+<span style="display: flex; align-items: center; gap: 10px"><svg class="i" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7-6.5-7-12a7 7 0 0 1 14 0c0 5.5-7 12-7 12z"/><circle cx="12" cy="9" r="2.5"/></svg>Smash Arena, Malviya Nagar · 6 courts</span>
+<span style="display: flex; align-items: center; gap: 10px"><svg class="i" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2 20a7 7 0 0 1 14 0"/></svg>Run by Smash Arena Sports</span>
+</div>
+</div>
+
+<div style="flex: 1; min-height: 0; padding: 18px 20px 0; display: flex; flex-direction: column; gap: 10px">
+<span style="font-size: 12px; font-weight: 700; letter-spacing: 0.08em; color: var(--muted)">3 EVENTS</span>
+<a href="EventPage.dc.html" style="display: flex; align-items: center; gap: 12px; padding: 14px; border-radius: 16px; background: var(--surface); border: 1px solid var(--line)">
+<span style="width: 4px; height: 44px; border-radius: 2px; background: #A855F7"></span>
+<span style="flex: 1; display: flex; flex-direction: column; gap: 3px"><span style="font-weight: 700; font-size: 16px">Men’s Doubles</span><span style="font-size: 13px; color: var(--muted)">Badminton · Groups + knockout · 16 pairs</span></span>
+<span style="display: flex; flex-direction: column; align-items: flex-end; gap: 3px"><span class="d" style="font-size: 20px; font-weight: 900">12/16</span><span style="font-size: 11px; color: var(--muted)">entries</span></span>
+</a>
+<a href="EventPage.dc.html" style="display: flex; align-items: center; gap: 12px; padding: 14px; border-radius: 16px; background: var(--surface); border: 1px solid var(--line)">
+<span style="width: 4px; height: 44px; border-radius: 2px; background: #A855F7"></span>
+<span style="flex: 1; display: flex; flex-direction: column; gap: 3px"><span style="font-weight: 700; font-size: 16px">Open Singles</span><span style="font-size: 13px; color: var(--muted)">Badminton · Knockout · 32 players</span></span>
+<span style="display: flex; flex-direction: column; align-items: flex-end; gap: 3px"><span class="d" style="font-size: 20px; font-weight: 900">24/32</span><span style="font-size: 11px; color: var(--muted)">entries</span></span>
+</a>
+<a href="EventPage.dc.html" style="display: flex; align-items: center; gap: 12px; padding: 14px; border-radius: 16px; background: var(--surface); border: 1px solid var(--line)">
+<span style="width: 4px; height: 44px; border-radius: 2px; background: #F97316"></span>
+<span style="flex: 1; display: flex; flex-direction: column; gap: 3px"><span style="font-weight: 700; font-size: 16px">Mixed Doubles</span><span style="font-size: 13px; color: var(--muted)">Pickleball · Round robin · 8 pairs</span></span>
+<span style="display: flex; flex-direction: column; align-items: flex-end; gap: 3px"><span class="d" style="font-size: 20px; font-weight: 900; color: var(--bad)">FULL</span><span style="font-size: 11px; color: var(--muted)">8/8</span></span>
+</a>
+</div>
+
+<div style="padding: 14px 20px 30px; border-top: 1px solid var(--raised); background: var(--bar); display: flex; align-items: center; gap: 12px">
+<span style="flex: 1; display: flex; flex-direction: column"><span style="font-size: 13px; color: var(--muted)">Entry fee</span><span style="font-weight: 700; font-size: 15px">[ENTRY FEE] per player</span></span>
+<a href="Register.dc.html" style="height: 54px; padding: 0 28px; border-radius: 16px; background: var(--primary); color: var(--onPrimary); display: flex; align-items: center; font-weight: 800; font-size: 16px">Register</a>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() { return { themeClass: (this.props.theme ?? 'dark') === 'light' ? 'lt' : 'dk',}; }
+}
+</script>
+</body>
+</html>

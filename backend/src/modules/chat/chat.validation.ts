@@ -16,9 +16,13 @@ export const createConversationSchema = z
 
 export const addMembersSchema = z.object({ userIds });
 
-export const sendMessageSchema = z.object({
-  content: z.string().trim().min(1, 'Write a message first').max(4000, 'Messages can be at most 4000 characters'),
-});
+export const sendMessageSchema = z
+  .object({
+    content: z.string().trim().max(4000, 'Messages can be at most 4000 characters').default(''),
+    /** Share a match result card (one the sender played in or created). */
+    matchId: z.uuid().optional(),
+  })
+  .refine((body) => body.content.length > 0 || body.matchId !== undefined, { message: 'Write a message first', path: ['content'] });
 
 export const messagesQuerySchema = z
   .object({

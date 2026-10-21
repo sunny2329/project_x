@@ -71,6 +71,25 @@ export interface AuthResult {
 export interface ClientContext {
   ip: string | undefined;
   userAgent: string | undefined;
+  /** "Pixel 8": sent by the app in X-Device-Name, shown under Settings > Devices. */
+  deviceName?: string | undefined;
+}
+
+/** A signed-in device, for Settings > Devices. */
+export interface SessionInfo {
+  id: string;
+  deviceName: string | null;
+  userAgent: string | null;
+  createdAt: string;
+  lastUsedAt: string | null;
+  current: boolean;
+}
+
+/** A Google or Apple account linked for sign-in. */
+export interface LinkedIdentity {
+  provider: IdentityProvider;
+  email: string | null;
+  linkedAt: string;
 }
 
 export interface AuthContext {

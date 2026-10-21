@@ -126,6 +126,7 @@ model auth_session {
   last_used_at       DateTime? @db.Timestamptz(6)
   revoked_at         DateTime? @db.Timestamptz(6)
   created_at         DateTime  @default(now()) @db.Timestamptz(6)
+  device_name        String?   @db.VarChar(100)
   usr_user           usr_user  @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_auth_session_user")
 }
 
@@ -480,7 +481,10 @@ model social_post {
   created_at          DateTime              @default(now()) @db.Timestamp(6)
   updated_at          DateTime              @default(now()) @db.Timestamp(6)
   /// Re-pointed by the pivot from match_master to the new matches table (no rows used it).
-  match               Match?                @relation(fields: [match_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_social_post_match")
+  match               Match?                @relation("PostResultMatch", fields: [match_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_social_post_match")
+  /// A match attached to a written post (app redesign, migration 3).
+  attached_match_id   String?               @db.Uuid
+  attachedMatch       Match?                @relation("PostAttachedMatch", fields: [attached_match_id], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "fk_social_post_attached_match")
   usr_user            usr_user              @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_social_post_user")
   social_post_comment social_post_comment[]
   social_post_like    social_post_like[]
@@ -534,6 +538,7 @@ model type_master {
   mst_sport_period  mst_sport_period[]
   mst_sport_scoring mst_sport_scoring[]
   mst_sport_stat    mst_sport_stat[]
+  chat_conversation chat_conversation[]
 
   @@unique([type_id, id], map: "uq_type_master_id_id")
 }
@@ -657,6 +662,11 @@ model usr_user {
   usr_user_profile                                       usr_user_profile?
   usr_user_role                                          usr_user_role[]
   usr_user_sport                                         usr_user_sport[]
+  auth_identity                                          auth_identity[]
+  media_files                                            media_files[]
+  chat_conversations_created                             chat_conversation[]
+  chat_memberships                                       chat_conversation_member[]
+  chat_messages                                          chat_message[]
   // New core (pivot) back-relations
   player                                                 Player?                     @relation("PlayerAccount")
   guestPlayersCreated                                    Player[]                    @relation("PlayerCreatedBy")
@@ -714,6 +724,7 @@ model usr_user_profile {
   profile_photo String?
   city_id       BigInt?
   bio           String?  @db.VarChar(500)
+  city          String?  @db.VarChar(80)
   created_at    DateTime @default(now()) @db.Timestamp(6)
   updated_at    DateTime @default(now()) @db.Timestamp(6)
   usr_user      usr_user @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_usr_user_profile_user")
@@ -741,6 +752,80 @@ model usr_user_sport {
   usr_user   usr_user  @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_usr_user_sport_user")
 
   @@unique([user_id, sport_id], map: "uq_usr_user_sport")
+}
+
+/// App redesign (migration 3): Google / Apple accounts linked to a user.
+model auth_identity {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String   @db.Uuid
+  provider   String   @db.VarChar(20)
+  subject    String   @db.VarChar(255)
+  email      String?  @db.VarChar(255)
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  usr_user   usr_user @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_auth_identity_user")
+
+  @@unique([provider, subject], map: "uq_auth_identity_subject")
+  @@unique([user_id, provider], map: "uq_auth_identity_user_provider")
+}
+
+/// App redesign (migration 3): photos stored in Postgres, served at /media/:id.
+model media_files {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  owner_user_id String   @db.Uuid
+  mime_type     String   @db.VarChar(50)
+  bytes         Bytes
+  byte_size     Int
+  width         Int?
+  height        Int?
+  created_at    DateTime @default(now()) @db.Timestamptz(6)
+  usr_user      usr_user @relation(fields: [owner_user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_media_files_owner")
+
+  @@index([owner_user_id, created_at(sort: Desc)], map: "idx_media_files_owner")
+}
+
+/// Messaging (designed 2026-09-29, applied by migration 3). Queried with raw SQL (chat module).
+model chat_conversation {
+  id                   String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  conversation_type_id BigInt
+  title                String?                    @db.VarChar(100)
+  direct_key           String?                    @unique(map: "uq_chat_conversation_direct") @db.VarChar(73)
+  created_by           String                     @db.Uuid
+  last_message_at      DateTime?                  @db.Timestamp(6)
+  created_at           DateTime                   @default(now()) @db.Timestamp(6)
+  updated_at           DateTime                   @default(now()) @db.Timestamp(6)
+  type_master          type_master                @relation(fields: [conversation_type_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_chat_conversation_type")
+  usr_user             usr_user                   @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_chat_conversation_creator")
+  members              chat_conversation_member[]
+  messages             chat_message[]
+}
+
+model chat_conversation_member {
+  id              String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  conversation_id String            @db.Uuid
+  user_id         String            @db.Uuid
+  is_admin        Boolean           @default(false)
+  joined_at       DateTime          @default(now()) @db.Timestamp(6)
+  left_at         DateTime?         @db.Timestamp(6)
+  last_read_at    DateTime?         @db.Timestamp(6)
+  conversation    chat_conversation @relation(fields: [conversation_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_chat_member_conversation")
+  usr_user        usr_user          @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_chat_member_user")
+
+  @@unique([conversation_id, user_id], map: "uq_chat_member")
+}
+
+model chat_message {
+  id              String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  conversation_id String            @db.Uuid
+  sender_id       String            @db.Uuid
+  content         String
+  match_id        String?           @db.Uuid
+  created_at      DateTime          @default(now()) @db.Timestamp(6)
+  deleted_at      DateTime?         @db.Timestamp(6)
+  conversation    chat_conversation @relation(fields: [conversation_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_chat_message_conversation")
+  usr_user        usr_user          @relation(fields: [sender_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_chat_message_sender")
+  match           Match?            @relation(fields: [match_id], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "fk_chat_message_match")
+
+  @@index([conversation_id, created_at(sort: Desc), id(sort: Desc)], map: "idx_chat_message_conversation")
 }
 
 // =====================================================================================
@@ -1173,7 +1258,9 @@ model Match {
   confirmations MatchConfirmation[]
   ratingHistory PlayerRatingHistory[]
   fixture       Fixture?
-  post          social_post?
+  post          social_post?          @relation("PostResultMatch")
+  attachedPosts social_post[]         @relation("PostAttachedMatch")
+  chatMessages  chat_message[]
 
   @@index([status, updatedAt(sort: Desc)])
   @@index([sportId, completedAt(sort: Desc)])
@@ -1424,6 +1511,7 @@ model Tournament {
   endsOn               DateTime?            @map("ends_on") @db.Date
   registrationOpensAt  DateTime?            @map("registration_opens_at") @db.Timestamptz
   registrationClosesAt DateTime?            @map("registration_closes_at") @db.Timestamptz
+  entryFee             String?              @map("entry_fee") @db.VarChar(40)
   createdAt            DateTime             @default(now()) @map("created_at") @db.Timestamptz
   updatedAt            DateTime             @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 

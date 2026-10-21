@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Live scoring · table tennis</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800;900&family=Instrument+Sans:wght@400;500;600;700&display=swap">
+<style>
+body{margin:0}
+:root,.dk{--bg:#0A0A0A;--surface:#161412;--raised:#221F1C;--raised2:#1B1917;--bar:#0F0E0D;--scrim:#000000;--line:#2C2825;--line2:#3F3A35;--fg:#F6F2EE;--soft:#D8D1CA;--muted:#ABA39B;--faint:#7D756E;--primary:#E85D04;--onPrimary:#0A0A0A;--accentText:#FF8A3D;--accentDeep:#1F1209;--accentLine:#5C2F10;--accentTint:rgba(232,93,4,0.14);--sideB:#F2EDE7;--onBrightMuted:#4A433D;--ink:#0A0A0A;--warnBg:#2A2113;--warnText:#FFD58A;--warnLine:#5C4A24;--good:#4ADE80;--bad:#FF8A98;--tBad:#C990FA;--tTT:#F2CC4D;--tPk:#FDA668;--tPd:#5FD4E8;--tTn:#B5E26A;--tVb:#5EDBC8;--av1:#3B2A55;--av2:#4A2433;--av3:#173A43;--av4:#3D2A17;--av5:#26361A}
+.lt{--bg:#FFFFFF;--surface:#F7F3EF;--raised:#EEE8E2;--raised2:#F2EDE8;--bar:#FFFFFF;--scrim:#CFC7BF;--line:#E6DED6;--line2:#D2C8BE;--fg:#16120F;--soft:#3B3430;--muted:#6B625B;--faint:#978D85;--primary:#C2410C;--onPrimary:#FFFFFF;--accentText:#C2410C;--accentDeep:#FFF1E7;--accentLine:#F8C6A3;--accentTint:rgba(234,88,12,0.10);--sideB:#1C1917;--onBrightMuted:rgba(255,255,255,0.8);--ink:#0A0A0A;--warnBg:#FEF3C7;--warnText:#92400E;--warnLine:#E9C46A;--good:#15803D;--bad:#BE123C;--tBad:#7E22CE;--tTT:#A16207;--tPk:#C2410C;--tPd:#0E7490;--tTn:#4D7C0F;--tVb:#0F766E;--av1:#EBD9FF;--av2:#FCE1EA;--av3:#CDF3F8;--av4:#FFE6CC;--av5:#E3F5C8}
+
+a{color:var(--fg);text-decoration:none}a:hover{color:var(--fg)}
+.d{font-family:'Big Shoulders Display','Arial Narrow',Impact,sans-serif}
+svg.i{fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;text-align:left}
+</style>
+</helmet>
+<div class="{{themeClass}}" style="width: 390px; height: 844px; box-sizing: border-box; background: var(--bg); color: var(--fg); font-family: 'Instrument Sans', system-ui, sans-serif; display: flex; flex-direction: column; overflow: hidden; padding: 54px 16px 28px; gap: 12px">
+
+<div style="display: flex; align-items: center; gap: 10px">
+<a href="Home.dc.html" aria-label="Leave scoring" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 14px; background: var(--surface)"><svg class="i" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></a>
+<div style="flex: 1; display: flex; flex-direction: column; align-items: center">
+<span style="display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 700"><span style="width: 8px; height: 8px; border-radius: 4px; background: #EAB308"></span>Table tennis · Singles</span>
+<span style="font-size: 12px; color: var(--muted)">Best of 5 · 11 points · Table 4</span>
+</div>
+<span style="padding: 4px 8px; border-radius: 6px; background: #FF5468; color: var(--ink); font-weight: 800; font-size: 11px; letter-spacing: 0.08em">LIVE</span>
+<a href="ScorerMenu.dc.html" aria-label="Match menu" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 14px; background: var(--surface)"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" style="fill: currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg></a>
+</div>
+
+<div style="display: flex; align-items: center; gap: 6px; height: 32px">
+<span style="height: 30px; padding: 0 9px; border-radius: 8px; background: var(--surface); border: 1px solid var(--line); display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted)">G1 <b class="d" style="font-size: 17px; color: var(--tTT)">11-8</b></span>
+<span style="height: 30px; padding: 0 9px; border-radius: 8px; background: var(--surface); border: 1px solid var(--line); display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted)">G2 <b class="d" style="font-size: 17px; color: var(--fg)">9-11</b></span>
+<span style="height: 30px; padding: 0 9px; border-radius: 8px; background: var(--surface); border: 1px solid var(--line); display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted)">G3 <b class="d" style="font-size: 17px; color: var(--tTT)">11-6</b></span>
+<span style="margin-left: auto; font-size: 13px; font-weight: 700; color: var(--soft)">Game 4</span>
+</div>
+
+<div style="height: 48px; border-radius: 14px; background: rgba(234,179,8,0.12); display: flex; align-items: center; justify-content: center">
+<span class="d" style="font-size: 30px; font-weight: 900; letter-spacing: 0.06em; color: var(--tTT)">MATCH POINT</span>
+</div>
+
+<button aria-label="Point to Kavya" style="height: 232px; box-sizing: border-box; padding: 16px 18px; border-radius: 26px; background: #EAB308; color: var(--ink); display: flex; flex-direction: column; justify-content: space-between">
+<span style="display: flex; align-items: center; justify-content: space-between; width: 100%">
+<span style="font-size: 18px; font-weight: 700">Kavya R</span>
+<span style="height: 30px; padding: 0 10px; border-radius: 15px; background: var(--bg); color: var(--fg); display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700">Serving <span style="display: flex; gap: 3px"><span style="width: 8px; height: 8px; border-radius: 4px; background: var(--primary)"></span><span style="width: 8px; height: 8px; border-radius: 4px; border: 1.5px solid var(--primary); box-sizing: border-box"></span></span>1 of 2</span>
+</span>
+<span style="display: flex; align-items: flex-end; justify-content: space-between; width: 100%">
+<span style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 12px; font-weight: 700; letter-spacing: 0.08em">GAMES</span><span class="d" style="font-size: 34px; line-height: 34px; font-weight: 900">2</span></span>
+<span class="d" style="font-size: 132px; line-height: 110px; font-weight: 900">10</span>
+</span>
+<span style="display: flex; align-items: center; justify-content: center; height: 40px; border-radius: 12px; background: rgba(10,15,28,0.14); font-size: 15px; font-weight: 800; letter-spacing: 0.1em; width: 100%">+ POINT</span>
+</button>
+
+<button aria-label="Point to Ishaan" style="height: 232px; box-sizing: border-box; padding: 16px 18px; border-radius: 26px; background: var(--sideB); color: var(--onPrimary); display: flex; flex-direction: column; justify-content: space-between">
+<span style="display: flex; align-items: center; justify-content: center; height: 40px; border-radius: 12px; background: rgba(10,15,28,0.08); font-size: 15px; font-weight: 800; letter-spacing: 0.1em; width: 100%">+ POINT</span>
+<span style="display: flex; align-items: flex-start; justify-content: space-between; width: 100%">
+<span style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 12px; font-weight: 700; letter-spacing: 0.08em">GAMES</span><span class="d" style="font-size: 34px; line-height: 34px; font-weight: 900">1</span></span>
+<span class="d" style="font-size: 132px; line-height: 110px; font-weight: 900">9</span>
+</span>
+<span style="display: flex; align-items: center; justify-content: space-between; width: 100%">
+<span style="font-size: 18px; font-weight: 700">Ishaan R</span>
+<span style="font-size: 13px; font-weight: 600; color: var(--onBrightMuted)">Serves next after 1 more</span>
+</span>
+</button>
+
+<div style="display: flex; align-items: center; gap: 10px">
+<button style="height: 56px; padding: 0 20px; border-radius: 16px; background: var(--surface); border: 1px solid var(--line2); display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15px"><svg class="i" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg>Undo</button>
+<span style="flex: 1; font-size: 13px; color: var(--muted); text-align: right">From 10-10, serve changes every point</span>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() { return { themeClass: (this.props.theme ?? 'dark') === 'light' ? 'lt' : 'dk',}; }
+}
+</script>
+</body>
+</html>

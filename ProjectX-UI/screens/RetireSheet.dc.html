@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Retire or walkover</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800;900&family=Instrument+Sans:wght@400;500;600;700&display=swap">
+<style>
+body{margin:0}
+:root,.dk{--bg:#0A0A0A;--surface:#161412;--raised:#221F1C;--raised2:#1B1917;--bar:#0F0E0D;--scrim:#000000;--line:#2C2825;--line2:#3F3A35;--fg:#F6F2EE;--soft:#D8D1CA;--muted:#ABA39B;--faint:#7D756E;--primary:#E85D04;--onPrimary:#0A0A0A;--accentText:#FF8A3D;--accentDeep:#1F1209;--accentLine:#5C2F10;--accentTint:rgba(232,93,4,0.14);--sideB:#F2EDE7;--onBrightMuted:#4A433D;--ink:#0A0A0A;--warnBg:#2A2113;--warnText:#FFD58A;--warnLine:#5C4A24;--good:#4ADE80;--bad:#FF8A98;--tBad:#C990FA;--tTT:#F2CC4D;--tPk:#FDA668;--tPd:#5FD4E8;--tTn:#B5E26A;--tVb:#5EDBC8;--av1:#3B2A55;--av2:#4A2433;--av3:#173A43;--av4:#3D2A17;--av5:#26361A}
+.lt{--bg:#FFFFFF;--surface:#F7F3EF;--raised:#EEE8E2;--raised2:#F2EDE8;--bar:#FFFFFF;--scrim:#CFC7BF;--line:#E6DED6;--line2:#D2C8BE;--fg:#16120F;--soft:#3B3430;--muted:#6B625B;--faint:#978D85;--primary:#C2410C;--onPrimary:#FFFFFF;--accentText:#C2410C;--accentDeep:#FFF1E7;--accentLine:#F8C6A3;--accentTint:rgba(234,88,12,0.10);--sideB:#1C1917;--onBrightMuted:rgba(255,255,255,0.8);--ink:#0A0A0A;--warnBg:#FEF3C7;--warnText:#92400E;--warnLine:#E9C46A;--good:#15803D;--bad:#BE123C;--tBad:#7E22CE;--tTT:#A16207;--tPk:#C2410C;--tPd:#0E7490;--tTn:#4D7C0F;--tVb:#0F766E;--av1:#EBD9FF;--av2:#FCE1EA;--av3:#CDF3F8;--av4:#FFE6CC;--av5:#E3F5C8}
+
+a{color:var(--fg);text-decoration:none}a:hover{color:var(--fg)}
+.d{font-family:'Big Shoulders Display','Arial Narrow',Impact,sans-serif}
+svg.i{fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;text-align:left}
+input[type=radio]{accent-color: var(--fg);width:22px;height:22px;margin:0}
+</style>
+</helmet>
+<div class="{{themeClass}}" style="width: 390px; height: 844px; box-sizing: border-box; background: var(--scrim); color: var(--fg); font-family: 'Instrument Sans', system-ui, sans-serif; display: flex; flex-direction: column; justify-content: flex-end; overflow: hidden; position: relative">
+
+<a href="ScorerMenu.dc.html" aria-label="Close" style="position: absolute; inset: 0 0 auto 0; height: 300px"></a>
+
+<div style="border-radius: 28px 28px 0 0; background: var(--surface); padding: 10px 20px 32px; display: flex; flex-direction: column; gap: 18px">
+<span style="align-self: center; width: 40px; height: 5px; border-radius: 3px; background: var(--line2)"></span>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<h2 class="d" style="margin: 0; font-size: 34px; line-height: 34px; font-weight: 900; text-transform: uppercase">End the match early</h2>
+<span style="font-size: 14px; color: var(--muted)">Pick the side that can’t continue.</span>
+</div>
+
+<div role="radiogroup" aria-label="Reason" style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 4px; border-radius: 14px; background: var(--bg); gap: 4px">
+<button role="radio" aria-checked="true" style="height: 42px; border-radius: 11px; background: var(--primary); color: var(--onPrimary); font-weight: 700; font-size: 14px; text-align: center">Retired</button>
+<button role="radio" aria-checked="false" aria-disabled="true" style="height: 42px; border-radius: 11px; color: var(--faint); font-weight: 600; font-size: 14px; text-align: center">No-show</button>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 8px">
+<label for="rt-a" style="display: flex; align-items: center; gap: 12px; padding: 14px; border-radius: 14px; background: var(--bg); border: 1px solid var(--line)">
+<input id="rt-a" type="radio" name="rt">
+<span style="width: 6px; height: 28px; border-radius: 3px; background: #A855F7"></span>
+<span style="flex: 1; font-weight: 600; font-size: 15px">Riya &amp; Kabir retired</span>
+</label>
+<label for="rt-b" style="display: flex; align-items: center; gap: 12px; padding: 14px; border-radius: 14px; background: var(--bg); border: 1.5px solid var(--primary)">
+<input id="rt-b" type="radio" name="rt" checked>
+<span style="width: 6px; height: 28px; border-radius: 3px; background: var(--sideB)"></span>
+<span style="flex: 1; font-weight: 600; font-size: 15px">Arjun &amp; Meera retired</span>
+</label>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; border-radius: 14px; background: var(--raised)">
+<span style="font-size: 12px; font-weight: 700; letter-spacing: 0.08em; color: var(--muted)">RESULT</span>
+<span style="font-weight: 700; font-size: 16px">Riya &amp; Kabir win</span>
+<span class="d" style="font-size: 20px; font-weight: 800">21-17, 18-21, 19-18 <span style="font-size: 15px; color: var(--muted)">RET.</span></span>
+<span style="font-size: 13px; color: var(--muted)">Counts in records and ratings, labelled Retired.</span>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px">
+<a href="ScorerMenu.dc.html" style="display: flex; align-items: center; justify-content: center; height: 54px; border-radius: 14px; background: var(--raised); font-weight: 700; font-size: 15px">Cancel</a>
+<a href="MatchResult.dc.html" style="display: flex; align-items: center; justify-content: center; height: 54px; border-radius: 14px; background: var(--primary); color: var(--onPrimary); font-weight: 800; font-size: 15px">End match</a>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() { return { themeClass: (this.props.theme ?? 'dark') === 'light' ? 'lt' : 'dk',}; }
+}
+</script>
+</body>
+</html>

@@ -53,23 +53,49 @@ function engineError(error: unknown): never {
   throw error;
 }
 
+export interface FixtureEntryView {
+  id: string;
+  name: string;
+  seed: number | null;
+  /** Average rating of the entry's players in the event's sport (1000 for unrated players). */
+  rating: number;
+  players: Array<{ playerId: string; userId: string | null; displayName: string }>;
+}
+
 export interface FixtureView {
   id: string;
   eventId: string;
+  event: { id: string; name: string; sport: { slug: string; name: string; accentColor: string } };
   stageId: string;
+  stageName: string;
+  stageType: string;
   groupId: string | null;
+  groupName: string | null;
   round: number;
   position: number;
   roundName: string | null;
   status: string;
-  entries: Array<{ id: string; name: string } | null>;
+  entries: Array<FixtureEntryView | null>;
   /** What fills an empty slot: "Winner of Semi-final 1", "1st Group A", "Bye". */
   placeholders: Array<string | null>;
   winnerEntryId: string | null;
-  court: { id: string; name: string } | null;
+  court: { id: string; name: string; scorers: Array<{ userId: string; name: string | null }> } | null;
   scheduledAt: string | null;
-  match: { id: string; status: string; headline: string; winnerSideIndex: number | null; callout: string | null } | null;
+  match: {
+    id: string;
+    /** For the public live link (/s/:token). */
+    shareToken: string;
+    status: string;
+    headline: string;
+    winnerSideIndex: number | null;
+    callout: string | null;
+    /** Per side: games/sets won and the running score ("21 · 14" on cards). */
+    sides: Array<{ primary: string; current: string | null }>;
+    segments: number[][];
+  } | null;
   nextFixtureId: string | null;
+  /** Where the winner goes and who they may meet ("Winner plays Neel G or Aarav K in QF 2"). */
+  next: { fixtureId: string; roundName: string | null; position: number; opponent: string | null } | null;
 }
 
 export interface StandingView extends StandingRow {
@@ -123,6 +149,7 @@ export class TournamentsService implements MatchDecidedHook {
           endsOn: input.endsOn ? new Date(input.endsOn) : null,
           venueId,
           organizerUserId: userId,
+          entryFee: input.entryFee || null,
         },
       });
       await tx.tournamentStaff.create({ data: { tournamentId: created.id, userId, role: 'organizer' } });
@@ -142,37 +169,74 @@ export class TournamentsService implements MatchDecidedHook {
         ...(input.startsOn ? { startsOn: new Date(input.startsOn) } : {}),
         ...(input.endsOn ? { endsOn: new Date(input.endsOn) } : {}),
         ...(input.status ? { status: input.status } : {}),
+        ...(input.entryFee !== undefined ? { entryFee: input.entryFee || null } : {}),
       },
     });
     return this.get(userId, tournamentId);
   }
 
-  /** Tournaments I organize or help run, plus public ones that are open or under way. */
-  async list(userId: string) {
+  /**
+   * Tournaments for the Tournaments tab and search. `all`: ones I organize, help run or entered,
+   * plus public ones that are open or under way.
+   */
+  async list(userId: string, options: { filter: 'all' | 'open' | 'live' | 'mine'; q?: string | undefined } = { filter: 'all' }) {
+    const mine: Prisma.TournamentWhereInput[] = [
+      { organizerUserId: userId },
+      { staff: { some: { userId } } },
+      { events: { some: { entries: { some: { members: { some: { player: { userId } } } } } } } },
+    ];
+    const listed: Prisma.TournamentWhereInput = { visibility: 'public', status: { in: ['registration_open', 'registration_closed', 'in_progress'] } };
+    const byFilter: Record<typeof options.filter, Prisma.TournamentWhereInput> = {
+      all: { OR: [...mine, listed] },
+      open: { visibility: 'public', status: 'registration_open' },
+      live: { OR: [{ visibility: 'public', status: 'in_progress' }, { AND: [{ status: 'in_progress' }, { OR: mine }] }] },
+      mine: { OR: mine },
+    };
+    const where: Prisma.TournamentWhereInput = options.q
+      ? { AND: [byFilter[options.filter], { name: { contains: options.q, mode: 'insensitive' } }, { OR: [...mine, { visibility: 'public', status: { not: 'draft' } }] }] }
+      : byFilter[options.filter];
     const rows = await this.db.tournament.findMany({
-      where: {
-        OR: [
-          { organizerUserId: userId },
-          { staff: { some: { userId } } },
-          { visibility: 'public', status: { in: ['registration_open', 'registration_closed', 'in_progress'] } },
-        ],
+      where,
+      include: {
+        events: {
+          orderBy: { sortOrder: 'asc' },
+          include: { sport: true, _count: { select: { entries: { where: { status: { in: ['pending', 'approved'] } } } } } },
+        },
+        venue: true,
+        staff: { where: { userId } },
+        _count: { select: { courts: true } },
       },
-      include: { events: { include: { sport: true } }, venue: true },
-      orderBy: [{ startsOn: 'desc' }, { createdAt: 'desc' }],
+      orderBy: [{ startsOn: 'asc' }, { createdAt: 'desc' }],
       take: 50,
     });
-    return rows.map((t) => ({
-      id: t.id,
-      slug: t.slug,
-      name: t.name,
-      status: t.status,
-      visibility: t.visibility,
-      startsOn: t.startsOn?.toISOString().slice(0, 10) ?? null,
-      endsOn: t.endsOn?.toISOString().slice(0, 10) ?? null,
-      venue: t.venue ? { id: t.venue.id, name: t.venue.name } : null,
-      sports: [...new Map(t.events.map((e) => [e.sport.slug, { slug: e.sport.slug, name: e.sport.name, iconKey: e.sport.iconKey }])).values()],
-      isOrganizer: t.organizerUserId === userId,
-    }));
+    // What is being played right now, for live tournaments ("Semi-finals · 3 courts").
+    const live = await this.db.fixture.findMany({
+      where: { status: 'live', stage: { event: { tournamentId: { in: rows.filter((t) => t.status === 'in_progress').map((t) => t.id) } } } },
+      select: { roundName: true, courtId: true, stage: { select: { name: true, type: true, event: { select: { tournamentId: true } } } } },
+    });
+    return rows.map((t) => {
+      const now = live.filter((f) => f.stage.event.tournamentId === t.id);
+      const rounds = [...new Set(now.map((f) => (f.stage.type === 'round_robin' ? f.stage.name : f.roundName ?? f.stage.name)))];
+      return {
+        id: t.id,
+        slug: t.slug,
+        name: t.name,
+        status: t.status,
+        visibility: t.visibility,
+        startsOn: t.startsOn?.toISOString().slice(0, 10) ?? null,
+        endsOn: t.endsOn?.toISOString().slice(0, 10) ?? null,
+        registrationClosesAt: t.registrationClosesAt?.toISOString() ?? null,
+        venue: t.venue ? { id: t.venue.id, name: t.venue.name } : null,
+        sports: [...new Map(t.events.map((e) => [e.sport.slug, { slug: e.sport.slug, name: e.sport.name, iconKey: e.sport.iconKey, accentColor: e.sport.accentColor }])).values()],
+        events: t.events.map((e) => ({ id: e.id, name: e.name, sport: { slug: e.sport.slug, accentColor: e.sport.accentColor } })),
+        entries: t.events.reduce((n, e) => n + e._count.entries, 0),
+        capacity: t.events.every((e) => e.maxEntries) ? t.events.reduce((n, e) => n + (e.maxEntries ?? 0), 0) : null,
+        courts: t._count.courts,
+        live: now.length ? { rounds, courtsInUse: new Set(now.map((f) => f.courtId).filter(Boolean)).size } : null,
+        isOrganizer: t.organizerUserId === userId || t.staff.some((s) => s.role === 'organizer' || s.role === 'co_organizer'),
+        isStaff: t.staff.length > 0,
+      };
+    });
   }
 
   /** Full detail; `userId` null = public read (public/unlisted tournaments only). */
@@ -183,14 +247,24 @@ export class TournamentsService implements MatchDecidedHook {
         venue: true,
         staff: true,
         courts: { orderBy: { sortOrder: 'asc' }, include: { scorers: true } },
-        events: { orderBy: { sortOrder: 'asc' }, include: { sport: true, sportFormat: true, ruleset: true, _count: { select: { entries: { where: { status: 'approved' } } } } } },
+        events: {
+          orderBy: { sortOrder: 'asc' },
+          include: {
+            sport: true,
+            sportFormat: true,
+            ruleset: true,
+            entries: { where: { status: { in: ['pending', 'approved'] } }, select: { id: true, status: true, members: { select: { player: { select: { userId: true } } } } } },
+          },
+        },
       },
     });
     if (!t) throw notFound('tournament');
     const staffIds = new Set([t.organizerUserId, ...t.staff.map((s) => s.userId)]);
     if (t.visibility === 'private' && (!userId || !staffIds.has(userId))) throw notFound('tournament');
     const isOrganizer = userId !== null && (t.organizerUserId === userId || t.staff.some((s) => s.userId === userId && (s.role === 'organizer' || s.role === 'co_organizer')));
-    const staffNames = await this.userNames(t.staff.map((s) => s.userId));
+    const courtScorerIds = t.courts.flatMap((c) => c.scorers.map((s) => s.userId));
+    const names = await this.userNames([t.organizerUserId, ...t.staff.map((s) => s.userId), ...courtScorerIds]);
+    const pendingEntries = t.events.reduce((n, e) => n + e.entries.filter((x) => x.status === 'pending').length, 0);
     return {
       id: t.id,
       slug: t.slug,
@@ -200,10 +274,20 @@ export class TournamentsService implements MatchDecidedHook {
       visibility: t.visibility,
       startsOn: t.startsOn?.toISOString().slice(0, 10) ?? null,
       endsOn: t.endsOn?.toISOString().slice(0, 10) ?? null,
+      registrationClosesAt: t.registrationClosesAt?.toISOString() ?? null,
+      entryFee: t.entryFee,
       venue: t.venue ? { id: t.venue.id, name: t.venue.name } : null,
+      organizer: { userId: t.organizerUserId, name: names.get(t.organizerUserId) ?? null },
       isOrganizer,
-      staff: isOrganizer ? t.staff.map((s) => ({ userId: s.userId, role: s.role, name: staffNames.get(s.userId) ?? null })) : [],
-      courts: t.courts.map((c) => ({ id: c.id, name: c.name, scorerUserIds: isOrganizer ? c.scorers.map((s) => s.userId) : [] })),
+      isStaff: userId !== null && staffIds.has(userId),
+      pendingEntries: isOrganizer ? pendingEntries : 0,
+      staff: isOrganizer ? t.staff.map((s) => ({ userId: s.userId, role: s.role, name: names.get(s.userId) ?? null })) : [],
+      courts: t.courts.map((c) => ({
+        id: c.id,
+        name: c.name,
+        scorerUserIds: isOrganizer ? c.scorers.map((s) => s.userId) : [],
+        scorers: isOrganizer ? c.scorers.map((s) => ({ userId: s.userId, name: names.get(s.userId) ?? null })) : [],
+      })),
       events: t.events.map((e) => ({
         id: e.id,
         name: e.name,
@@ -215,7 +299,13 @@ export class TournamentsService implements MatchDecidedHook {
         drawConfig: e.formatConfig,
         tiebreakers: e.tiebreakers,
         maxEntries: e.maxEntries,
-        approvedEntries: e._count.entries,
+        approvedEntries: e.entries.filter((x) => x.status === 'approved').length,
+        pendingEntries: e.entries.filter((x) => x.status === 'pending').length,
+        /** My entry in this event, if I am one of its players. */
+        myEntry: (() => {
+          const mine = userId ? e.entries.find((x) => x.members.some((m) => m.player.userId === userId)) : undefined;
+          return mine ? { id: mine.id, status: mine.status } : null;
+        })(),
       })),
     };
   }
@@ -266,12 +356,23 @@ export class TournamentsService implements MatchDecidedHook {
     return this.get(userId, tournamentId);
   }
 
-  /** Assigns a scorer to every match played on a court. */
-  async assignCourtScorer(userId: string, courtId: string, scorerUserId: string) {
+  /** Assigns a scorer to every match played on a court (`replace`: the only scorer). */
+  async assignCourtScorer(userId: string, courtId: string, scorerUserId: string, replace = false) {
     const court = await this.db.court.findUnique({ where: { id: courtId } });
     if (!court?.tournamentId) throw notFound('court');
     await this.assertOrganizer(userId, court.tournamentId);
+    if (replace) await this.db.courtScorer.deleteMany({ where: { courtId, userId: { not: scorerUserId } } });
     await this.db.courtScorer.upsert({ where: { courtId_userId: { courtId, userId: scorerUserId } }, create: { courtId, userId: scorerUserId }, update: {} });
+    await this.invalidateLiveMatches(court.tournamentId);
+    return this.get(userId, court.tournamentId);
+  }
+
+  /** Back to "any staff" for a court. */
+  async removeCourtScorer(userId: string, courtId: string, scorerUserId: string) {
+    const court = await this.db.court.findUnique({ where: { id: courtId } });
+    if (!court?.tournamentId) throw notFound('court');
+    await this.assertOrganizer(userId, court.tournamentId);
+    await this.db.courtScorer.deleteMany({ where: { courtId, userId: scorerUserId } });
     await this.invalidateLiveMatches(court.tournamentId);
     return this.get(userId, court.tournamentId);
   }
@@ -408,11 +509,22 @@ export class TournamentsService implements MatchDecidedHook {
     return this.eventDetail(userId, eventId);
   }
 
+  /** Organizers approve, decline (disqualified), seed or withdraw entries; a player may withdraw their own before the draw. */
   async updateEntry(userId: string, entryId: string, input: z.infer<typeof updateEntrySchema>) {
-    const entry = await this.db.tournamentEntry.findUnique({ where: { id: entryId }, include: { event: true } });
+    const entry = await this.db.tournamentEntry.findUnique({ where: { id: entryId }, include: { event: true, members: { include: { player: true } } } });
     if (!entry) throw notFound('entry');
-    await this.assertOrganizer(userId, entry.event.tournamentId);
     const drawn = await this.db.tournamentStage.count({ where: { eventId: entry.eventId } });
+    const isOrganizer = await this.assertOrganizer(userId, entry.event.tournamentId).then(
+      () => true,
+      () => false,
+    );
+    if (!isOrganizer) {
+      const own = entry.registeredByUserId === userId || entry.members.some((m) => m.player.userId === userId);
+      if (!own || input.seed !== undefined || input.status !== 'withdrawn') {
+        throw AppError.forbidden('NOT_ORGANIZER', 'Only the organizers can change this tournament.');
+      }
+      if (drawn) throw AppError.conflict('ALREADY_DRAWN', 'The draw has been made; ask the organizer to withdraw you.');
+    }
     if (drawn && input.seed !== undefined) throw AppError.conflict('ALREADY_DRAWN', 'Seeds are fixed once the draw is made.');
     try {
       await this.db.tournamentEntry.update({
@@ -451,7 +563,7 @@ export class TournamentsService implements MatchDecidedHook {
     }
     if (input.preview) {
       const names = await this.entryNames(eventId);
-      return { randomSeed: seed, preview: describePlan(plan, names) };
+      return { randomSeed: seed, preview: describePlan(plan, names, new Map(entries.map((e) => [e.id, e.seed]))) };
     }
     await this.tx(async (tx) => {
       await this.savePlan(tx, eventId, plan);
@@ -768,6 +880,11 @@ export class TournamentsService implements MatchDecidedHook {
     });
     const stages = await this.db.tournamentStage.findMany({ where: { eventId }, orderBy: { sequence: 'asc' }, include: { groups: { orderBy: { sequence: 'asc' } } } });
     const fixtures = await this.fixtureViews({ stage: { eventId } });
+    const ratings = new Map(
+      (await this.db.playerRating.findMany({ where: { sportId: event.sportId, playerId: { in: entries.flatMap((e) => e.members.map((m) => m.playerId)) } } })).map(
+        (r) => [r.playerId, r.rating],
+      ),
+    );
     const standings: Record<string, StandingView[]> = {};
     for (const stage of stages) {
       if (stage.type !== 'round_robin') continue;
@@ -784,13 +901,21 @@ export class TournamentsService implements MatchDecidedHook {
       drawFormat: event.format,
       drawConfig: event.formatConfig,
       tiebreakers: event.tiebreakers,
-      entries: entries.map((e) => ({
-        id: e.id,
-        name: e.name ?? e.members.map((m) => m.player.displayName).join(' / '),
-        seed: e.seed,
-        status: e.status,
-        players: e.members.map((m) => ({ playerId: m.player.id, displayName: m.player.displayName, isGuest: m.player.userId === null })),
-      })),
+      maxEntries: event.maxEntries,
+      entries: entries.map((e) => {
+        const values = e.members.map((m) => ratings.get(m.playerId) ?? 1000);
+        return {
+          id: e.id,
+          name: e.name ?? e.members.map((m) => m.player.displayName).join(' / '),
+          seed: e.seed,
+          status: e.status,
+          rating: Math.round(values.reduce((a, b) => a + b, 0) / Math.max(values.length, 1)),
+          createdAt: e.createdAt.toISOString(),
+          players: e.members.map((m) => ({ playerId: m.player.id, userId: m.player.userId, displayName: m.player.displayName, isGuest: m.player.userId === null })),
+        };
+      }),
+      myEntryId: userId ? entries.find((e) => e.members.some((m) => m.player.userId === userId))?.id ?? null : null,
+      podium: podiumOf(fixtures),
       stages: stages.map((s) => ({
         id: s.id,
         sequence: s.sequence,
@@ -809,21 +934,67 @@ export class TournamentsService implements MatchDecidedHook {
     return view;
   }
 
-  private async fixtureViews(where: Prisma.FixtureWhereInput): Promise<FixtureView[]> {
+  private async fixtureViews(where: Prisma.FixtureWhereInput, take?: number): Promise<FixtureView[]> {
+    const entryInclude = { include: { members: { orderBy: { sortOrder: 'asc' }, include: { player: true } } } } as const;
     const rows = await this.db.fixture.findMany({
       where,
       orderBy: [{ stage: { sequence: 'asc' } }, { round: 'asc' }, { position: 'asc' }],
+      ...(take ? { take } : {}),
       include: {
-        stage: { select: { eventId: true } },
-        court: true,
-        match: { select: { id: true, status: true, summary: true } },
-        entry1: { include: { members: { orderBy: { sortOrder: 'asc' }, include: { player: true } } } },
-        entry2: { include: { members: { orderBy: { sortOrder: 'asc' }, include: { player: true } } } },
+        stage: {
+          select: {
+            eventId: true,
+            name: true,
+            type: true,
+            event: { select: { id: true, name: true, sportId: true, sport: { select: { slug: true, name: true, accentColor: true } } } },
+          },
+        },
+        court: { include: { scorers: true } },
+        match: { select: { id: true, status: true, summary: true, shareToken: true } },
+        entry1: entryInclude,
+        entry2: entryInclude,
       },
     });
-    const byId = new Map(rows.map((r) => [r.id, r]));
-    const groups = new Map((await this.db.stageGroup.findMany({ where: { id: { in: rows.flatMap((r) => (r.groupId ? [r.groupId] : [])) } } })).map((g) => [g.id, g.name]));
-    const entryName = (e: (typeof rows)[number]['entry1']) => (e ? { id: e.id, name: e.name ?? e.members.map((m) => m.player.displayName).join(' / ') } : null);
+    const byId = new Map<string, { roundName: string | null; position: number }>(rows.map((r) => [r.id, r]));
+    const groupIds = rows.flatMap((r) => (r.groupId ? [r.groupId] : []));
+    const groups = new Map((await this.db.stageGroup.findMany({ where: { id: { in: groupIds } } })).map((g) => [g.id, g.name]));
+
+    // Ratings in each event's sport.
+    const playerIds = rows.flatMap((r) => [r.entry1, r.entry2].flatMap((e) => e?.members.map((m) => m.playerId) ?? []));
+    const ratings = new Map(
+      (await this.db.playerRating.findMany({ where: { playerId: { in: playerIds } } })).map((r) => [`${r.playerId}:${r.sportId}`, r.rating]),
+    );
+    const scorerNames = await this.userNames(rows.flatMap((r) => r.court?.scorers.map((s) => s.userId) ?? []));
+
+    type EntryRow = NonNullable<(typeof rows)[number]['entry1']>;
+    const entryView = (e: EntryRow | null, sportId: number): FixtureEntryView | null => {
+      if (!e) return null;
+      const values = e.members.map((m) => ratings.get(`${m.playerId}:${sportId}`) ?? 1000);
+      return {
+        id: e.id,
+        name: e.name ?? e.members.map((m) => m.player.displayName).join(' / '),
+        seed: e.seed,
+        rating: Math.round(values.reduce((a, b) => a + b, 0) / Math.max(values.length, 1)),
+        players: e.members.map((m) => ({ playerId: m.player.id, userId: m.player.userId, displayName: m.player.displayName })),
+      };
+    };
+
+    // Next fixtures, and what feeds their other slot.
+    const nextIds = [...new Set(rows.flatMap((r) => (r.nextFixtureId ? [r.nextFixtureId] : [])))];
+    const nextRows = new Map((await this.db.fixture.findMany({ where: { id: { in: nextIds } }, include: { entry1: entryInclude, entry2: entryInclude } })).map((n) => [n.id, n]));
+    const feederIds = [...nextRows.values()].flatMap((n) =>
+      ([n.entry1Source, n.entry2Source] as StoredSource[]).flatMap((s) => (s.kind === 'winner' || s.kind === 'loser' ? [s.fixtureKey] : [])),
+    );
+    const feeders = new Map(
+      (await this.db.fixture.findMany({ where: { id: { in: feederIds } }, include: { entry1: entryInclude, entry2: entryInclude } })).map((f) => [f.id, f]),
+    );
+    for (const f of feeders.values()) byId.set(f.id, f);
+    const groupRankIds = [...nextRows.values(), ...rows].flatMap((n) =>
+      ([n.entry1Source, n.entry2Source] as StoredSource[]).flatMap((s) => (s.kind === 'group_rank' && !groups.has(s.groupKey) ? [s.groupKey] : [])),
+    );
+    if (groupRankIds.length) for (const g of await this.db.stageGroup.findMany({ where: { id: { in: groupRankIds } } })) groups.set(g.id, g.name);
+
+    const nameOf = (e: EntryRow | null) => (e ? e.name ?? e.members.map((m) => m.player.displayName).join(' / ') : null);
     const placeholder = (s: StoredSource, entry: unknown): string | null => {
       if (entry) return null;
       if (s.kind === 'bye' || s.byeArrived) return 'Bye';
@@ -834,29 +1005,96 @@ export class TournamentsService implements MatchDecidedHook {
       if (s.kind === 'group_rank') return `${ordinal(s.rank)} ${groups.get(s.groupKey) ?? 'group'}`;
       return null;
     };
-    // Group names for group_rank placeholders that point into another stage.
-    const missing = rows.flatMap((r) => [r.entry1Source, r.entry2Source] as StoredSource[]).flatMap((s) => (s.kind === 'group_rank' && !groups.has(s.groupKey) ? [s.groupKey] : []));
-    if (missing.length) for (const g of await this.db.stageGroup.findMany({ where: { id: { in: missing } } })) groups.set(g.id, g.name);
+    const opponentFor = (nextId: string, mySlot: number | null): string | null => {
+      const n = nextRows.get(nextId);
+      if (!n) return null;
+      const other = mySlot === 1 ? 2 : 1;
+      const entry = other === 1 ? n.entry1 : n.entry2;
+      if (entry) return nameOf(entry);
+      const source = (other === 1 ? n.entry1Source : n.entry2Source) as StoredSource;
+      if (source.kind === 'winner' || source.kind === 'loser') {
+        const feeder = feeders.get(source.fixtureKey);
+        const names = feeder ? [nameOf(feeder.entry1), nameOf(feeder.entry2)].filter((x): x is string => !!x) : [];
+        if (names.length === 2) return names.join(' or ');
+      }
+      return placeholder(source, null);
+    };
+
     return rows.map((r) => {
       const summary = r.match?.summary as unknown as ScoreSummary | null;
+      const sportId = r.stage.event.sportId;
+      const next = r.nextFixtureId ? nextRows.get(r.nextFixtureId) : undefined;
       return {
         id: r.id,
         eventId: r.stage.eventId,
+        event: { id: r.stage.event.id, name: r.stage.event.name, sport: r.stage.event.sport },
         stageId: r.stageId,
+        stageName: r.stage.name,
+        stageType: r.stage.type,
         groupId: r.groupId,
+        groupName: r.groupId ? groups.get(r.groupId) ?? null : null,
         round: r.round,
         position: r.position,
         roundName: r.roundName,
         status: r.status,
-        entries: [entryName(r.entry1), entryName(r.entry2)],
+        entries: [entryView(r.entry1, sportId), entryView(r.entry2, sportId)],
         placeholders: [placeholder(r.entry1Source as StoredSource, r.entry1), placeholder(r.entry2Source as StoredSource, r.entry2)],
         winnerEntryId: r.winnerEntryId,
-        court: r.court ? { id: r.court.id, name: r.court.name } : null,
+        court: r.court ? { id: r.court.id, name: r.court.name, scorers: r.court.scorers.map((x) => ({ userId: x.userId, name: scorerNames.get(x.userId) ?? null })) } : null,
         scheduledAt: r.scheduledAt?.toISOString() ?? null,
-        match: r.match ? { id: r.match.id, status: r.match.status, headline: summary?.headline ?? '', winnerSideIndex: summary?.winnerSideIndex ?? null, callout: summary?.callout ?? null } : null,
+        match: r.match
+          ? {
+              id: r.match.id,
+              shareToken: r.match.shareToken,
+              status: r.match.status,
+              headline: summary?.headline ?? '',
+              winnerSideIndex: summary?.winnerSideIndex ?? null,
+              callout: summary?.callout ?? null,
+              sides: (summary?.sides ?? []).map((x) => ({ primary: x.primary, current: x.current })),
+              segments: (summary?.segments ?? []).map((g) => g.scores),
+            }
+          : null,
         nextFixtureId: r.nextFixtureId,
+        next: next ? { fixtureId: next.id, roundName: next.roundName, position: next.position, opponent: opponentFor(next.id, r.nextFixtureSlot) } : null,
       };
     });
+  }
+
+  /** Every fixture of a tournament (Schedule, Court board). Staff only. */
+  async tournamentFixtures(userId: string, tournamentId: string): Promise<FixtureView[]> {
+    const t = await this.db.tournament.findUnique({ where: { id: tournamentId }, include: { staff: { where: { userId } } } });
+    if (!t) throw notFound('tournament');
+    if (t.organizerUserId !== userId && !t.staff.length) throw AppError.forbidden('NOT_TOURNAMENT_STAFF', 'Only tournament staff can see the schedule.');
+    return this.fixtureViews({ stage: { event: { tournamentId } } });
+  }
+
+  /** "My matches": fixtures I play in, my pending entries, and my scoring duties. */
+  async myMatches(userId: string) {
+    const mine = { members: { some: { player: { userId } } } };
+    const [playing, entries, scoring, courts] = await Promise.all([
+      this.fixtureViews({ status: { in: ['ready', 'live'] }, OR: [{ entry1: mine }, { entry2: mine }] }),
+      this.db.tournamentEntry.findMany({
+        where: { status: 'pending', ...mine },
+        include: { event: { include: { tournament: { select: { id: true, name: true } }, sport: true } } },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.myScorerFixtures(userId),
+      this.db.court.findMany({ where: { scorers: { some: { userId } }, tournament: { status: { in: ['registration_closed', 'in_progress'] } } }, select: { id: true, name: true } }),
+    ]);
+    const upcoming = courts.length
+      ? await this.fixtureViews({ status: 'pending', courtId: { in: courts.map((c) => c.id) } }, 5)
+      : [];
+    return {
+      playing,
+      pendingEntries: entries.map((e) => ({
+        id: e.id,
+        event: { id: e.event.id, name: e.event.name, sport: { slug: e.event.sport.slug, accentColor: e.event.sport.accentColor } },
+        tournament: e.event.tournament,
+      })),
+      scoring,
+      courts,
+      upcoming,
+    };
   }
 
   /** Fixtures a user can score now: staff of the tournament, or scorer of the court. */
@@ -877,14 +1115,44 @@ function ordinal(n: number): string {
   return `${n}${suffix}`;
 }
 
-/** A readable draw preview: stage -> groups -> fixtures with entry names. */
-function describePlan(plan: DrawPlan, names: Map<string, string>) {
+/**
+ * Champion, runner-up and third from a finished knockout final (and 3rd-place match). Without a
+ * 3rd-place match both losing semi-finalists are third.
+ */
+function podiumOf(fixtures: FixtureView[]) {
+  const knockout = fixtures.filter((f) => f.stageType === 'knockout');
+  const final = knockout.find((f) => f.roundName === 'Final');
+  if (!final || final.status !== 'completed' || !final.winnerEntryId) return null;
+  const entry = (id: string | null | undefined) => knockout.flatMap((f) => f.entries).find((e) => e?.id === id) ?? null;
+  const champion = entry(final.winnerEntryId);
+  const runnerUp = final.entries.find((e) => e && e.id !== final.winnerEntryId) ?? null;
+  const thirdMatch = knockout.find((f) => f.roundName === 'Third place');
+  const semis = knockout.filter((f) => f.roundName === 'Semi-final');
+  const third = thirdMatch?.winnerEntryId
+    ? [entry(thirdMatch.winnerEntryId)]
+    : semis.map((f) => f.entries.find((e) => e && e.id !== f.winnerEntryId) ?? null);
+  return {
+    champion,
+    runnerUp,
+    third: third.filter((e): e is FixtureEntryView => e !== null),
+    final: { matchId: final.match?.id ?? null, headline: final.match?.headline ?? null },
+  };
+}
+
+/** A readable draw preview: stage -> groups -> fixtures with entry names and seeds. */
+function describePlan(plan: DrawPlan, names: Map<string, string>, seeds: Map<string, number | null>) {
   const label = (s: SlotSource) =>
     s.kind === 'entry' ? names.get(s.entryId) ?? s.entryId : s.kind === 'bye' ? 'Bye' : s.kind === 'group_rank' ? `${ordinal(s.rank)} of ${s.groupKey}` : `${s.kind} of ${s.fixtureKey}`;
+  const seedOf = (s: SlotSource) => (s.kind === 'entry' ? seeds.get(s.entryId) ?? null : null);
   return plan.stages.map((stage) => ({
     name: stage.name,
     type: stage.type,
-    groups: stage.groups.map((g) => ({ key: g.key, name: g.name, entries: g.entryIds.map((id) => names.get(id) ?? id) })),
-    fixtures: stage.fixtures.map((f) => ({ round: f.round, position: f.position, roundName: f.roundName, slots: f.slots.map(label) })),
+    groups: stage.groups.map((g) => ({
+      key: g.key,
+      name: g.name,
+      entries: g.entryIds.map((id) => names.get(id) ?? id),
+      seeds: g.entryIds.map((id) => seeds.get(id) ?? null),
+    })),
+    fixtures: stage.fixtures.map((f) => ({ round: f.round, position: f.position, roundName: f.roundName, slots: f.slots.map(label), seeds: f.slots.map(seedOf) })),
   }));
 }

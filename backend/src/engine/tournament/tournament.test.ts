@@ -145,6 +145,8 @@ describe('round robin', () => {
     expect(table.map((row) => row.entryId)).toEqual(['A', 'B', 'C', 'D']);
     expect(table[0]).toMatchObject({ rank: 1, played: 3, won: 2, lost: 1, majorWon: 5, majorLost: 2 });
     expect(table[1]).toMatchObject({ entryId: 'B', majorWon: 4, majorLost: 3, minorWon: 132, minorLost: 109 });
+    // What the group table explains: A left the 3-way tie on games, B and C split on their match.
+    expect(table.map((row) => row.tiebreak)).toEqual(['major_diff', 'head_to_head', 'head_to_head', null]);
     // Without head-to-head, point difference separates B and C instead.
     const byPoints = rankGroup(['A', 'B', 'C', 'D'], results, ['match_wins', 'major_diff', 'minor_diff']);
     expect(byPoints.map((row) => row.entryId)).toEqual(['A', 'C', 'B', 'D']);
