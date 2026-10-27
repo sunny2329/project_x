@@ -15,7 +15,18 @@ import type { UserSummary } from '../types';
 type Tab = 'players' | 'tournaments';
 
 /** Follow / Following with an instant switch, rolled back if the request fails. */
-export function FollowButton({ user, onChange, height = 36 }: { user: Pick<UserSummary, 'id' | 'isFollowing'>; onChange: (isFollowing: boolean, followers?: number) => void; height?: number }) {
+export function FollowButton({
+  user,
+  onChange,
+  height = 36,
+  followLabel = 'Follow',
+}: {
+  user: Pick<UserSummary, 'id' | 'isFollowing'>;
+  onChange: (isFollowing: boolean, followers?: number) => void;
+  height?: number;
+  /** "Follow back" when they already follow me. */
+  followLabel?: string;
+}) {
   const [busy, setBusy] = useState(false);
   const toggle = async () => {
     if (busy) return;
@@ -34,7 +45,7 @@ export function FollowButton({ user, onChange, height = 36 }: { user: Pick<UserS
   return user.isFollowing ? (
     <Button label="Following" variant="outline" height={height} radius={12} size={14} weight={600} inline onPress={() => void toggle()} />
   ) : (
-    <Button label="Follow" height={height} radius={12} size={14} weight={700} inline onPress={() => void toggle()} />
+    <Button label={followLabel} height={height} radius={12} size={14} weight={700} inline onPress={() => void toggle()} />
   );
 }
 

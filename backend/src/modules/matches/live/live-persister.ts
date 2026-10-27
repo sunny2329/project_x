@@ -2,6 +2,8 @@ import type { Logger } from 'pino';
 import type { LiveStore, PersistJob } from './live-store.js';
 
 const RETRY_MS = 3_000;
+/** Jobs written per transaction: a backlog (fast tapping, a slow database) catches up in one go. */
+const BATCH = 100;
 
 /**
  * Writes queued live-scoring jobs to Postgres, strictly in order per match. A job leaves the
@@ -15,7 +17,8 @@ export class LivePersister {
 
   constructor(
     private readonly store: LiveStore,
-    private readonly write: (matchId: string, job: PersistJob) => Promise<void>,
+    /** Writes jobs (oldest first) in one transaction. */
+    private readonly write: (matchId: string, jobs: PersistJob[]) => Promise<void>,
     private readonly logger?: Pick<Logger, 'error'>,
   ) {}
 
@@ -46,9 +49,9 @@ export class LivePersister {
     const loop = (async () => {
       try {
         while (this.dirty.delete(matchId)) {
-          for (let job = await this.store.peekJob(matchId); job; job = await this.store.peekJob(matchId)) {
-            await this.write(matchId, job);
-            await this.store.ackJob(matchId);
+          for (let jobs = await this.store.peekJobs(matchId, BATCH); jobs.length; jobs = await this.store.peekJobs(matchId, BATCH)) {
+            await this.write(matchId, jobs);
+            await this.store.ackJobs(matchId, jobs.length);
           }
         }
       } catch (error) {

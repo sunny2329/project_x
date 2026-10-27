@@ -67,6 +67,7 @@ const errors = {
   socialAccountNotFound: () =>
     new AppError(404, 'ACCOUNT_NOT_FOUND', 'No account is linked to this sign-in. Log in another way, then link it in Settings.'),
   identityInUse: () => AppError.conflict('IDENTITY_IN_USE', 'That account is already linked to another ProjectX user.'),
+  noAccount: () => AppError.notFound('NO_ACCOUNT', 'No account uses these details. Check them, or create an account.'),
 };
 
 function isUniqueViolation(error: unknown): boolean {
@@ -139,10 +140,12 @@ export class AuthService {
     return this.issueSession(pool, user, client);
   }
 
-  /** Sends a sign-in code only to registered numbers; the response never reveals which. */
+  /**
+   * Texts a sign-in code. An unknown number is a 404 rather than a silent no-op: sign-up already
+   * says when a phone is taken, so hiding it here protected nothing and left people waiting for a text.
+   */
   async startPhoneLogin(input: PhoneStartInput): Promise<void> {
-    const user = await this.deps.repository.findUserByIdentifier(this.deps.pool, { kind: 'phone', value: input.phone });
-    if (user?.status === UserStatus.ACTIVE) await this.sendCodeSilently(user, OtpPurpose.PHONE_LOGIN);
+    await this.sendCodeTo(await this.deps.repository.findUserByIdentifier(this.deps.pool, { kind: 'phone', value: input.phone }), OtpPurpose.PHONE_LOGIN);
   }
 
   async completePhoneLogin(input: PhoneVerifyInput, client: ClientContext): Promise<AuthResult> {
@@ -163,10 +166,9 @@ export class AuthService {
     return this.issueSession(pool, user, client);
   }
 
-  /** Texts a reset code to the account's phone; the response never reveals whether the account exists. */
+  /** Texts a reset code to the account's phone (404 / 403 when there is no usable account, as above). */
   async forgotPassword(input: ForgotPasswordInput): Promise<void> {
-    const user = await this.deps.repository.findUserByIdentifier(this.deps.pool, input.identifier);
-    if (user?.status === UserStatus.ACTIVE) await this.sendCodeSilently(user, OtpPurpose.PASSWORD_RESET);
+    await this.sendCodeTo(await this.deps.repository.findUserByIdentifier(this.deps.pool, input.identifier), OtpPurpose.PASSWORD_RESET);
   }
 
   /** Sets a new password and signs out every device. */
@@ -384,13 +386,10 @@ export class AuthService {
     }
   }
 
-  /** Used where revealing a send failure would reveal that the account exists. */
-  private async sendCodeSilently(user: UserRecord, purpose: OtpPurposeCode): Promise<void> {
-    try {
-      await this.deps.otp.send(user.phone, purpose, user.id);
-    } catch (error) {
-      this.deps.logger.error({ err: error }, 'Failed to send verification SMS');
-    }
+  private async sendCodeTo(user: UserRecord | null, purpose: OtpPurposeCode): Promise<void> {
+    if (!user) throw errors.noAccount();
+    if (user.status !== UserStatus.ACTIVE) throw errors.accountDisabled();
+    await this.deps.otp.send(user.phone, purpose, user.id);
   }
 
   private requireVerifier(verifier: SocialIdentityVerifier | null, name: string): SocialIdentityVerifier {

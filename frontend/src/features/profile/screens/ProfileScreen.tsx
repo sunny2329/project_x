@@ -4,9 +4,9 @@ import { useWindowDimensions, View } from 'react-native';
 import { useAuthStore } from '@/features/auth/store/auth.store';
 import { errorMessage } from '@/shared/hooks/useResource';
 import { sportText, useTheme } from '@/shared/theme';
-import { Avatar, Button, Chip, D, EmptyState, IconButton, Label, Loading, Notice, Row, Screen, Sparkline, T, Tap, TextButton } from '@/shared/ui';
+import { Button, Chip, D, EmptyState, ExpandableAvatar, IconButton, Label, Loading, Notice, Row, Screen, Sparkline, T, Tap, TextButton } from '@/shared/ui';
 import { shortDay } from '@/shared/utils/format';
-import { FormTile } from '../components/ProfileBits';
+import { FollowCounts, FormTile } from '../components/ProfileBits';
 import { useProfileStore } from '../store/profile.store';
 import type { MatchHistoryItem } from '../types';
 
@@ -74,7 +74,15 @@ export default function ProfileScreen() {
       </Row>
 
       <Row gap={16}>
-        <Avatar name={profile.user.fullName} id={profile.user.id} photoUrl={profile.photoUrl} size={76} display ring={sport?.accentColor ?? colors.primary} />
+        <ExpandableAvatar
+          name={profile.user.fullName}
+          id={profile.user.id}
+          photoUrl={profile.photoUrl}
+          size={76}
+          display
+          ring={sport?.accentColor ?? colors.primary}
+          caption={`@${user?.username ?? profile.user.username}`}
+        />
         <View style={{ flex: 1, gap: 2 }}>
           <D size={34} lh={34} upper numberOfLines={2}>
             {profile.user.fullName}
@@ -83,16 +91,12 @@ export default function ProfileScreen() {
             @{user?.username ?? profile.user.username}
             {profile.city ? ` · ${profile.city}` : ''}
           </T>
-          <T size={14} color={colors.soft}>
-            <T size={14} w={700}>
-              {profile.followers}
-            </T>{' '}
-            followers ·{' '}
-            <T size={14} w={700}>
-              {profile.following}
-            </T>{' '}
-            following
-          </T>
+          <FollowCounts
+            userId={profile.user.id}
+            username={user?.username ?? profile.user.username}
+            followers={profile.followers}
+            following={profile.following}
+          />
         </View>
       </Row>
       {profile.bio ? (

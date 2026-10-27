@@ -1,6 +1,8 @@
 generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  provider        = "prisma-client"
+  output          = "../src/generated/prisma"
+  /// One SQL query per `include` tree instead of one per relation (each round trip to Neon is slow).
+  previewFeatures = ["relationJoins"]
 }
 
 datasource db {
@@ -468,7 +470,12 @@ model notification {
   is_read              Boolean   @default(false)
   created_at           DateTime  @default(now()) @db.Timestamp(6)
   read_at              DateTime? @db.Timestamp(6)
-  usr_user             usr_user  @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_notification_user")
+  /// Who liked, commented, posted or followed (migration 4).
+  actor_id             String?   @db.Uuid
+  usr_user             usr_user  @relation("NotificationRecipient", fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_notification_user")
+  actor                usr_user? @relation("NotificationActor", fields: [actor_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_notification_actor")
+
+  @@index([user_id, created_at(sort: Desc), id(sort: Desc)], map: "idx_notification_user")
 }
 
 model social_post {
@@ -645,7 +652,8 @@ model usr_user {
   match_report_match_report_resolved_byTousr_user        match_report[]              @relation("match_report_resolved_byTousr_user")
   match_score_event                                      match_score_event[]
   media_asset                                            media_asset[]
-  notification                                           notification[]
+  notification                                           notification[]              @relation("NotificationRecipient")
+  notification_actor                                     notification[]              @relation("NotificationActor")
   social_post                                            social_post[]
   social_post_comment                                    social_post_comment[]
   social_post_like                                       social_post_like[]

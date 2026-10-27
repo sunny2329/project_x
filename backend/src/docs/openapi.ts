@@ -4,12 +4,15 @@ import {
   appleSignInSchema,
   forgotPasswordSchema,
   googleSignInSchema,
+  linkAppleSchema,
+  linkGoogleSchema,
   loginSchema,
   phoneStartSchema,
   phoneVerifySchema,
   refreshTokenSchema,
   registerCompleteSchema,
   registerStartSchema,
+  registerVerifySchema,
   resetPasswordSchema,
 } from '../modules/auth/auth.validation.js';
 import { addMembersSchema, createConversationSchema, sendMessageSchema } from '../modules/chat/chat.validation.js';
@@ -22,7 +25,8 @@ import {
   versionSchema,
   walkoverSchema,
 } from '../modules/matches/matches.validation.js';
-import { createGuestSchema } from '../modules/players/players.routes.js';
+import { uploadMediaSchema } from '../modules/media/media.routes.js';
+import { claimSchema, createGuestSchema } from '../modules/players/players.routes.js';
 import { updateProfileSchema, updateSportsSchema } from '../modules/profile/profile.validation.js';
 import { createCommentSchema, createPostSchema } from '../modules/social/social.validation.js';
 import {
@@ -201,6 +205,21 @@ route('post', `${A}/register/start`, {
   data: message,
   errors: { 400: ['INVALID_PHONE'], 409: ['USERNAME_TAKEN', 'EMAIL_TAKEN', 'PHONE_TAKEN'], 429: ['RATE_LIMITED'], 503: ['SMS_UNAVAILABLE'] },
 });
+route('post', `${A}/register/verify`, {
+  tag: 'Auth',
+  summary: 'Check the sign-up code; returns the token `/register/complete` needs',
+  auth: false,
+  body: registerVerifySchema,
+  data: obj({ registrationToken: str }),
+  errors: { 400: ['INVALID_CODE'], 429: ['RATE_LIMITED', 'OTP_ATTEMPTS_EXCEEDED'] },
+});
+route('get', `${A}/username-available`, {
+  tag: 'Auth',
+  summary: 'Is this username free? (format problems come back as `reason`)',
+  auth: false,
+  query: [{ name: 'username', schema: str, required: true }],
+  data: obj({ available: bool, reason: nullable(str) }),
+});
 route('post', `${A}/register/complete`, {
   tag: 'Auth',
   summary: 'Finish sign-up with the code; creates the account and signs in',
@@ -221,11 +240,11 @@ route('post', `${A}/login`, {
 });
 route('post', `${A}/phone/start`, {
   tag: 'Auth',
-  summary: 'Text a sign-in code (only if the phone is registered; the reply is always the same)',
+  summary: 'Text a sign-in code to a registered phone',
   auth: false,
   body: phoneStartSchema,
   data: message,
-  errors: { 400: ['INVALID_PHONE'], 429: ['RATE_LIMITED'], 503: ['SMS_UNAVAILABLE'] },
+  errors: { 400: ['INVALID_PHONE'], 403: ['ACCOUNT_DISABLED'], 404: ['NO_ACCOUNT'], 429: ['RATE_LIMITED'], 503: ['SMS_UNAVAILABLE'] },
 });
 route('post', `${A}/phone/verify`, {
   tag: 'Auth',
@@ -237,11 +256,11 @@ route('post', `${A}/phone/verify`, {
 });
 route('post', `${A}/password/forgot`, {
   tag: 'Auth',
-  summary: "Text a reset code to the account's phone (the reply is always the same)",
+  summary: "Text a reset code to the account's phone",
   auth: false,
   body: forgotPasswordSchema,
   data: message,
-  errors: { 400: ['INVALID_PHONE'], 429: ['RATE_LIMITED'], 503: ['SMS_UNAVAILABLE'] },
+  errors: { 400: ['INVALID_PHONE'], 403: ['ACCOUNT_DISABLED'], 404: ['NO_ACCOUNT'], 429: ['RATE_LIMITED'], 503: ['SMS_UNAVAILABLE'] },
 });
 route('post', `${A}/password/reset`, {
   tag: 'Auth',
@@ -283,6 +302,25 @@ route('post', `${A}/logout`, {
   raw: { 204: { description: 'Signed out' } },
 });
 route('get', `${A}/me`, { tag: 'Auth', summary: 'The signed-in user', data: obj({ user: ref('PublicUser') }) });
+route('get', `${A}/sessions`, { tag: 'Auth', summary: 'My signed-in devices (current one flagged)', data: obj({ sessions: arrayOf(anyObject) }) });
+route('post', `${A}/sessions/sign-out-others`, { tag: 'Auth', summary: 'Sign out every device but this one', data: obj({ signedOut: int }) });
+const identities = obj({ identities: arrayOf(anyObject) });
+route('get', `${A}/identities`, { tag: 'Auth', summary: 'My linked Google / Apple accounts', data: identities });
+route('post', `${A}/identities/google`, {
+  tag: 'Auth',
+  summary: 'Link a Google account to me',
+  body: linkGoogleSchema,
+  data: identities,
+  errors: { 401: ['INVALID_SOCIAL_TOKEN'], 409: ['IDENTITY_IN_USE'], 503: ['PROVIDER_NOT_CONFIGURED'] },
+});
+route('post', `${A}/identities/apple`, {
+  tag: 'Auth',
+  summary: 'Link an Apple account to me',
+  body: linkAppleSchema,
+  data: identities,
+  errors: { 401: ['INVALID_SOCIAL_TOKEN'], 409: ['IDENTITY_IN_USE'], 503: ['PROVIDER_NOT_CONFIGURED'] },
+});
+route('delete', `${A}/identities/:provider`, { tag: 'Auth', summary: 'Unlink "google" or "apple"', data: identities, errors: { 404: ['NOT_FOUND'] } });
 
 // ------------------------------------------------------------------------------------------
 // Sports, profile, players
@@ -312,8 +350,11 @@ route('put', '/api/v1/profile/me/sports', {
 route('get', '/api/v1/profile/me/matches', {
   tag: 'Profile',
   summary: 'My match history, newest first',
-  query: [{ name: 'limit', schema: { type: 'integer', minimum: 1, maximum: 50, default: 20 } }],
-  data: obj({ matches: arrayOf(ref('MatchHistoryItem')) }),
+  query: [
+    { name: 'limit', schema: { type: 'integer', minimum: 1, maximum: 50, default: 20 } },
+    { name: 'sport', schema: str, description: 'Sport slug' },
+  ],
+  data: obj({ matches: arrayOf(ref('MatchHistoryItem')), counts: { type: 'object', additionalProperties: int } }),
   errors: { 400: ['VALIDATION_ERROR'] },
 });
 
@@ -323,6 +364,7 @@ route('get', '/api/v1/players', {
   query: [
     { name: 'q', schema: { type: 'string', minLength: 2, maxLength: 50 }, required: true },
     { name: 'limit', schema: { type: 'integer', minimum: 1, maximum: 20, default: 10 } },
+    { name: 'sport', schema: str, description: 'Sport slug: each result carries its rating in that sport' },
   ],
   data: obj({ players: arrayOf(ref('PlayerOption')) }),
   errors: { 400: ['VALIDATION_ERROR'] },
@@ -340,9 +382,15 @@ route('post', '/api/v1/players/guests', {
   status: 201,
   data: obj({ player: ref('PlayerRef') }),
 });
+route('get', '/api/v1/players/claimable', {
+  tag: 'Players',
+  summary: 'Decided matches played by guests carrying my verified phone',
+  data: obj({ matches: arrayOf(anyObject) }),
+});
 route('post', '/api/v1/players/claim', {
   tag: 'Players',
-  summary: 'Merge guest players that carry my verified phone into me',
+  summary: 'Merge guest players that carry my verified phone into me (only `playerIds` when given)',
+  body: claimSchema,
   data: obj({ claimed: int }),
   errors: { 403: ['PHONE_NOT_VERIFIED'] },
 });
@@ -372,6 +420,12 @@ route('get', `${M}/pending-confirmations`, {
   data: obj({ matches: arrayOf(ref('MatchCard')) }),
 });
 route('get', `${M}/:id`, { tag: 'Matches', summary: 'One match with its full score summary', data: match, errors: { 404: ['MATCH_NOT_FOUND'] } });
+route('get', `${M}/:id/details`, {
+  tag: 'Matches',
+  summary: 'Ratings, photos and scorer names for the watching and confirming screens',
+  data: obj({ details: obj({ players: arrayOf(anyObject), scorers: arrayOf(obj({ userId: uuid, name: str })) }) }),
+  errors: { 404: ['MATCH_NOT_FOUND'] },
+});
 route('post', `${M}/:id/events`, {
   tag: 'Matches',
   summary: 'Record a scoring event',
@@ -410,9 +464,18 @@ const tournament = obj({ tournament: ref('Tournament') });
 const event = obj({ event: ref('EventDetail') });
 const organizerErrors = { 403: ['NOT_ORGANIZER'], 404: ['TOURNAMENT_NOT_FOUND'] };
 
-route('get', T, { tag: 'Tournaments', summary: 'Tournaments I can see', data: obj({ tournaments: arrayOf(ref('TournamentListItem')) }) });
+route('get', T, {
+  tag: 'Tournaments',
+  summary: 'Tournaments I can see',
+  query: [
+    { name: 'filter', schema: { ...enumOf('all', 'open', 'live', 'mine'), default: 'all' } },
+    { name: 'q', schema: { type: 'string', maxLength: 60 } },
+  ],
+  data: obj({ tournaments: arrayOf(ref('TournamentListItem')) }) });
+route('get', `${T}/me/matches`, { tag: 'Tournaments', summary: 'My tournament entries and their upcoming / live / past fixtures', data: anyObject });
 route('post', T, { tag: 'Tournaments', summary: 'Create a tournament (I become its organizer)', body: createTournamentSchema, status: 201, data: tournament });
 route('get', `${T}/:id`, { tag: 'Tournaments', summary: 'Tournament with staff, courts and categories', data: tournament, errors: { 404: ['TOURNAMENT_NOT_FOUND'] } });
+route('get', `${T}/:id/fixtures`, { tag: 'Tournaments', summary: 'Every fixture in the tournament (schedule, court board)', data: obj({ fixtures: arrayOf(ref('FixtureView')) }), errors: { 404: ['TOURNAMENT_NOT_FOUND'] } });
 route('patch', `${T}/:id`, { tag: 'Tournaments', summary: 'Update details or status', body: updateTournamentSchema, data: tournament, errors: organizerErrors });
 route('post', `${T}/:id/staff`, { tag: 'Tournaments', summary: 'Add a co-organizer, scorer or referee', body: addStaffSchema, data: tournament, errors: organizerErrors });
 route('delete', `${T}/:id/staff/:userId/:role`, { tag: 'Tournaments', summary: 'Remove a staff role', data: tournament, errors: { ...organizerErrors, 409: ['ORGANIZER_REQUIRED'] } });
@@ -430,6 +493,12 @@ route('post', '/api/v1/courts/:id/scorers', {
   tag: 'Tournaments',
   summary: "Assign a scorer to a court (they may score every match on it)",
   body: courtScorerSchema,
+  data: tournament,
+  errors: { 403: ['NOT_ORGANIZER'], 404: ['COURT_NOT_FOUND'] },
+});
+route('delete', '/api/v1/courts/:id/scorers/:userId', {
+  tag: 'Tournaments',
+  summary: 'Remove a court scorer',
   data: tournament,
   errors: { 403: ['NOT_ORGANIZER'], 404: ['COURT_NOT_FOUND'] },
 });
@@ -510,7 +579,7 @@ route('delete', `${P}/:id/comments/:commentId`, {
 const C = '/api/v1/conversations';
 const conversation = obj({ conversation: ref('Conversation') });
 const convNotFound = { 404: ['CONVERSATION_NOT_FOUND'] };
-const chatNote = 'Needs the messaging tables from `docs/sql/2026-09-29_messaging_and_indexes.sql`, which are not applied yet.';
+const chatNote = 'Members and the newest message id are cached (Redis when configured).';
 
 route('get', C, { tag: 'Chat', summary: 'My conversations, most recent first', description: chatNote, data: obj({ conversations: arrayOf(ref('Conversation')) }) });
 route('get', `${C}/unread`, { tag: 'Chat', summary: 'Total unread messages', description: chatNote, data: obj({ count: int }) });
@@ -547,6 +616,93 @@ route('delete', `${C}/:id/messages/:messageId`, {
   errors: { 404: ['CONVERSATION_NOT_FOUND', 'MESSAGE_NOT_FOUND'] },
 });
 route('post', `${C}/:id/read`, { tag: 'Chat', summary: 'Mark the conversation read', description: chatNote, data: obj({ read: { const: true } }), errors: convNotFound });
+
+// ------------------------------------------------------------------------------------------
+// Notifications
+// ------------------------------------------------------------------------------------------
+
+const N = '/api/v1/notifications';
+const notificationNote = 'Written when someone likes or comments on my post, follows me, or (when I follow them) posts. Never for my own actions; hidden when either of us has blocked the other or the post was deleted.';
+
+route('get', N, {
+  tag: 'Notifications',
+  summary: 'My notifications, newest first, with the unread count',
+  description: notificationNote,
+  query: cursorQuery(50, 30),
+  data: obj({ notifications: arrayOf(ref('AppNotification')), unreadCount: int, nextCursor: nullable(uuid) }),
+  errors: { 400: ['VALIDATION_ERROR'] },
+});
+route('get', `${N}/unread`, { tag: 'Notifications', summary: 'Unread count (the badge on the bell)', data: obj({ count: int }) });
+route('post', `${N}/read`, { tag: 'Notifications', summary: 'Mark all as read', data: obj({ read: { const: true } }) });
+route('post', `${N}/:id/read`, { tag: 'Notifications', summary: 'Mark one as read', data: obj({ read: { const: true } }), errors: { 404: ['NOTIFICATION_NOT_FOUND'] } });
+
+// ------------------------------------------------------------------------------------------
+// Users and media
+// ------------------------------------------------------------------------------------------
+
+const U = '/api/v1/users';
+const userNotFound = { 404: ['USER_NOT_FOUND'] };
+const followState = obj({ isFollowing: bool, followers: int });
+route('get', `${U}/search`, {
+  tag: 'Users',
+  summary: 'Find people by username or name (blocked users excluded)',
+  query: [
+    { name: 'q', schema: { type: 'string', minLength: 1, maxLength: 50 }, required: true },
+    { name: 'limit', schema: { type: 'integer', minimum: 1, maximum: 30, default: 15 } },
+  ],
+  data: obj({ users: arrayOf(anyObject) }),
+  errors: { 400: ['VALIDATION_ERROR'] },
+});
+route('get', `${U}/:id`, { tag: 'Users', summary: "Another player's profile: sports, ratings, follows, head to head, recent matches", data: obj({ user: anyObject }), errors: userNotFound });
+route('get', `${U}/:id/matches`, {
+  tag: 'Users',
+  summary: "Another player's match history",
+  query: [{ name: 'limit', schema: { type: 'integer', minimum: 1, maximum: 50, default: 10 } }],
+  data: obj({ matches: arrayOf(ref('MatchHistoryItem')) }),
+  errors: userNotFound,
+});
+route('put', `${U}/:id/follow`, { tag: 'Users', summary: 'Follow (idempotent)', data: followState, errors: { ...userNotFound, 400: ['CANNOT_FOLLOW_SELF'] } });
+route('delete', `${U}/:id/follow`, { tag: 'Users', summary: 'Unfollow (idempotent)', data: followState });
+for (const list of ['followers', 'following'] as const) {
+  route('get', `${U}/:id/${list}`, {
+    tag: 'Users',
+    summary:
+      list === 'followers'
+        ? 'Who follows this user, newest first (active, unblocked accounts; each row has isFollowing and followsMe)'
+        : 'Whom this user follows, newest first (active, unblocked accounts; each row has isFollowing and followsMe)',
+    query: [
+      { name: 'q', schema: { type: 'string', maxLength: 50 } },
+      { name: 'limit', schema: { type: 'integer', minimum: 1, maximum: 50, default: 30 } },
+      { name: 'cursor', schema: str },
+    ],
+    data: obj({ users: arrayOf(anyObject), nextCursor: nullable(str) }),
+    errors: { ...userNotFound, 400: ['VALIDATION_ERROR'] },
+  });
+}
+route('delete', `${U}/me/followers/:id`, {
+  tag: 'Users',
+  summary: 'Remove someone from my followers (idempotent); returns my new counts',
+  data: obj({ removed: { const: true }, followers: int, following: int }),
+  errors: userNotFound,
+});
+
+route('post', '/api/v1/media', {
+  tag: 'Media',
+  summary: 'Upload a photo (base64 JPEG / PNG / WebP, at most 3 MB); stored in Postgres `media_files`',
+  body: uploadMediaSchema,
+  status: 201,
+  data: obj({ media: obj({ id: uuid, url: str, width: nullable(int), height: nullable(int) }) }),
+  errors: { 400: ['MEDIA_TOO_LARGE', 'MEDIA_INVALID'] },
+});
+route('get', '/media/:id', {
+  tag: 'Media',
+  summary: 'The photo bytes (public, cached for a year)',
+  auth: false,
+  raw: {
+    200: { description: 'Image', content: { 'image/jpeg': { schema: { type: 'string', format: 'binary' } }, 'image/png': {}, 'image/webp': {} } },
+    404: { description: 'MEDIA_NOT_FOUND', content: { 'application/json': { schema: ref('Error') } } },
+  },
+});
 
 // ------------------------------------------------------------------------------------------
 // Public (no login)
@@ -867,6 +1023,16 @@ const schemas: Record<string, Schema> = {
   }),
   LikeState: obj({ likeCount: int, likedByMe: bool }),
   PostComment: obj({ id: uuid, content: str, createdAt: dateTime, author: obj({ id: uuid, username: str, fullName: str }) }),
+  AppNotification: obj({
+    id: uuid,
+    type: enumOf('like', 'comment', 'post', 'follow'),
+    title: str,
+    message: { ...nullable(str), description: 'The comment, or the start of the new post' },
+    isRead: bool,
+    createdAt: dateTime,
+    actor: obj({ id: uuid, username: str, fullName: str, photoUrl: nullable(str) }),
+    postId: { ...nullable(uuid), description: 'Null for follows' },
+  }),
 
   ChatUser: obj({ id: uuid, username: str, fullName: str }),
   ChatMessage: obj({ id: uuid, conversationId: uuid, sender: ref('ChatUser'), content: nullable(str), createdAt: dateTime, deleted: bool }),
@@ -904,7 +1070,10 @@ const TAGS: Record<string, string> = {
   'Tournament categories': 'Categories (events): entries, seeding and the draw',
   Fixtures: 'Scheduling, starting and deciding tournament fixtures',
   'Feed & posts': 'Feed, posts, likes and comments',
-  Chat: 'Direct and group messages (tables not applied yet)',
+  Chat: 'Direct and group messages',
+  Notifications: 'The bell on Home: likes, comments, new posts and follows',
+  Users: 'Finding, viewing and following people',
+  Media: 'Photo upload and download',
   Public: 'No-login share JSON and pages',
 };
 

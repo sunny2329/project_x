@@ -53,11 +53,13 @@ export interface RequestOptions {
   body?: unknown;
   /** Attach the access token and transparently refresh it once if it has expired. */
   authenticated?: boolean;
+  /** Overrides the 15 s default for requests that do a lot of work (finishing a match). */
+  timeoutMs?: number;
 }
 
 async function send<T>(path: string, options: RequestOptions, accessToken: string | null): Promise<T> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? REQUEST_TIMEOUT_MS);
 
   let response: Response;
   try {

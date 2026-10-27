@@ -46,8 +46,12 @@ export interface LiveStore {
   commit(expectedVersion: number, next: LiveState, job: PersistJob): Promise<CommitResult>;
   /** The oldest job not yet written to Postgres. */
   peekJob(matchId: string): Promise<PersistJob | null>;
+  /** Up to `max` of the oldest jobs, oldest first (written to Postgres together). */
+  peekJobs(matchId: string, max: number): Promise<PersistJob[]>;
   /** Removes the oldest job once it is in Postgres. */
   ackJob(matchId: string): Promise<void>;
+  /** Removes the oldest `count` jobs once they are in Postgres. */
+  ackJobs(matchId: string, count: number): Promise<void>;
   /** Matches with jobs still queued (used to resume after a restart). */
   pendingMatches(): Promise<string[]>;
   /** Forgets a match (it ended); only call once its queue is empty. */
@@ -130,8 +134,18 @@ export class RedisLiveStore implements LiveStore {
     return raw ? (JSON.parse(raw) as PersistJob) : null;
   }
 
-  async ackJob(matchId: string): Promise<void> {
-    const remaining = await this.redis.multi().lpop(keys.queue(matchId)).llen(keys.queue(matchId)).exec();
+  async peekJobs(matchId: string, max: number): Promise<PersistJob[]> {
+    const raw = await this.redis.lrange(keys.queue(matchId), 0, max - 1);
+    return raw.map((r) => JSON.parse(r) as PersistJob);
+  }
+
+  ackJob(matchId: string): Promise<void> {
+    return this.ackJobs(matchId, 1);
+  }
+
+  async ackJobs(matchId: string, count: number): Promise<void> {
+    // Commits only append to the tail, so trimming the head never drops an unwritten job.
+    const remaining = await this.redis.multi().ltrim(keys.queue(matchId), count, -1).llen(keys.queue(matchId)).exec();
     if (remaining?.[1]?.[1] === 0) await this.redis.srem(keys.pending, matchId);
   }
 
@@ -184,8 +198,16 @@ export class MemoryLiveStore implements LiveStore {
     return Promise.resolve(this.queues.get(matchId)?.[0] ?? null);
   }
 
+  peekJobs(matchId: string, max: number): Promise<PersistJob[]> {
+    return Promise.resolve((this.queues.get(matchId) ?? []).slice(0, max));
+  }
+
   ackJob(matchId: string): Promise<void> {
-    const rest = (this.queues.get(matchId) ?? []).slice(1);
+    return this.ackJobs(matchId, 1);
+  }
+
+  ackJobs(matchId: string, count: number): Promise<void> {
+    const rest = (this.queues.get(matchId) ?? []).slice(count);
     if (rest.length) this.queues.set(matchId, rest);
     else this.queues.delete(matchId);
     return Promise.resolve();

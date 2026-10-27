@@ -6,6 +6,7 @@ export * from './DragList';
 export * from './Header';
 export * from './Icon';
 export * from './Inputs';
+export * from './PhotoViewer';
 export * from './Screen';
 export * from './Sheet';
 export * from './TabBar';

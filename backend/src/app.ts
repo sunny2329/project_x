@@ -28,6 +28,8 @@ import { createUsersRouter } from './modules/users/users.routes.js';
 import type { LiveStore } from './modules/matches/live/live-store.js';
 import { createMatchesRouter } from './modules/matches/matches.routes.js';
 import { MatchesService } from './modules/matches/matches.service.js';
+import { notificationsRepository } from './modules/notifications/notifications.repository.js';
+import { createNotificationsRouter } from './modules/notifications/notifications.routes.js';
 import { createPlayersRouter } from './modules/players/players.routes.js';
 import { PlayersService } from './modules/players/players.service.js';
 import { profileRepository } from './modules/profile/profile.repository.js';
@@ -120,7 +122,9 @@ export function createApp(deps: AppDependencies): Express & { services: AppServi
     db,
     players,
     live: deps.live?.store,
-    persistInBackground: deps.live?.shared ?? false,
+    // Without Redis, development still answers taps from memory: a far-away dev database would
+    // otherwise make every point wait seconds. Production without Redis keeps the safe, synchronous write.
+    persistInBackground: deps.live?.shared ?? env.NODE_ENV === 'development',
     logger,
   });
   const tournaments = new TournamentsService(db, players, matches);
@@ -144,6 +148,7 @@ export function createApp(deps: AppDependencies): Express & { services: AppServi
   app.use('/api/v1/posts', createSocialRouter(deps.pool, socialRepository, requireAuth));
   app.use('/api/v1/conversations', createChatRouter(new ChatService({ pool: deps.pool, repository: chatRepository, cache }), requireAuth));
   app.use('/api/v1/users', createUsersRouter(deps.pool, requireAuth));
+  app.use('/api/v1/notifications', createNotificationsRouter(deps.pool, notificationsRepository, requireAuth));
   const media = createMediaRouters(deps.pool, requireAuth);
   app.use('/api/v1/media', media.api);
   app.use(media.files);

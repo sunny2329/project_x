@@ -20,24 +20,27 @@ PROJECT_X is a sports social + sports ecosystem mobile application, built module
 1. **Authentication** — done (see below)
 2. **Profile** (Module 1) and **friendly-match scoring for all six sports** (Module 2) — done; basic
    **feed and history** (Module 3) — done. See "App navigation" and "Match module".
-3. **Posts, likes, comments** — done (text only). **Chat** (1:1 and groups, polling) — built,
-   waiting for the owner to apply the messaging tables (`docs/sql/2026-09-29_messaging_and_indexes.sql`).
+3. **Posts, likes, comments** — done (text + photos since 2026-10-21). **Chat** (1:1 and groups,
+   polling) — done; its tables are created by Prisma migration `3_app_redesign`.
    **Redis** — live match state, session cache, chat polling (see "Performance and Redis").
 4. **Product focus (2026-10-14 pivot): racket sports first** — badminton, table tennis, pickleball,
    padel, tennis — with **friendly matches** and **tournaments**, on a sport-agnostic core (scoring
    plugins + generic match/event/segment model). Volleyball, football and box cricket are kept but
    inactive. Plan: `docs/pivot/PLAN.md`; adding a sport: `ADDING_A_SPORT.md`.
    `docs/scoring-and-tournaments.md` (corporate organizations, medal tables) is post-MVP.
-5. Social Graph / Follow, Media, Notifications, Realtime, Teams, Events, Venues, Bookings,
+5. **App UI (2026-10-21): every screen rebuilt from the `ProjectX-UI/` designs** (read
+   `ProjectX-UI/HANDOFF.md` first). See "App navigation" and "Design system".
+6. Social Graph / Follow, Media, Notifications, Realtime, Teams, Events, Venues, Bookings,
    Communities, Search, Analytics — not started (`docs/database-design.md`)
 
 ### Ground rules
 
-- UI screenshots and supplied PostgreSQL schemas are the source of truth.
+- The `ProjectX-UI/screens/*.dc.html` designs and supplied PostgreSQL schemas are the source of
+  truth. Rebuild designs exactly (every button, including small ones like the coin toss).
 - No secrets in Git (`.env*` is ignored; only `.env.example` is committed).
 - Do not restructure the repo or implement future modules ahead of time.
-- The database schema is managed with **Prisma migrations** (`backend/prisma/`, since 2026-10-14).
-  The 46 original tables are recorded by `0_baseline`; never run `prisma migrate dev`/`reset` against
+- The database schema is managed with **Prisma migrations** (`backend/prisma/`, since 2026-10-14;
+  latest `3_app_redesign`). The 46 original tables are recorded by `0_baseline`; never run `prisma migrate dev`/`reset` against
   `project_x`. See `backend/prisma/README.md`.
 
 ## How to run (local development)
@@ -74,9 +77,14 @@ npm run android             # = expo run:android: builds the dev client, install
 # next time, if native deps are unchanged: npx expo start --dev-client, then press "a"
 npm test                    # Jest (jest-expo) + React Native Testing Library
 npm run typecheck && npm run lint
+npm run sync-engine         # after changing backend/src/engine/scoring (a test fails if out of date)
 ```
+Typed routes (`expo-router` typed paths) are regenerated only while `expo start` runs: start Metro
+once after adding a route, or typecheck reports the new path as invalid.
 The app normally runs as a development build. **Expo Go** also works for quick testing on a phone
-(`npx expo start`, scan the QR code, `EXPO_PUBLIC_API_URL` = the PC's LAN IP), except Google
+(`npx expo start --go`: `expo-dev-client` is installed, so without `--go` Metro serves the dev
+client and Expo Go can't open it; scan the QR code, `EXPO_PUBLIC_API_URL` = the PC's LAN IP). The
+App Store's Expo Go only runs the latest SDK, so keep the project on it for iPhone testing. Everything works except Google
 Sign-In, which is a native module Expo Go lacks: `social/google.ts` loads it lazily and shows a
 "not available" message instead of crashing. `android/` and `ios/` are generated (git-ignored); configure native behaviour
 in `app.config.ts`, never by hand-editing those folders.
@@ -94,57 +102,99 @@ in `app.config.ts`, never by hand-editing those folders.
 - Response envelope: success `{ "success": true, "data": ... }`; failure
   `{ "success": false, "error": { "code", "message", "details"? } }`. Throw `AppError` for expected
   errors; anything else becomes a logged 500 `INTERNAL_ERROR` with no stack trace to the client.
-- Database: the owner's `project_x` schema, used as is (no migrations in this repo).
+- Database: the owner's `project_x` schema; changes go through Prisma migrations (see Ground rules).
   `src/database/pool.ts` raises Node's IPv4/IPv6 connect attempt timeout to 2 s, because the
   250 ms default made every connection to Neon (us-west-2) fail with ETIMEDOUT on slow links.
 - Logging: pino. Request logs contain only method, path and status. Passwords, codes and tokens
   are redacted paths and must never be logged.
 
 ### Frontend
-- Expo SDK 57 + Expo Router. Route files in `src/app/` are one-line re-exports; screens,
-  components and logic live in `src/features/<feature>/` and `src/shared/`.
+- Expo SDK 58 (React Native 0.88, React 19.3) + Expo Router. Route files in `src/app/` are one-line re-exports; screens live in
+  `src/features/<feature>/screens/`, their parts in `features/<feature>/components/`, shared UI in
+  `src/shared/ui/` (`Buttons`, `Controls`, `Inputs`, `Display`, `Header`, `Screen`, `Sheet`,
+  `TabBar`, `Text`, `Icon`, `Chart`, `DragList`). `frontend/legacy-ui/` keeps the pre-2026-10-21
+  screens for reference only (not built, not tested).
 - `src/shared/api/client.ts` is the only place that calls `fetch`. It normalizes errors to
   `ApiError { status, code, message, details }` (`status 0` = network error), attaches tokens, and
-  refreshes once on `ACCESS_TOKEN_EXPIRED`.
+  refreshes once on `ACCESS_TOKEN_EXPIRED`. Requests time out after 15 s unless they pass
+  `timeoutMs` (match create / finish / retire / walkover / abandon use 90 s).
+- Data loading: `useResource` (fetch + reload + error), `useSearch` (debounced search),
+  `useOpened`, `useNow` / `useCountdown` in `shared/hooks/`.
+- Lint uses the React Compiler rules: no ref writes or synchronous `setState` during render or in
+  effects. Use the hooks above instead of hand-rolled effect state.
+- `src/engine/scoring/` is a generated copy of the backend's scoring engine (`npm run sync-engine`);
+  the score screen uses it to show a tapped point immediately.
 - Feature API modules (e.g. `features/auth/api/auth.api.ts`) map 1:1 to backend endpoints.
 - Global state: Zustand stores per feature (`features/auth/store/auth.store.ts`). Screens call
   store actions through `useSubmit` (`shared/hooks/useSubmit.ts`) for loading and error state.
-- Theme: `shared/theme` (palettes, spacing, radius, typography). Components read colours via
-  `useTheme()`; never hard-code colours in screens. Light / Dark / System is chosen in Settings
-  (`theme.store.ts`). Both themes follow Strava (`pics/image.png`, `pics/image copy*.png`): flat
-  `#FC5200` orange, no glow; dark = `#141414` cards and app bars on a black canvas, light = white
-  cards on `#F0F0F5`. Sport accents (`sportColor`), avatar/team tones (`toneFor`) and the welcome
-  screen (fixed dark in both themes, per `pics/0x · …@2x.png`) are the only fixed colours.
+- Theme: see "Design system" below. Components read colours via `useTheme()`; never hard-code
+  colours in screens. Light / Dark / System is chosen in Settings (`theme.store.ts`).
 - Config: `shared/config/env.ts` reads `EXPO_PUBLIC_*`. Those values are bundled into the app, so
   never put secrets there.
 
-## App navigation (Home, Sports, +, Matches, Profile)
+## Design system
 
-Signed-in navigation: `app/(app)/(tabs)/` has a custom Strava-style bottom bar
-(`shared/components/TabBar.tsx`): five flat tabs (Home, Sports, Play, Matches, You); the selected
-one has a filled orange icon. `app/(app)/edit-profile.tsx`,
-`app/(app)/settings.tsx` and `app/(app)/match/[id].tsx` open on top of it. Tab screens use
-`AppHeader` (logo + actions) or `TopBar` (title, back arrow) passed as `Screen`'s `header`.
-Profile data lives in `features/profile/store/profile.store.ts` (cleared on sign-out by the root layout).
+From `ProjectX-UI/HANDOFF.md` (tokens table there). `shared/theme/colors.ts` holds both palettes
+with the handoff's token names (`bg`, `surface`, `raised`, `line`, `fg`, `soft`, `muted`,
+`primary`, `accentText`, `sideB`, …), so a screen can be checked against its design. Dark: `#0A0A0A`
+background, `#E85D04` primary; light: white background, `#C2410C` primary. `LIVE` `#FF5468`,
+`READY` `#4ADE80` and `GOLD` are the same in both themes. Each sport has its own colour (from
+`backend/src/catalog/sports.ts`); text on sport fills is dark.
+Fonts (`shared/theme/fonts.ts`, loaded in the root layout before the splash screen hides): **Big
+Shoulders Display** 700/800/900 for titles and every score number, **Instrument Sans** 400–700 for
+everything else.
 
-| Route | Screen | Shows |
+## App navigation (Home, Tournaments, +, Chats, Profile)
+
+Each design in `ProjectX-UI/screens/` has a route; `Main.dc.html` is the flow map. The root layout
+switches between `(auth)` and `(app)` with `Stack.Protected` on the auth state. Right after sign-up
+only the onboarding routes are reachable (`auth.store.onboarding`). The tab bar
+(`shared/ui/TabBar.tsx`) has Home, Tournaments, a centre + (new match) and Chats, Profile.
+
+| Route | Screen (`features/…/screens`) | Design |
 | --- | --- | --- |
-| `/` (Home tab) | FeedScreen | Strava-style: "Home" app bar (Messages with unread badge), "Your streak" card (weeks in a row with a match, from `/profile/me/matches`; Play now), "Live now" strip (mine + people I follow, active in the last 3 h), then activity cards (mine + accepted follows, "Load more"): author, "Today at 6:34 AM · Doubles", title "Morning Pickleball", stats row (Score/Runs, Time, Games/Sets/Halves/Innings), likes/comments line, Like / Comment / Share. Floating orange + = new post. Empty and error states from the designs. |
-| `/sports` (Sports tab) | SportsScreen | "Discover": my sports as tiles (rating, W/L, primary dot), live matches carousel, 3 recent matches. |
-| `/play` (Play tab) | PlayScreen | "New match": my live matches (resume), sport grid (6), format, both sides' players (search; I am always on side 1), team names (team sports), rules, Start match. |
-| `/matches` (Matches tab) | MatchesScreen | Sport filter chips, live matches, my match history. |
-| `/profile` (You tab) | ProfileScreen | "You" app bar. Ringed avatar, matches/followers/following, name, bio, tags (primary sport, rating, win %), Edit profile / Settings, Stats tab (per-sport or overall stat grid) and Matches tab. |
-| `/settings` | SettingsScreen | Account card, Edit profile, email, phone, favourite sports, Log out, app version. |
-| `/edit-profile` | EditProfileScreen | Name, bio (≤ 500), sports played (tap to add/remove, star = primary). |
-| `/match/[id]` | MatchScreen | LIVE/FT badge + sport in the app bar; hero scoreboard (team badges, big scores, period pill, chase callout, this over); for the creator: scoring buttons, Undo, Abandon, "Save result"; for others: live view (polls every 4 s); final result with rating changes. |
-| `/create-post` | CreatePostScreen | "New post" (Home's floating +): text ≤ 2000, Public / Followers, Share. "Log match" chip opens Play. |
-| `/post/[id]` | PostDetailScreen | The post (like button), comments (oldest first, "Load more"), comment box. Long-press a comment to delete it (yours, or any on your post); trash icon deletes your own written post. |
-| `/messages` | ConversationsScreen | Home header ✈ (orange unread badge). Conversations, most recent first, last message, unread count; refreshes every 10 s while open. |
-| `/messages/new` | NewConversationScreen | Search players; one = direct chat (reused if it exists), several + a name = group. |
-| `/messages/[id]` | ChatScreen | Messages (newest at the bottom, day separators, sender names in groups, orange bubbles for mine), composer, polls every 3 s while open, older pages on scroll. Long-press your message to delete it; groups have Leave. |
+| `/welcome` | auth/WelcomeScreen | Welcome |
+| `/signup` → `/signup-code` → `/signup-details` | auth/SignupPhoneScreen, CodeScreen, SignupDetailsScreen | SignupPhone, VerifyCode, SignupDetails |
+| `/login`, `/login-code` | auth/LoginScreen, CodeScreen | Login (password or SMS code), VerifyCode |
+| `/forgot-password`, `/settings/password` | auth/ForgotPasswordScreen | ForgotPassword |
+| `/onboarding/sports`, `/onboarding/claim`, `/onboarding/details` | profile/PickSportsScreen, ClaimMatchesScreen, auth/SignupDetailsScreen | PickSports, ClaimMatches |
+| `/` (Home tab) | feed/HomeScreen | Home (feed, live strip, bell with unread badge) |
+| `/notifications` | notifications/NotificationsScreen | no design yet (likes, comments, new posts, follows) |
+| `/post/new`, `/post/[id]` | feed/NewPostScreen, PostDetailScreen | NewPost (text, photo, attached match), PostDetail |
+| `/chats` (tab), `/chat/[id]` | chat/ChatListScreen, ChatThreadScreen | ChatList, ChatThread (can send a match result) |
+| `/profile` (tab), `/profile/edit`, `/profile/matches` | profile/ProfileScreen, EditProfileScreen, MatchHistoryScreen | Profile, EditProfile (photo, city), MatchHistory |
+| `/user/[id]`, `/search` | profile/PlayerProfileScreen, SearchScreen | PlayerProfile (follow), Search |
+| `/follows/[id]` | profile/FollowListScreen | no design yet (Instagram-style followers / following, remove follower) |
+| `/settings` | profile/SettingsScreen | Settings (theme, devices, linked Google/Apple, sign out others) |
+| `/match/new` → `/match/setup` → `/match/serve` | match/NewMatchSportScreen, NewMatchSetupScreen, ServeFirstScreen | NewMatchSport, NewMatchSetup (+ AddPlayer sheet), ServeFirst (coin toss) |
+| `/match/[id]` | match/ScoreScreen | the six Score<Sport> designs as **one** screen driven by the plugin's `actions[]`; ScorerMenu and RetireSheet are sheets; MatchComplete is its finished state |
+| `/match/[id]/watch`, `/match/[id]/result` | match/SpectatorScreen, MatchResultScreen | Spectator, MatchResult |
+| `/match/enter`, `/match/[id]/confirm` | match/EnterResultScreen, ConfirmResultScreen | EnterResult, ConfirmResult |
+| `/tournaments` (tab), `/tournaments/mine` | tournaments/TournamentListScreen, MyMatchesScreen | TournamentList, MyMatches |
+| `/tournament/new`, `/tournament/[id]`, `/tournament/[id]/register` | CreateTournamentScreen, TournamentPageScreen, RegisterScreen | CreateTournament, TournamentPage, Register |
+| `/tournament/[id]/manage`, `…/staff`, `…/courts`, `…/schedule`, `…/event/new` | OrgDashboardScreen, StaffCourtsScreen, CourtBoardScreen, ScheduleScreen, AddEventScreen | OrgDashboard, StaffCourts, CourtBoard, Schedule, AddEvent |
+| `/event/[id]` (+ `/entries`, `/draw`, `/groups`, `/bracket`, `/podium`) | EventPageScreen, EntriesScreen, DrawScreen, GroupsScreen, BracketScreen, PodiumScreen | EventPage, Entries, DrawPreview, DrawGroups / GroupTable, BracketView, Podium |
+| `/fixture/[id]`, `/fixture/[id]/result` | FixtureScreen, FixtureResultScreen | Fixture, EnterResult |
 
-Not built yet (decided 2026-09-29): **city** (no city table in the schema) and **profile photo**
-(no file storage chosen; an initials avatar is shown instead). Posts have no photos yet for the same reason.
+PublicMatch and PublicTournament are server-rendered pages (`backend/src/modules/public/public.pages.ts`, `/s/:token`, `/t/:slug`).
+
+**Live scoring in the app** (`features/match/hooks/useLiveScoring.ts`): a tap is applied at once
+with the local engine copy, queued, and sent in order with the match `version`. `STALE_MATCH`
+reloads and resends the queue; codes like `MATCH_OVER` drop it. Finish / retire / walkover first wait
+up to 60 s for the queue to send; if points are still unsent they show "Still saving the last
+points" instead of acting on an old score. The Finish button reads "Finish match · saving points"
+while the queue sends.
+
+### Social, users and media APIs (since 2026-10-21, bearer token)
+| Method & path | What |
+| --- | --- |
+| GET `/api/v1/users/search?q=`, GET `/users/:id`, GET `/users/:id/matches` | player search, public profile, match history |
+| GET `/users/:id/followers`, GET `/users/:id/following` (`q`, `cursor`, `limit`), DELETE `/users/me/followers/:id` | follow lists (newest first, keyset cursor `<created_at>_<follow id>`, active + unblocked only, rows carry `isFollowing` / `followsMe`), remove a follower |
+| PUT / DELETE `/api/v1/users/:id/follow` | follow / unfollow |
+| POST `/api/v1/media` (base64 JSON, ≤ 3 MB, jpeg/png/webp checked by signature), GET `/media/:id` | photos stored in Postgres (`media_files`); the app resizes to ≤ 1600 px first (`shared/media/upload.ts`) |
+| GET `/api/v1/players/claimable`, POST `/players/claim` (`playerIds?`) | guest matches with my verified phone; claimed explicitly |
+| GET `/api/v1/matches/:id/details` | the match result screen's data |
+| GET `/api/v1/tournaments/me/matches`, GET `/tournaments/:id/fixtures`, DELETE `/fixtures/:id/scorers/:userId` | My matches, schedule, scorer removal |
 
 ### Posts API (`/api/v1/posts`, bearer token)
 | Method & path | Body / query | Success | Errors |
@@ -160,8 +210,8 @@ Not built yet (decided 2026-09-29): **city** (no city table in the schema) and *
 `post` = feed post + `visibility`. Visible to me = mine, or public (NULL visibility counts as public),
 or followers-only and I follow the author (accepted); never across a block; author active. Written
 posts use `social_post.post_type_id` 802; visibility 1201 Public / 1202 Followers (seeded).
-`social_post.match_id` is UNIQUE and every finished match already has its result post, so written
-posts can't tag a match without a schema change.
+`social_post.match_id` is UNIQUE and stays the automatic result post; a written post attaches a
+match through `attached_match_id` (since 2026-10-21) and up to 4 photos (`mediaIds`).
 
 ### Messages API (`/api/v1/conversations`, bearer token) — needs the messaging tables
 | Method & path | Body / query | Success | Errors |
@@ -182,6 +232,25 @@ lastMessage, unreadCount, updatedAt}`; `message` = `{id, conversationId, sender,
 deleted), createdAt, deleted}`. Polling cost: the cache holds each conversation's member ids (10 min,
 cleared on add/leave) and newest message id (set on send, cleared on delete), so `?after=<newest>`
 ("anything new?") is answered from Redis without touching Postgres.
+
+### Notifications API (`/api/v1/notifications`, bearer token) — needs migration `4_notifications`
+| Method & path | Body / query | Success | Errors |
+| --- | --- | --- | --- |
+| GET `/` | `?limit=1..50` (30), `?cursor=<nextCursor>` | 200 `{notifications, unreadCount, nextCursor}` newest first | 400 VALIDATION_ERROR |
+| GET `/unread` | – | 200 `{count}` (the bell's badge) | – |
+| POST `/read` | – | 200 `{read: true}` (all of mine) | – |
+| POST `/:id/read` | – | 200 `{read: true}` | 404 NOTIFICATION_NOT_FOUND (also someone else's) |
+
+`notification` = `{id, type: like|comment|post|follow, title ("Asha liked your post"), message (the
+comment or the post text, ≤ 140 chars), isRead, createdAt, actor: {id, username, fullName, photoUrl},
+postId (null for follows)}`. Stored in the legacy `notification` table plus `actor_id` (migration 4);
+`notification_type_id` is type_master category 14: 1401 Like, 1402 Comment, 1403 New post, 1404 Follow;
+`reference_id` = the post. Written by `notificationsRepository` from the social and users routers:
+like (once per person and post; unlike deletes it), comment, new written post (every accepted follower,
+both visibilities), follow (once; unfollow deletes it). Never for your own actions or across a block.
+Deleting a post deletes its notifications; the list and count also skip a missing post, a blocked pair
+or an inactive actor. Match-result posts don't notify. In-app only: Home polls `/unread` every 30 s
+while focused, and opening the screen marks all read. No push notifications yet.
 
 ### Profile, sports & feed API (all require `Authorization: Bearer`)
 | Method & path | Body / query | Success |
@@ -219,13 +288,16 @@ took ~3 s. Decided: move Neon to Singapore (ap-southeast-1, ~70 ms) and add Redi
 
 **Redis (`REDIS_URL`, optional).** Without it everything still works, with in-memory stand-ins
 (single server only) and scoring waits for Postgres.
-- **Live matches** (`modules/match/live/`): each live match's state (rules, sides, events,
+- **Live matches** (`modules/matches/live/`): each live match's state (rules, sides, events,
   version, period start times) is kept under `live:match:<id>` / `live:version:<id>` (24 h). A
   scoring tap or undo = read state + one atomic Lua commit that checks the version, stores the new
   state and appends a job to `live:queue:<id>` (match id added to `live:pending`); the response is
-  sent immediately. `LivePersister` then writes the jobs to Postgres in order, one transaction each,
-  removing a job only after commit; jobs are idempotent (by `sequence_no`), failed writes retry
-  every 3 s, and queues left from a crash are resumed at startup. Before finish / abandon, and
+  sent immediately. `LivePersister` then writes the jobs to Postgres in order, **up to 100 jobs per
+  transaction** (`peekJobs` / `ackJobs`; a backlog from fast tapping catches up in one write),
+  removing jobs only after commit; jobs are idempotent (by event `sequence`), failed writes retry
+  every 3 s, and queues left from a crash are resumed at startup. Background writing is on with
+  Redis, and **also in development without Redis** (in memory), so a far-away dev database doesn't
+  slow every tap; production without Redis writes synchronously. Before finish / abandon, and
   before reloading a match from Postgres, the queue is flushed first. Match GETs, spectator polls
   and the live list's scores come from Redis. Ended matches are dropped from Redis.
 - **Sessions** (`modules/auth/session-cache.ts`): the per-request "is this session active?" lookup
@@ -266,8 +338,10 @@ took ~3 s. Decided: move Neon to Singapore (ap-southeast-1, ~70 ms) and add Redi
 - **Ratings** move only when every participant is a registered player and the match was played or
   retired (never walkovers). Manually entered friendly results wait for a registered opponent's
   confirmation (`/confirm`); a dispute sets the match `disputed` and removes it from records.
-- **Guests:** players without accounts (`players.user_id` null). Signing up with the same verified
-  phone takes over the guest's history; `POST /players/claim` merges more guests later.
+- **Guests:** players without accounts (`players.user_id` null). Since 2026-10-21 a new user claims
+  guest history explicitly: onboarding's ClaimMatches lists `GET /players/claimable` (guests with
+  the user's verified phone) and `POST /players/claim` merges the chosen ones (60 s transaction:
+  merging rebuilds stats).
 
 ### API (all `/api/v1`, bearer token unless noted)
 | Area | Endpoints |
@@ -290,25 +364,20 @@ took ~3 s. Decided: move Neon to Singapore (ap-southeast-1, ~70 ms) and add Redi
 ## Auth module
 
 ### Screens and flows
-Design reference: Strava's onboarding, Create an Account and Log In screens (`pics/image copy 2.png`,
-`image copy 3.png`, `image copy 4.png`): plain back arrow, big left-aligned title, outlined fields
-without icons, a flat orange button that stays dimmed until the fields are filled, "or", outlined
-"Continue with …" pills. Unlike Strava (email first), sign-in keeps username / email / phone +
-password on one screen. Shared shell: `features/auth/components/AuthScreenLayout.tsx`.
+Designs: Welcome, SignupPhone, VerifyCode, SignupDetails, Login, ForgotPassword in `ProjectX-UI/screens/`.
 
 | Route | Screen | Flow |
 | --- | --- | --- |
-| `/welcome` | WelcomeScreen | First signed-out screen. Fixed dark, matches `pics/01–04 · …@2x.png`. Swipeable slides: per-slide SVG court background (`CourtBackground`: blue / green / clay / night), "PROJECTX" wordmark with orange X, a phone mockup of live scoring / feed / ratings / crew chat (`WelcomeArt.tsx`), white pitch line; fixed controls below: pill page dots, orange "Join for free" → `/sign-up`, orange "Log in" link → `/sign-in` |
-| `/sign-in` | SignInScreen | "Log In to ProjectX": username, email or phone + password → `POST /login`. Links: Forgot password, Create an account; Continue with Google / phone / Apple (iOS only) |
-| `/sign-up` | SignUpScreen | "Create an Account": name, username, email, phone, password, confirm → `POST /register/start` (SMS code) → `/verify?flow=signup`. No Google button: Google/Apple can't create accounts (see Security model) |
-| `/phone` | PhoneSignInScreen | Phone → `POST /phone/start` → `/verify?flow=phone` |
-| `/verify` | VerifyCodeScreen | 6-digit code (auto-submit, SMS autofill, 30 s resend cooldown) → `POST /register/complete` or `POST /phone/verify` |
-| `/forgot-password` | ForgotPasswordScreen | Username, email or phone → `POST /password/forgot` (code to the account's phone) → `/reset-password` |
-| `/reset-password` | ResetPasswordScreen | Code + new password → `POST /password/reset` → back to sign-in with a success notice |
+| `/welcome` | WelcomeScreen | First signed-out screen: "Join for free" → `/signup`, "Log in" → `/login` |
+| `/signup` | SignupPhoneScreen | Step 1: phone + username (live check via `GET /username-available`) → `POST /register/start` (SMS code) |
+| `/signup-code` | CodeScreen | Step 2: 6-digit code → `POST /register/verify` → short-lived registration token |
+| `/signup-details` | SignupDetailsScreen | Step 3: name, password, optional email + the token → `POST /register/complete`; then onboarding (pick sports, claim guest matches) |
+| `/login` | LoginScreen | Username, email or phone + password → `POST /login`, or "use a code" → `/login-code` (`/phone/start`, `/phone/verify`); Google / Apple |
+| `/forgot-password` | ForgotPasswordScreen | Identifier → code → new password (`/password/forgot`, `/password/reset`); also `/settings/password` when signed in |
 
 Navigation is state-driven: the root layout uses `Stack.Protected` on `auth.store.status`, so
 signing in or out switches stacks automatically, with no imperative redirects. The splash screen
-stays up while `bootstrap()` restores the session.
+stays up while `bootstrap()` restores the session and the fonts load.
 
 ### Auth API (`/api/v1/auth`)
 All bodies are JSON. Phones must be E.164 (`+919876543210`); the app normalizes user input
@@ -320,8 +389,10 @@ Passwords: 8–128 characters, at least one letter and one digit. Codes: 6 digit
 
 | Method & path | Body | Auth | Success | Notable errors |
 | --- | --- | --- | --- | --- |
-| POST `/register/start` | username, fullName, email, phone, password | – | 200 `{message}`; SMS sent | 400 VALIDATION_ERROR, 409 USERNAME_TAKEN / EMAIL_TAKEN / PHONE_TAKEN, 429 |
-| POST `/register/complete` | same + code | – | 201 `{user, tokens}` | 400 INVALID_CODE, 409 |
+| POST `/register/start` | phone, username | – | 200 `{message}`; SMS sent | 400 VALIDATION_ERROR, 409 USERNAME_TAKEN / PHONE_TAKEN, 429 |
+| POST `/register/verify` | phone, code | – | 200 registration token (short-lived; proves the phone) | 400 INVALID_CODE, 429 |
+| POST `/register/complete` | token, username, fullName, password, email? | – | 201 `{user, tokens}` | 409 |
+| GET `/username-available` | `?username=` | – | 200 availability | – |
 | POST `/login` | identifier, password | – | 200 `{user, tokens}` | 401 INVALID_CREDENTIALS, 403 ACCOUNT_DISABLED, 429 |
 | POST `/phone/start` | phone | – | 200 generic `{message}` (sent only if registered) | 429 |
 | POST `/phone/verify` | phone, code | – | 200 `{user, tokens}` | 400 INVALID_CODE, 429 OTP_ATTEMPTS_EXCEEDED (5 wrong codes) |
@@ -332,6 +403,8 @@ Passwords: 8–128 characters, at least one letter and one digit. Codes: 6 digit
 | POST `/refresh` | refreshToken | – | 200 `{user, tokens}` (token rotated) | 401 INVALID_REFRESH_TOKEN |
 | POST `/logout` | refreshToken | – | 204 (idempotent) | – |
 | GET `/me` | – | Bearer | 200 `{user}` | 401 AUTH_REQUIRED / INVALID_ACCESS_TOKEN / ACCESS_TOKEN_EXPIRED / SESSION_REVOKED |
+| GET `/sessions`, POST `/sessions/sign-out-others` | – | Bearer | signed-in devices (`auth_session.device_name`, sent by the app via `expo-device`) | – |
+| GET `/identities`, POST `/identities/google` / `/apple`, DELETE `/identities/:provider` | idToken / identityToken | Bearer | linked sign-in providers (`auth_identity`) | 409 IDENTITY_IN_USE |
 
 `user` = `{ id, username, fullName, email, phone, emailVerified, phoneVerified, createdAt }`
 (`fullName` = `usr_user_profile.display_name`; `phone` is E.164).
@@ -379,15 +452,17 @@ update that file to match.
   app therefore runs refreshes single-flight.
 - The app keeps tokens only in `expo-secure-store` (Keychain / Keystore,
   `AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY`), never in AsyncStorage, and keeps them out of React state.
-- No account enumeration: login returns a single INVALID_CREDENTIALS error, and unknown accounts
-  run a dummy argon2 verify to equalize timing. `phone/start` and `password/forgot` always answer
-  generically. Sign-up does reveal duplicates (409), which is inherent to sign-up and rate-limited.
+- Login returns a single INVALID_CREDENTIALS error for a wrong password or an unknown account, and
+  unknown accounts run a dummy argon2 verify to equalize timing. `phone/start` and `password/forgot`
+  answer 404 `NO_ACCOUNT` / 403 `ACCOUNT_DISABLED` instead of a silent "if an account exists": sign-up
+  already reveals a taken phone (409), so the generic reply hid nothing and left people waiting for a
+  text that never came. The per-IP / per-identifier send limits below cap probing.
 - Rate limits (in-memory, per process): 300 requests / 15 min per IP on all auth routes;
   sending codes: 20/h per IP and 5/h per phone or identifier; checking codes: 10 / 15 min per
   target; login: 10 / 15 min per identifier. Each code also allows at most 5 checks (`auth_otp.max_attempts`).
-- Social sign-in only signs in an **existing** account whose email the provider asserts as
-  verified. The schema has no provider-identity table, and `usr_user` requires a username, phone
-  and password, so Google/Apple cannot create accounts.
+- Social sign-in only signs in an **existing** account: one that linked the provider in Settings
+  (`auth_identity`, since 2026-10-21) or whose email the provider asserts as verified. `usr_user`
+  requires a username, phone and password, so Google/Apple cannot create accounts.
 
 ### Environment variables
 Backend (`backend/.env`, template `backend/.env.example`): `NODE_ENV`, `PORT`, `LOG_LEVEL`,
@@ -420,15 +495,123 @@ Frontend (`frontend/.env`, template `frontend/.env.example`): `EXPO_PUBLIC_API_U
   adding as the user count grows.
 - Email is collected but never verified (no email provider yet). `emailVerified` stays false
   unless Google/Apple verified it.
-- Google/Apple sign-in only works for accounts that already exist with the same email.
+- Google/Apple sign-in only works for existing accounts (linked in Settings, or the same verified email).
 - Backend API tests (`src/modules/auth/__tests__/`) still target the old schema and do not run:
   the test harness must be rewritten to build an isolated copy of the `project_x` tables.
-- Font: the design screenshot appears to be rendered in Ubuntu. The app uses the platform
-  system font until a brand font is chosen.
-- Only the dark Sign in screen was supplied. The light palette and the other five screens were
-  derived from it and should be checked against real designs when they exist.
 
 ## Changelog
+
+### 2026-10-25 — Follower / following lists, remove follower, photo viewer (uncommitted)
+- API: `GET /users/:id/followers` and `/following`: newest first, search by username / name,
+  keyset paging. `DELETE /users/me/followers/:id` removes a follower and their follow notification,
+  without telling them. Follower counts now leave out suspended accounts so they match the lists.
+- App: the counts on Profile and on another player's profile open `follows/[id]` (FollowListScreen),
+  with Followers / Following tabs, search, Remove (with a confirm) on my own followers, and
+  Follow / Following / Follow back elsewhere. Tapping a profile photo opens it enlarged
+  (`ExpandableAvatar` / `PhotoViewer` in shared/ui, React Native `Modal` + `Animated`, no new packages).
+- Tests: `users/__tests__/follows.api.test.ts` (14), covering auth, validation, order, paging with the
+  cursor row unfollowed mid-walk, search escaping, viewer-relative flags, suspended and blocked
+  accounts, remove (idempotent, own followers only, re-follow). Checklist §14, §36 and new §36b.
+
+### 2026-10-25 — Forgot password / code login say when there's no account (uncommitted)
+- `POST /auth/password/forgot` and `/auth/phone/start` now return 404 `NO_ACCOUNT` for an unknown
+  username/email/phone and 403 `ACCOUNT_DISABLED` for a suspended one, instead of a silent 200
+  ("If an account exists…"). Found in testing: the app said "We texted a code" for an identifier
+  with no account, so the dev code `123456` was rejected as "incorrect or expired". SMS failures
+  now surface as 503 `SMS_UNAVAILABLE` instead of being swallowed.
+- Tests: lookup by username/email/phone in any case and spacing; unknown → 404 with no SMS;
+  suspended → 403 (and its last code stops working); a newer code replaces the old; a used code
+  can't be reused. Checklist §5 and §7 updated.
+
+### 2026-10-25 — Fewer database round trips: Prisma `relationJoins` (uncommitted)
+- Why: the round-robin flow test timed out (240 s). Measured: each Neon round trip is ~480 ms from
+  here (us-west-2; the Singapore move is still not done), and Prisma ran one query per `include`d
+  relation: a fixture result took 144 queries (52 s), a draw 71 (82 s), creating a tournament 18.
+- Fix: `previewFeatures = ["relationJoins"]` in `schema.prisma`, so each include tree is one joined
+  query. Now: fixture result 58 queries (25 s), draw 26 (10 s), create tournament 7 (2.9 s), event
+  view 51 → 13. No code changes; same results.
+- Still to do: `fixtureManualResult` starts a live match and then records the result in a second
+  transaction, loading the match view ~6 times; folding that into one transaction would cut ~30 more.
+  Moving Neon to Singapore remains the biggest win.
+
+### 2026-10-25 — Notifications: bell on Home (uncommitted)
+- DB: migration `4_notifications` (applied to `project_x`) reuses the legacy `notification` table:
+  adds `actor_id` (FK `usr_user`, cascade), type_master rows 1401–1404 (also in `seed.ts`), and indexes
+  for the list, the unread count and post cleanup. `schema.prisma` names the two `usr_user` relations
+  (`NotificationRecipient`, `NotificationActor`).
+- Backend: new `modules/notifications` (codes, repository, router at `/api/v1/notifications`); likes,
+  comments, new posts, post deletion, follows and unfollows write or remove notifications; Swagger
+  tag "Notifications"; `__tests__/notifications.api.test.ts` (15 tests: auth, validation, follows, posts,
+  likes, comments, truncation, deletes, read state, paging, blocks, suspended actors; all passing).
+- App: `bell` icon; Home header bell (left of search) with a red unread badge (polled every 30 s while Home is
+  focused); new `/notifications` screen (`features/notifications`), paginated, tap → post or profile.
+- `docs/TESTING_CHECKLIST.md`: new Part 0 (architecture) and Part H (cross-cutting checks); page 11b; the
+  missing API-only routes (`/health`, `/sports/:slug`, `/fixtures/mine`) in Part D; notification rows on pages 11, 33, 34, 35, the table
+  index, and Part G notes. Not yet checked on a device.
+
+### 2026-10-25 — Expo SDK 57 → 58 (uncommitted)
+- Why: the iPhone App Store's Expo Go only runs SDK 58, so the app couldn't be opened there.
+- `frontend/package.json` + lockfile (regenerated from scratch): every `expo-*` package to ~58,
+  `react-native` 0.88.0, `react` 19.3.0, matching `@types/react`, `jest` 30, `jest-expo` 58,
+  `eslint-config-expo` 58, `@react-native/jest-preset` 0.88. `expo-doctor`: 20/20 checks passed.
+- Breaking API fix: `shared/ui/TabBar.tsx`. SDK 58's tab bar props no longer include `navigation`;
+  it now uses `emitter.emit` + `navigateToTab(route.key)`.
+- Type-only fixes: refs typed as `ScrollViewInstance` (`BracketScreen`) and `TextInputInstance`
+  (`Inputs` OTP field); `HomeScreen` FlatList footer uses `undefined` instead of `null`.
+- Logout fix: `src/app/_layout.tsx` sets `redirectTo="/welcome"` on the `(app)` guard. Without it,
+  SDK 58 falls back to `/`, the pathless-group path that resolves to the guarded home tab, so signing
+  out landed on Expo Router's dev Sitemap ("System Information").
+- Verified: typecheck clean, lint 0 errors, and Metro serves `exposdk:58.0.0` with a working iOS bundle.
+  Not yet checked on a device.
+
+### 2026-10-25 — Swagger covers every route; testing checklist (uncommitted)
+- `backend/src/docs/openapi.ts`: added the 20 routes that were missing, for 102 operations in all:
+  auth register/verify, username-available, sessions, sign-out-others, identities; match details;
+  players claimable (+ the `claim` body); tournaments `me/matches` and `:id/fixtures`; removing a
+  court scorer; Users (search, profile, matches, follow) and Media (upload, `/media/:id`). Also added
+  missing query params (`sport`, `filter`, `q`) and removed the out-of-date "chat tables not applied"
+  note. `claimSchema` is now exported from `players.routes.ts`.
+- `docs/TESTING_CHECKLIST.md`: a page-by-page manual test plan listing the tables, Redis keys and
+  services each screen reads and writes.
+
+### 2026-10-23 — Live scoring speed and safe finishing (uncommitted)
+- Backend: `LivePersister` writes up to 100 queued jobs per transaction (`LiveStore.peekJobs` /
+  `ackJobs`, Redis `LRANGE` + `LTRIM`); `MatchesService.persistJobs` inserts new events with one
+  `createMany` and rebuilds projections once per batch. Without Redis, development now scores in
+  the background too (`app.ts`); production without Redis is unchanged. Guest merge transaction
+  limit raised to 60 s.
+- App: `RequestOptions.timeoutMs`; match create / complete / retire / walkover / abandon wait 90 s.
+  Finishing waits up to 60 s for queued points, then shows "Still saving the last points" rather
+  than acting on an old version; Finish stays enabled and reads "Finish match · saving points".
+- Checked: backend and app typecheck, live-store tests (5). Not yet tried on a device.
+
+### 2026-10-21 — App rebuilt from the ProjectX-UI designs (commit `64654ac`)
+- Every design in `ProjectX-UI/screens/` has a route (see "App navigation"); new design system
+  (handoff tokens, Big Shoulders Display + Instrument Sans) and shared UI kit in `shared/ui/`.
+  Old screens moved to `frontend/legacy-ui/` (excluded from tests).
+- Tabs: Home, Tournaments, + (new match), Chats, Profile. Match flow: sport → setup (+ add player /
+  guest) → serve first (coin toss) → one generic `ScoreScreen` for all six sports, with scorer menu
+  and retire sheets, the finished state, spectator view, result, enter / confirm result.
+  Tournament organiser and player screens (create, events, entries, draw, groups, bracket, podium,
+  schedule, courts, staff, fixtures, register, my matches).
+- Optimistic scoring: the backend's scoring engine is copied into `frontend/src/engine/scoring`
+  (`npm run sync-engine`); `useLiveScoring` shows taps at once and sends a queue.
+- Auth: sign-up in 3 steps (`/register/start` phone + username → `/register/verify` code → token →
+  `/register/complete`), `/username-available`, login by password or SMS code, devices list and
+  sign-out-others, linked Google/Apple identities. Onboarding: pick sports, claim guest matches
+  (`/players/claimable`, explicit `/players/claim`).
+- New APIs: `/users` (search, profile, matches, follow), `/media` (photo upload / serve),
+  `/matches/:id/details`, `/tournaments/me/matches`, `/tournaments/:id/fixtures`, fixture scorer
+  removal; posts take `mediaIds` (≤ 4) and an attached `matchId`; chat messages can carry a match.
+- Prisma migration `3_app_redesign`: chat tables (from the 2026-09-29 proposal) + `chat_message.match_id`,
+  `auth_identity`, `media_files` (photos as `bytea`, ≤ 3 MB), `social_post.attached_match_id`,
+  `usr_user_profile.city`, `auth_session.device_name`, `tournaments.entry_fee`. Whether it has been
+  applied to `project_x` was not re-checked on 2026-10-23 (the database was unreachable).
+- Public pages `/s/:token` and `/t/:slug` restyled to the PublicMatch / PublicTournament designs.
+- New dependencies: backend `swagger-ui-express`; app `@expo-google-fonts/*`,
+  `@react-native-community/datetimepicker`, `expo-clipboard`, `expo-device`, `expo-haptics`,
+  `expo-image-manipulator`, `expo-image-picker`, `expo-keep-awake`, `zod` (dev builds need a rebuild).
+- New docs: `docs/auth-tables-and-flow.md`, `docs/product-modules-tournaments-scoring.md` (+ PDFs).
 
 ### 2026-10-19 — Welcome screen redesign
 - `/welcome` rebuilt to the four `pics/0x · …@2x.png` designs (Live scoring, Your people, Ratings,

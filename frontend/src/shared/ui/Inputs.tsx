@@ -1,5 +1,5 @@
 import { useRef, useState, type ReactNode } from 'react';
-import { Pressable, TextInput, View, type TextInputProps, type ViewStyle } from 'react-native';
+import { Pressable, TextInput, View, type TextInputInstance, type TextInputProps, type ViewStyle } from 'react-native';
 import { bodyFont, displayFont, useTheme } from '@/shared/theme';
 import { Icon } from './Icon';
 import { T } from './Text';
@@ -178,7 +178,7 @@ export function SearchField({
 /** Six code boxes over one hidden input (paste and SMS autofill work). */
 export function CodeBoxes({ value, onChange, length = 6, autoFocus = true }: { value: string; onChange: (v: string) => void; length?: number; autoFocus?: boolean }) {
   const { colors } = useTheme();
-  const input = useRef<TextInput>(null);
+  const input = useRef<TextInputInstance>(null);
   const [focused, setFocused] = useState(false);
   return (
     <Pressable onPress={() => input.current?.focus()} accessibilityLabel={`${length}-digit code`} style={{ flexDirection: 'row', gap: 8 }}>

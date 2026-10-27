@@ -5,7 +5,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/features/auth/store/auth.store';
 import { LiveMatchCard } from '@/features/match/components/MatchCards';
 import { matchApi } from '@/features/match/api/match.api';
+import { notificationsApi } from '@/features/notifications/api/notifications.api';
 import type { MatchCard, MatchView } from '@/features/match/types';
+import { useResource } from '@/shared/hooks/useResource';
 import { LIVE, useTheme } from '@/shared/theme';
 import { Button, EmptyState, Icon, IconButton, Notice, T, Tap, Wordmark } from '@/shared/ui';
 import { firstName, plural } from '@/shared/utils/format';
@@ -30,6 +32,9 @@ export default function HomeScreen() {
   const [live, setLive] = useState<MatchCard[]>([]);
   const [pending, setPending] = useState<{ count: number; first: MatchView } | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  // The bell's badge: checked on focus and every 30 s while Home is on screen.
+  const unread = useResource(() => notificationsApi.unread(), [], { poll: 30_000 });
+  const unreadCount = unread.data?.count ?? 0;
 
   const loadExtras = useCallback(async () => {
     const [liveRes, pendingRes] = await Promise.allSettled([matchApi.live(), matchApi.pendingConfirmations()]);
@@ -57,7 +62,7 @@ export default function HomeScreen() {
 
   const pull = async () => {
     setRefreshing(true);
-    await Promise.all([feed.refresh(), loadExtras()]);
+    await Promise.all([feed.refresh(), loadExtras(), unread.reload()]);
     setRefreshing(false);
   };
 
@@ -66,6 +71,35 @@ export default function HomeScreen() {
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20 }}>
         <Wordmark size={28} />
         <View style={{ flexDirection: 'row', gap: 8 }}>
+          <IconButton
+            icon="bell"
+            label={unreadCount ? `Notifications, ${unreadCount} new` : 'Notifications'}
+            onPress={() => router.push('/notifications')}
+            badge={
+              unreadCount ? (
+                <View
+                  style={{
+                    position: 'absolute',
+                    top: 4,
+                    right: 4,
+                    minWidth: 18,
+                    height: 18,
+                    paddingHorizontal: 4,
+                    borderRadius: 9,
+                    borderWidth: 2,
+                    borderColor: colors.surface,
+                    backgroundColor: LIVE,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <T size={10} w={800} color={colors.ink}>
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </T>
+                </View>
+              ) : undefined
+            }
+          />
           <IconButton icon="search" label="Search" onPress={() => router.push('/search')} />
           <IconButton icon="pen" label="New post" onPress={() => router.push('/post/new')} />
         </View>
@@ -145,7 +179,7 @@ export default function HomeScreen() {
             />
           )
         }
-        ListFooterComponent={feed.loadingMore ? <ActivityIndicator color={colors.muted} style={{ marginVertical: 16 }} /> : null}
+        ListFooterComponent={feed.loadingMore ? <ActivityIndicator color={colors.muted} style={{ marginVertical: 16 }} /> : undefined}
         onEndReached={() => void feed.loadMore()}
         onEndReachedThreshold={0.4}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void pull()} tintColor={colors.muted} />}

@@ -80,3 +80,29 @@ export function FormTile({ result, size = 30 }: { result: 'W' | 'L'; size?: numb
     </View>
   );
 }
+
+/** "12 followers · 30 following"; each half opens that list (Instagram-style). */
+export function FollowCounts({ userId, username, followers, following, center = false }: { userId: string; username: string; followers: number; following: number; center?: boolean }) {
+  const { colors } = useTheme();
+  const open = (tab: 'followers' | 'following') =>
+    router.push({ pathname: '/follows/[id]', params: { id: userId, tab, username, followers: String(followers), following: String(following) } });
+  const part = (count: number, label: string, tab: 'followers' | 'following') => (
+    <Tap label={`${count} ${label}`} onPress={() => open(tab)} style={{ paddingVertical: 4 }}>
+      <T size={14} color={colors.soft}>
+        <T size={14} w={700}>
+          {count}
+        </T>{' '}
+        {label}
+      </T>
+    </Tap>
+  );
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: center ? 'center' : 'flex-start' }}>
+      {part(followers, followers === 1 ? 'follower' : 'followers', 'followers')}
+      <T size={14} color={colors.soft}>
+        ·
+      </T>
+      {part(following, 'following', 'following')}
+    </View>
+  );
+}

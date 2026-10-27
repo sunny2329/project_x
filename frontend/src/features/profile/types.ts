@@ -88,6 +88,18 @@ export interface UserSummary {
   ratings: { sportId: string; slug: string; name: string; accentColor: string; rating: number }[];
 }
 
+/** A row in a followers / following list; `isFollowing` / `followsMe` are relative to me. */
+export interface FollowListUser extends UserSummary {
+  followsMe: boolean;
+}
+
+export type FollowList = 'followers' | 'following';
+
+export interface FollowListPage {
+  users: FollowListUser[];
+  nextCursor: string | null;
+}
+
 export interface PublicProfile extends UserSummary {
   bio: string | null;
   displayName: string | null;

@@ -23,6 +23,20 @@ export interface UserSummary {
   ratings: SportRating[];
 }
 
+/** Someone in a followers / following list. */
+export interface FollowListUser extends UserSummary {
+  /** They follow the viewer (for "Follow back"). */
+  followsMe: boolean;
+}
+
+export type FollowList = 'followers' | 'following';
+
+/** Keyset position in a follow list: the follow row's exact `created_at` text and its id. */
+export interface FollowCursor {
+  createdAt: string;
+  id: string;
+}
+
 export interface HeadToHead {
   /** Viewer vs this user. */
   wins: number;
@@ -94,6 +108,41 @@ export const usersRepository = {
 
   async unfollow(db: Queryable, followerId: string, followingId: string): Promise<void> {
     await db.query('DELETE FROM usr_user_follow WHERE follower_id = $1 AND following_id = $2', [followerId, followingId]);
+  },
+
+  /**
+   * Who follows `userId` (or whom they follow), newest first, as `viewerId` sees them: active
+   * accounts only, nobody blocked either way, optionally filtered by username / name.
+   */
+  async listFollows(
+    db: Queryable,
+    viewerId: string,
+    userId: string,
+    list: FollowList,
+    options: { q?: string | undefined; limit: number; after?: FollowCursor | undefined },
+  ): Promise<{ users: FollowListUser[]; next: FollowCursor | null }> {
+    const [self, other] = list === 'followers' ? ['following_id', 'follower_id'] : ['follower_id', 'following_id'];
+    const pattern = options.q ? options.q.toLowerCase().replace(/^@/, '').replace(/[\\%_]/g, (c) => `\\${c}`) : null;
+    const { rows } = await db.query<FollowListUser & { cursorAt: string; cursorId: string }>(
+      `SELECT ${USER_SUMMARY_COLUMNS},
+              EXISTS (SELECT 1 FROM usr_user_follow b WHERE b.follower_id = u.id AND b.following_id = $1 AND b.status_id = $3) AS "followsMe",
+              f.created_at::text AS "cursorAt", f.id AS "cursorId"
+         FROM usr_user_follow f
+         JOIN usr_user u ON u.id = f.${other}
+         LEFT JOIN usr_user_profile pr ON pr.user_id = u.id
+        WHERE f.${self} = $2 AND f.status_id = $3 AND u.status = $4 AND ${NOT_BLOCKED}
+          AND ($5::text IS NULL OR lower(u.username) LIKE $5 || '%' OR lower(pr.display_name) LIKE '%' || $5 || '%')
+          AND ($6::timestamp IS NULL OR (f.created_at, f.id) < ($6::timestamp, $7::uuid))
+        ORDER BY f.created_at DESC, f.id DESC
+        LIMIT $8`,
+      [viewerId, userId, FollowStatus.ACCEPTED, UserStatus.ACTIVE, pattern, options.after?.createdAt ?? null, options.after?.id ?? null, options.limit + 1],
+    );
+    const page = rows.slice(0, options.limit);
+    const last = page[page.length - 1];
+    return {
+      users: page.map(({ cursorAt: _at, cursorId: _id, ...user }) => user),
+      next: rows.length > options.limit && last ? { createdAt: last.cursorAt, id: last.cursorId } : null,
+    };
   },
 
   /** Decided matches the two users played together, from the viewer's side. */

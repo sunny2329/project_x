@@ -1,5 +1,5 @@
 import { apiRequest } from '@/shared/api/client';
-import type { ClaimableMatch, MatchHistoryItem, Profile, ProfileChanges, PublicProfile, Sport, UserSummary } from '../types';
+import type { ClaimableMatch, FollowList, FollowListPage, MatchHistoryItem, Profile, ProfileChanges, PublicProfile, Sport, UserSummary } from '../types';
 
 const auth = { authenticated: true } as const;
 
@@ -31,4 +31,14 @@ export const usersApi = {
   matches: (id: string, limit = 10) => apiRequest<{ matches: MatchHistoryItem[] }>(`/api/v1/users/${id}/matches?limit=${limit}`, auth),
   follow: (id: string) => apiRequest<{ isFollowing: boolean; followers: number }>(`/api/v1/users/${id}/follow`, { method: 'PUT', ...auth }),
   unfollow: (id: string) => apiRequest<{ isFollowing: boolean; followers: number }>(`/api/v1/users/${id}/follow`, { method: 'DELETE', ...auth }),
+  follows: (id: string, list: FollowList, options: { q?: string; cursor?: string | null } = {}) => {
+    const params = new URLSearchParams();
+    if (options.q) params.set('q', options.q);
+    if (options.cursor) params.set('cursor', options.cursor);
+    const query = params.toString();
+    return apiRequest<FollowListPage>(`/api/v1/users/${id}/${list}${query ? `?${query}` : ''}`, auth);
+  },
+  /** Removes someone from my followers. */
+  removeFollower: (id: string) =>
+    apiRequest<{ removed: true; followers: number; following: number }>(`/api/v1/users/me/followers/${id}`, { method: 'DELETE', ...auth }),
 };

@@ -147,7 +147,7 @@ function Scoring({ id }: { id: string }) {
       {score.complete ? (
         <Row gap={10}>
           <IconButton icon="undo" label="Undo last point" size={56} radius={16} style={{ borderWidth: 1, borderColor: colors.line2 }} onPress={live.undo} />
-          <Button label="Finish match" weight={800} style={{ flex: 1 }} loading={live.busy} disabled={live.syncing} onPress={() => void finish()} />
+          <Button label={live.syncing && !live.busy ? 'Finish match · saving points' : 'Finish match'} weight={800} style={{ flex: 1 }} loading={live.busy} onPress={() => void finish()} />
         </Row>
       ) : (
         <Row gap={10}>

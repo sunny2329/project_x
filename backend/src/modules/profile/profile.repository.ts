@@ -1,4 +1,5 @@
 import type { Queryable } from '../../database/pool.js';
+import { UserStatus } from '../auth/auth.types.js';
 import { FollowStatus, type MatchHistoryItem, type PlayerSport, type RatingTrend } from './profile.types.js';
 
 /** How many rated matches the profile trend line shows. */
@@ -95,13 +96,15 @@ export const profileRepository = {
     return rows[0]!;
   },
 
+  /** Suspended accounts don't count, matching the follower / following lists. */
   async countFollows(db: Queryable, userId: string): Promise<{ followers: number; following: number }> {
     const { rows } = await db.query<{ followers: number; following: number }>(
-      `SELECT count(*) FILTER (WHERE following_id = $1)::int AS followers,
-              count(*) FILTER (WHERE follower_id = $1)::int AS following
-         FROM usr_user_follow
-        WHERE (following_id = $1 OR follower_id = $1) AND status_id = $2`,
-      [userId, FollowStatus.ACCEPTED],
+      `SELECT count(*) FILTER (WHERE f.following_id = $1)::int AS followers,
+              count(*) FILTER (WHERE f.follower_id = $1)::int AS following
+         FROM usr_user_follow f
+         JOIN usr_user u ON u.id = CASE WHEN f.following_id = $1 THEN f.follower_id ELSE f.following_id END
+        WHERE (f.following_id = $1 OR f.follower_id = $1) AND f.status_id = $2 AND u.status = $3`,
+      [userId, FollowStatus.ACCEPTED, UserStatus.ACTIVE],
     );
     return rows[0]!;
   },

@@ -14,7 +14,7 @@ const TABS: Record<string, { icon: IconName; label: string }> = {
 };
 
 /** Home · Tournaments · + New match (orange square) · Chats · Profile. */
-export function TabBar({ state, navigation }: BottomTabBarProps) {
+export function TabBar({ state, emitter, navigateToTab }: BottomTabBarProps) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const routes = state.routes.filter((r) => TABS[r.name]);
@@ -29,8 +29,8 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
         accessibilityState={{ selected: focused }}
         accessibilityLabel={meta.label}
         onPress={() => {
-          const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
-          if (!focused && !event.defaultPrevented) navigation.navigate(route.name);
+          const event = emitter.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
+          if (!focused && !event.defaultPrevented) navigateToTab(route.key);
         }}
         style={{ flex: 1, height: 52, alignItems: 'center', justifyContent: 'center', gap: 3 }}
       >

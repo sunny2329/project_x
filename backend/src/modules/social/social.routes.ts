@@ -7,6 +7,7 @@ import { sendSuccess } from '../../utils/api-response.js';
 import { AppError } from '../../utils/app-error.js';
 import { PostVisibility } from '../feed/post.codes.js';
 import { mediaUrl, ownedMediaIds } from '../media/media.routes.js';
+import { notificationsRepository as notifications } from '../notifications/notifications.repository.js';
 import type { SocialRepository } from './social.repository.js';
 import { commentsQuerySchema, createCommentSchema, createPostSchema, uuidParam, type CreatePostInput } from './social.validation.js';
 
@@ -40,15 +41,18 @@ export function createSocialRouter(pool: pg.Pool, repository: SocialRepository, 
     if (body.matchId && !(await repository.isMatchOfUser(pool, userId, body.matchId))) {
       throw AppError.badRequest('VALIDATION_ERROR', 'Some fields are invalid.', { matchId: ['Attach one of your own matches'] });
     }
-    const postId = await withTransaction(pool, (db) =>
-      repository.createPost(db, {
+    const postId = await withTransaction(pool, async (db) => {
+      const id = await repository.createPost(db, {
         userId,
         content: body.content,
         visibilityId: body.visibility === 'followers' ? PostVisibility.FOLLOWERS : PostVisibility.PUBLIC,
         mediaUrls: mediaIds.map(mediaUrl),
         attachedMatchId: body.matchId ?? null,
-      }),
-    );
+      });
+      // Both visibilities reach every follower, so all of them hear about it.
+      await notifications.posted(db, userId, id, body.content);
+      return id;
+    });
     sendSuccess(res, { post: await repository.findVisiblePost(pool, userId, postId) }, 201);
   });
 
@@ -59,8 +63,10 @@ export function createSocialRouter(pool: pg.Pool, repository: SocialRepository, 
   });
 
   router.delete('/:id', async (req, res) => {
-    const deleted = await repository.deleteOwnPost(pool, req.auth!.userId, idParam(req.params.id, postNotFound));
+    const postId = idParam(req.params.id, postNotFound);
+    const deleted = await repository.deleteOwnPost(pool, req.auth!.userId, postId);
     if (!deleted) throw postNotFound();
+    await notifications.postDeleted(pool, postId);
     sendSuccess(res, { deleted: true });
   });
 
@@ -68,6 +74,7 @@ export function createSocialRouter(pool: pg.Pool, repository: SocialRepository, 
     const userId = req.auth!.userId;
     const postId = await visiblePostId(userId, req.params.id);
     await repository.like(pool, userId, postId);
+    await notifications.liked(pool, userId, postId);
     sendSuccess(res, await repository.likeState(pool, userId, postId));
   });
 
@@ -75,6 +82,7 @@ export function createSocialRouter(pool: pg.Pool, repository: SocialRepository, 
     const userId = req.auth!.userId;
     const postId = await visiblePostId(userId, req.params.id);
     await repository.unlike(pool, userId, postId);
+    await notifications.unliked(pool, userId, postId);
     sendSuccess(res, await repository.likeState(pool, userId, postId));
   });
 
@@ -91,7 +99,9 @@ export function createSocialRouter(pool: pg.Pool, repository: SocialRepository, 
   router.post('/:id/comments', validateBody(createCommentSchema), async (req, res) => {
     const userId = req.auth!.userId;
     const postId = await visiblePostId(userId, req.params.id);
-    sendSuccess(res, { comment: await repository.createComment(pool, { postId, userId, content: req.body.content }) }, 201);
+    const comment = await repository.createComment(pool, { postId, userId, content: req.body.content });
+    await notifications.commented(pool, userId, postId, comment.content);
+    sendSuccess(res, { comment }, 201);
   });
 
   router.delete('/:id/comments/:commentId', async (req, res) => {

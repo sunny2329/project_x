@@ -100,7 +100,7 @@ export class MatchesService {
 
   constructor(private readonly deps: MatchesServiceDeps) {
     this.live = deps.live ?? new MemoryLiveStore();
-    this.persister = new LivePersister(this.live, (matchId, job) => this.persistJob(matchId, job), deps.logger);
+    this.persister = new LivePersister(this.live, (matchId, jobs) => this.persistJobs(matchId, jobs), deps.logger);
   }
 
   setDecidedHook(hook: MatchDecidedHook): void {
@@ -617,22 +617,31 @@ export class MatchesService {
     throw staleMatch();
   }
 
-  /** Writes one queued live change to Postgres. Idempotent; skipped once the match has ended. */
-  private async persistJob(matchId: string, job: PersistJob): Promise<void> {
+  /** Writes queued live changes (oldest first) to Postgres in one transaction. Idempotent; skipped once the match has ended. */
+  private async persistJobs(matchId: string, jobs: PersistJob[]): Promise<void> {
     await this.tx(async (tx) => {
       const locked = await tx.$queryRaw<Array<{ status: string }>>`SELECT status::text AS status FROM matches WHERE id = ${matchId}::uuid FOR UPDATE`;
       if (locked[0]?.status !== 'live') return;
       const sides = await tx.matchSide.findMany({ where: { matchId }, orderBy: { sideIndex: 'asc' } });
-      const rows = await tx.matchEvent.findMany({ where: { matchId }, orderBy: { sequence: 'asc' }, select: { id: true, sequence: true, voidedAt: true } });
-      if (job.kind === 'undo') {
-        const target = rows.find((r) => r.sequence === job.sequence);
-        if (!target || target.voidedAt) return;
-        await tx.matchEvent.update({ where: { id: target.id }, data: { voidedAt: new Date(), voidedByUserId: job.actorUserId } });
-      } else {
-        if (rows.some((r) => r.sequence === job.event.sequence)) return;
-        if (job.event.sequence !== rows.length + 1) throw new Error(`Live event ${job.event.sequence} for match ${matchId} does not follow event ${rows.length}`);
-        await tx.matchEvent.create({
-          data: {
+      const rows = await tx.matchEvent.findMany({ where: { matchId }, orderBy: { sequence: 'asc' }, select: { sequence: true, voidedAt: true } });
+      const stored = new Map(rows.map((r) => [r.sequence, r.voidedAt !== null]));
+      // New events are inserted together; flushed before an undo so it can void one of them.
+      let inserts: Prisma.MatchEventCreateManyInput[] = [];
+      const insert = async () => {
+        if (inserts.length) await tx.matchEvent.createMany({ data: inserts });
+        inserts = [];
+      };
+      let changed = false;
+      for (const job of jobs) {
+        if (job.kind === 'undo') {
+          if (stored.get(job.sequence) !== false) continue; // missing or already voided
+          await insert();
+          await tx.matchEvent.updateMany({ where: { matchId, sequence: job.sequence }, data: { voidedAt: new Date(), voidedByUserId: job.actorUserId } });
+          stored.set(job.sequence, true);
+        } else {
+          if (stored.has(job.event.sequence)) continue;
+          if (job.event.sequence !== stored.size + 1) throw new Error(`Live event ${job.event.sequence} for match ${matchId} does not follow event ${stored.size}`);
+          inserts.push({
             matchId,
             sequence: job.event.sequence,
             type: job.event.type,
@@ -641,9 +650,13 @@ export class MatchesService {
             actorUserId: job.actorUserId,
             clientEventId: job.event.clientEventId,
             occurredAt: new Date(job.event.occurredAt),
-          },
-        });
+          });
+          stored.set(job.event.sequence, false);
+        }
+        changed = true;
       }
+      await insert();
+      if (!changed) return;
       const state = await loadLiveState(tx, matchId);
       const summary = summaryOf(state!);
       await syncSegments(tx, matchId, sides.map((s) => s.id), summary.segments);

@@ -2,7 +2,7 @@ import { SPORTS } from '../catalog/sports.js';
 import { parseConfig, scoringRegistry } from '../engine/scoring/index.js';
 import { Prisma, type Db, type DbTx } from './prisma.js';
 
-/** type_master values the raw-SQL modules (feed, social, chat) still use as FK targets. */
+/** type_master values the raw-SQL modules (feed, social, chat, notifications) still use as FK targets. */
 const TYPE_MASTER_ROWS: ReadonlyArray<readonly [number, number, string]> = [
   [801, 8, 'Match result'],
   [802, 8, 'Post'],
@@ -10,6 +10,10 @@ const TYPE_MASTER_ROWS: ReadonlyArray<readonly [number, number, string]> = [
   [1202, 12, 'Followers'],
   [1301, 13, 'Direct'],
   [1302, 13, 'Group'],
+  [1401, 14, 'Like'],
+  [1402, 14, 'Comment'],
+  [1403, 14, 'New post'],
+  [1404, 14, 'Follow'],
 ];
 
 /**

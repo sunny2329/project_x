@@ -6,10 +6,10 @@ import { chatApi } from '@/features/chat/api/chat.api';
 import { useResource } from '@/shared/hooks/useResource';
 import { useSubmit } from '@/shared/hooks/useSubmit';
 import { useTheme } from '@/shared/theme';
-import { Avatar, Button, D, Header, IconButton, Label, Loading, Notice, Row, Screen, Sheet, T } from '@/shared/ui';
-import { firstName, plural } from '@/shared/utils/format';
+import { Button, D, ExpandableAvatar, Header, IconButton, Label, Loading, Notice, Row, Screen, Sheet, T } from '@/shared/ui';
+import { firstName } from '@/shared/utils/format';
 import { usersApi } from '../api/profile.api';
-import { FormTile, MatchHistoryRow, SportRatingCard } from '../components/ProfileBits';
+import { FollowCounts, FormTile, MatchHistoryRow, SportRatingCard } from '../components/ProfileBits';
 
 /** Another player: follow, message, start a match with them, ratings, head-to-head and recent matches. */
 export default function PlayerProfileScreen() {
@@ -58,13 +58,14 @@ export default function PlayerProfileScreen() {
       <Header right={<IconButton icon="dots" label="More" onPress={() => setMore(true)} />} />
 
       <View style={{ alignItems: 'center', gap: 8 }}>
-        <Avatar name={u.fullName} id={u.id} photoUrl={u.photoUrl} size={88} display />
+        <ExpandableAvatar name={u.fullName} id={u.id} photoUrl={u.photoUrl} size={88} display caption={`@${u.username}`} />
         <D size={34} lh={34} upper center>
           {u.fullName}
         </D>
         <T size={14} color={colors.muted} center>
-          {[`@${u.username}`, u.city, plural(u.followers, 'follower')].filter(Boolean).join(' · ')}
+          {[`@${u.username}`, u.city].filter(Boolean).join(' · ')}
         </T>
+        <FollowCounts userId={u.id} username={u.username} followers={u.followers} following={u.following} center />
         {u.bio ? (
           <T size={14} color={colors.soft} center>
             {u.bio}

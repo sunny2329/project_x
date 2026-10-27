@@ -171,13 +171,22 @@ describe('phone (OTP) login', () => {
     ctx.sms.sentTo.length = 0;
   });
 
-  it('sends a code only to registered numbers, with an identical response either way', async () => {
+  it('sends a code to a registered number and says so when no account uses it', async () => {
     const { account } = await register();
     ctx.sms.sentTo.length = 0;
-    const known = await request(ctx.app).post(`${API}/phone/start`).send({ phone: account.phone }).expect(200);
-    const unknown = await request(ctx.app).post(`${API}/phone/start`).send({ phone: '+919999999999' }).expect(200);
-    expect(known.body).toEqual(unknown.body);
+    await request(ctx.app).post(`${API}/phone/start`).send({ phone: account.phone }).expect(200);
+    const unknown = await request(ctx.app).post(`${API}/phone/start`).send({ phone: '+919999999999' }).expect(404);
+    expect(unknown.body.error.code).toBe('NO_ACCOUNT');
     expect(ctx.sms.sentTo).toEqual([account.phone]);
+  });
+
+  it('refuses to text a code to a suspended account', async () => {
+    const { account, user } = await register();
+    await ctx.pool.query('UPDATE usr_user SET status = 2 WHERE id = $1', [user.id]);
+    ctx.sms.sentTo.length = 0;
+    const res = await request(ctx.app).post(`${API}/phone/start`).send({ phone: account.phone }).expect(403);
+    expect(res.body.error.code).toBe('ACCOUNT_DISABLED');
+    expect(ctx.sms.sentTo).toEqual([]);
   });
 
   it('signs in with a valid code and rejects an invalid one', async () => {
@@ -208,9 +217,48 @@ describe('password reset', () => {
     await request(ctx.app).post(`${API}/login`).send({ identifier: account.email, password: 'NewPass2026' }).expect(200);
   });
 
-  it('does not reveal whether the account exists', async () => {
-    const res = await request(ctx.app).post(`${API}/password/forgot`).send({ identifier: 'ghost@example.com' }).expect(200);
-    expect(res.body.data.message).toMatch(/If an account exists/);
+  it('finds the account by username, email or phone, in any case or format', async () => {
+    const { account } = await register();
+    // The app turns "98765 43210" into E.164 before sending; spacing is all that is left to tolerate.
+    const spaced = `${account.phone.slice(0, 3)} ${account.phone.slice(3, 8)} ${account.phone.slice(8)}`;
+    for (const identifier of [account.username.toUpperCase(), account.email.toUpperCase(), account.phone, spaced]) {
+      ctx.sms.sentTo.length = 0;
+      await request(ctx.app).post(`${API}/password/forgot`).send({ identifier }).expect(200);
+      expect(ctx.sms.sentTo).toEqual([account.phone]);
+    }
+  });
+
+  it('says so when no account matches, and sends nothing', async () => {
+    ctx.sms.sentTo.length = 0;
+    for (const identifier of ['ghost@example.com', 'ghost_user_x', '+919999999998']) {
+      const res = await request(ctx.app).post(`${API}/password/forgot`).send({ identifier }).expect(404);
+      expect(res.body.error.code).toBe('NO_ACCOUNT');
+    }
+    expect(ctx.sms.sentTo).toEqual([]);
+  });
+
+  it('refuses suspended accounts, and the code it last sent stops working', async () => {
+    const { account, user } = await register();
+    await request(ctx.app).post(`${API}/password/forgot`).send({ identifier: account.username }).expect(200);
+    await ctx.pool.query('UPDATE usr_user SET status = 2 WHERE id = $1', [user.id]);
+    const res = await request(ctx.app).post(`${API}/password/forgot`).send({ identifier: account.username }).expect(403);
+    expect(res.body.error.code).toBe('ACCOUNT_DISABLED');
+    await request(ctx.app)
+      .post(`${API}/password/reset`)
+      .send({ identifier: account.username, code: TEST_OTP, newPassword: 'NewPass2026' })
+      .expect(403);
+  });
+
+  it('a new code replaces the old one, and a used code cannot be reused', async () => {
+    const { account } = await register();
+    await request(ctx.app).post(`${API}/password/forgot`).send({ identifier: account.username }).expect(200);
+    await request(ctx.app).post(`${API}/password/forgot`).send({ identifier: account.username }).expect(200);
+    await request(ctx.app).post(`${API}/password/reset`).send({ identifier: account.username, code: TEST_OTP, newPassword: 'NewPass2026' }).expect(200);
+    const again = await request(ctx.app)
+      .post(`${API}/password/reset`)
+      .send({ identifier: account.username, code: TEST_OTP, newPassword: 'Other2026x' })
+      .expect(400);
+    expect(again.body.error.code).toBe('INVALID_CODE');
   });
 
   it('enforces the password policy', async () => {

@@ -50,7 +50,8 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
-        <Stack.Protected guard={signedIn}>
+        {/* Without redirectTo, signing out falls back to "/" (the guarded home tab) and lands on the sitemap. */}
+        <Stack.Protected guard={signedIn} redirectTo="/welcome">
           <Stack.Screen name="(app)" />
         </Stack.Protected>
         <Stack.Protected guard={!signedIn}>

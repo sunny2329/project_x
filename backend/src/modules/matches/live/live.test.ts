@@ -50,12 +50,15 @@ describe('LivePersister', () => {
     const store = new MemoryLiveStore();
     await store.prime(state(0));
     const written: number[] = [];
-    const persister = new LivePersister(store, async (_id, j) => {
-      written.push(seq(j));
+    const batches: number[][] = [];
+    const persister = new LivePersister(store, async (_id, jobs) => {
+      batches.push(jobs.map(seq));
+      written.push(...jobs.map(seq));
     });
     for (let i = 1; i <= 3; i += 1) await store.commit(i - 1, state(i), job(i));
     await persister.flush('m1');
     expect(written).toEqual([1, 2, 3]);
+    expect(batches).toEqual([[1, 2, 3]]); // a backlog goes in one write
     expect(await store.peekJob('m1')).toBeNull();
     expect(await store.pendingMatches()).toEqual([]);
   });
@@ -66,9 +69,9 @@ describe('LivePersister', () => {
     await store.commit(0, state(1), job(1));
     let fail = true;
     const written: number[] = [];
-    const persister = new LivePersister(store, async (_id, j) => {
+    const persister = new LivePersister(store, async (_id, jobs) => {
       if (fail) throw new Error('db down');
-      written.push(seq(j));
+      written.push(...jobs.map(seq));
     });
     await expect(persister.flush('m1')).rejects.toThrow('db down');
     expect(await store.peekJob('m1')).toEqual(job(1));
@@ -84,9 +87,9 @@ describe('LivePersister', () => {
     const written: number[] = [];
     let release!: () => void;
     const gate = new Promise<void>((resolve) => (release = resolve));
-    const persister = new LivePersister(store, async (_id, j) => {
-      if (seq(j) === 1) await gate;
-      written.push(seq(j));
+    const persister = new LivePersister(store, async (_id, jobs) => {
+      if (jobs.some((j) => seq(j) === 1)) await gate;
+      written.push(...jobs.map(seq));
     });
     const first = persister.flush('m1');
     await store.commit(1, state(2), job(2));

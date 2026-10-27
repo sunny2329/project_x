@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useMemo, useRef, useState } from 'react';
-import { ScrollView, View } from 'react-native';
+import { ScrollView, View, type ScrollViewInstance } from 'react-native';
 import { useResource } from '@/shared/hooks/useResource';
 import { LIVE, sportText, useTheme } from '@/shared/theme';
 import { Button, Chip, D, EmptyState, Header, Icon, Loading, Row, Screen, T, Tap } from '@/shared/ui';
@@ -107,7 +107,7 @@ export default function BracketScreen() {
   const { colors } = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { data, error, loading, refreshing, refresh } = useResource(() => tournamentsApi.event(id), [id], { poll: 15_000 });
-  const scroller = useRef<ScrollView>(null);
+  const scroller = useRef<ScrollViewInstance>(null);
   const [round, setRound] = useState<number | null>(null);
   const event = data?.event;
 

@@ -130,7 +130,7 @@ export class PlayersService {
       const guests = (await this.claimableGuests(tx, user.phone)).filter((g) => !playerIds || playerIds.includes(g.id));
       for (const guest of guests) await mergeGuest(tx, guest.id, player.playerId);
       return guests.length;
-    });
+    }, { maxWait: 20_000, timeout: 60_000 }); // merging rebuilds stats: more than the 5 s default
   }
 
   /** Decided matches of guests carrying the user's verified phone, newest first. */

@@ -9,6 +9,8 @@ import type { MatchView, PluginEvent, ScoreSummary } from '../types';
 /** A spectator's screen refreshes every 4 s. */
 const WATCH_INTERVAL_MS = 4_000;
 const RETRY_MS = 2_000;
+/** Finish / retire / walkover wait up to 60 s (in 100 ms steps) for queued points to send. */
+const DRAIN_WAIT_STEPS = 600;
 /** The server moved on (another scorer, a retry): reload it and resend what's queued. */
 const RELOAD_CODES = new Set(['STALE_MATCH']);
 /** The tap can't be applied any more: drop the queue and show the server's score. */
@@ -190,7 +192,12 @@ export function useLiveScoring(id: string) {
       if (busy) return false;
       setBusy(true);
       try {
-        for (let i = 0; i < 50 && (inFlight.current || pendingRef.current.length); i += 1) await new Promise((r) => setTimeout(r, 100));
+        // Wait for every queued point to reach the server, so the action uses its latest version.
+        for (let i = 0; i < DRAIN_WAIT_STEPS && (inFlight.current || pendingRef.current.length); i += 1) await new Promise((r) => setTimeout(r, 100));
+        if (inFlight.current || pendingRef.current.length) {
+          setError('Still saving the last points. Check your connection and try again.');
+          return false;
+        }
         const current = matchRef.current;
         if (!current) return false;
         const r = await run(current);

@@ -4,7 +4,6 @@ import type { AuthService } from './auth.service.js';
 import type { ClientContext } from './auth.types.js';
 
 const CODE_SENT = { message: 'Verification code sent.' };
-const CODE_SENT_IF_REGISTERED = { message: 'If an account exists for these details, a code has been sent to its phone.' };
 
 /** Printable characters only; the header is free text from the app. */
 function deviceName(req: Request): string | undefined {
@@ -71,7 +70,7 @@ export function createAuthController(service: AuthService) {
 
     async phoneStart(req: Request, res: Response) {
       await service.startPhoneLogin(req.body);
-      sendSuccess(res, CODE_SENT_IF_REGISTERED);
+      sendSuccess(res, CODE_SENT);
     },
 
     async phoneVerify(req: Request, res: Response) {
@@ -80,7 +79,7 @@ export function createAuthController(service: AuthService) {
 
     async forgotPassword(req: Request, res: Response) {
       await service.forgotPassword(req.body);
-      sendSuccess(res, CODE_SENT_IF_REGISTERED);
+      sendSuccess(res, CODE_SENT);
     },
 
     async resetPassword(req: Request, res: Response) {

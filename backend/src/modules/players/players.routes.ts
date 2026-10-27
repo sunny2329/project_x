@@ -12,7 +12,7 @@ const searchQuerySchema = z.object({
   sport: z.string().trim().max(40).optional(),
 });
 
-const claimSchema = z.object({ playerIds: z.array(z.uuid()).max(50).optional() });
+export const claimSchema = z.object({ playerIds: z.array(z.uuid()).max(50).optional() });
 
 export const createGuestSchema = z.object({
   displayName: z.string().trim().min(1, 'Enter a name').max(80),
