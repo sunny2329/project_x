@@ -501,6 +501,15 @@ Frontend (`frontend/.env`, template `frontend/.env.example`): `EXPO_PUBLIC_API_U
 
 ## Changelog
 
+### 2026-10-27: Hosted test backend on Render, EAS build profiles
+- API runs on Render (free plan, Singapore) as `project-x-api` at `https://project-x-api-yf0w.onrender.com`,
+  auto-deploying `main`. Build: `cd backend && npm ci && npm run build`; start runs `db:deploy` then
+  `npm start`. It's in `NODE_ENV=development` with `SMS_PROVIDER=dev` (fixed OTP) for closed testing.
+  The free plan sleeps after 15 minutes, so the first request after that takes about 50s.
+- App: `frontend/eas.json` adds `development`, `preview` (internal; an APK on Android, ad hoc on iOS)
+  and `production` profiles. `preview` and `production` set `EXPO_PUBLIC_API_URL` to the Render URL.
+- The 2026-10-25 entry below was committed in 9198f1b.
+
 ### 2026-10-25 — Follower / following lists, remove follower, photo viewer (uncommitted)
 - API: `GET /users/:id/followers` and `/following`: newest first, search by username / name,
   keyset paging. `DELETE /users/me/followers/:id` removes a follower and their follow notification,
