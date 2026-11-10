@@ -507,7 +507,7 @@ Frontend (`frontend/.env`, template `frontend/.env.example`): `EXPO_PUBLIC_API_U
 
 ## Changelog
 
-### 2026-11-10: Basketball 5v5 substitutions on the board (uncommitted)
+### 2026-11-10: Basketball 5v5 substitutions on the board
 - From `ProjectX App Screens (2).html`: it changes only the 5v5 live screen. Each team card has
   **⇄ SUB** next to FOUL (hidden when nobody on the bench can come on). It pauses the clock, then
   the card's chips ask "SUB · WHO'S COMING OFF?" and then "#7 OFF · WHO'S COMING ON?" (CANCEL at
@@ -515,8 +515,10 @@ Frontend (`frontend/.env`, template `frontend/.env.example`): `EXPO_PUBLIC_API_U
   WHO COMES ON?" (LATER keeps them on). It sends the existing `sub` event, so the engine, API and DB
   are unchanged. Sub plays now read "Sub · #18 Karan on, #7 Arjun off".
 - Tests: 4 new cases in `components/basketball/Board.test.tsx`; checklist §17c.
+- This entry and the 2026-11-08, 2026-11-03 and 2026-10-31 entries below were committed in d25d04b
+  (branch `feat/basketball-box-cricket`).
 
-### 2026-11-08: Basketball is a live sport (uncommitted)
+### 2026-11-08: Basketball is a live sport
 - Engine: new `baskets` plugin (`backend/src/engine/scoring/plugins/baskets.ts`, tests in
   `baskets.test.ts`). Two ways a game ends: **first to N** (default 21, optional win-by, a 10 min
   limit after which the leader wins and a tie goes to "next basket wins"), or **timed** (1, 2 or 4
@@ -554,7 +556,7 @@ Frontend (`frontend/.env`, template `frontend/.env.example`): `EXPO_PUBLIC_API_U
 - Test harness: access tokens now last 4 h in tests (was 15 min). `flows.api.test.ts` runs about 18 min
   against remote Neon and signs in once, so its last tests were getting 401s.
 
-### 2026-11-03: Box cricket rules and players a side are configurable (uncommitted)
+### 2026-11-03: Box cricket rules and players a side are configurable
 - Engine (`plugins/overs.ts`): new optional `playersPerSide` (1-11): no side may list more players,
   and wickets / super-over wickets can't outnumber it (last man stands = as many wickets as players).
   Wickets now go to 11. New optional plugin method `describeRules(config)` and core helper
@@ -572,7 +574,7 @@ Frontend (`frontend/.env`, template `frontend/.env.example`): `EXPO_PUBLIC_API_U
 - Tests: engine cases in `overs.test.ts`, two new API flows (changed friendly rules, players a side
   in a tournament), app `CricketBoard.test.tsx` rule helpers and `RulesSheet.test.tsx`.
 
-### 2026-10-31: Box Cricket is a live sport (uncommitted)
+### 2026-10-31: Box Cricket is a live sport
 - Engine: new `overs` plugin (`backend/src/engine/scoring/plugins/overs.ts`, replaces the parked
   engine, tests in `overs.test.ts`). Balls with runs 0-6, wide, no-ball and wicket; overs, wickets or
   passing the target end an innings; "End innings"; swap who bats before the first ball.
