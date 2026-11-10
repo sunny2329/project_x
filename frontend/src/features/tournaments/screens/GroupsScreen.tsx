@@ -8,22 +8,26 @@ import { tournamentsApi } from '../api/tournaments.api';
 import { fixtureSide } from '../components/TournamentBits';
 import type { StandingRow, Tiebreaker } from '../types';
 
-const SET_SPORTS = new Set(['tennis', 'padel']);
+/** What a sport's major and minor totals are called in the standings. */
+function totalWords(slug: string): [string, string] {
+  if (slug === 'tennis' || slug === 'padel') return ['sets', 'games'];
+  return slug === 'box-cricket' ? ['wins', 'runs'] : ['games', 'points'];
+}
 
-function tiebreakName(t: Tiebreaker | 'seed', sets: boolean): string {
+function tiebreakName(t: Tiebreaker | 'seed', [major, minor]: [string, string]): string {
   switch (t) {
     case 'match_wins':
       return 'matches won';
     case 'head_to_head':
       return 'head to head';
     case 'major_diff':
-      return sets ? 'sets ±' : 'games ±';
+      return `${major} ±`;
     case 'minor_diff':
-      return sets ? 'games ±' : 'points ±';
+      return `${minor} ±`;
     case 'major_won':
-      return sets ? 'sets won' : 'games won';
+      return major === 'wins' ? 'wins' : `${major} won`;
     case 'minor_won':
-      return sets ? 'games won' : 'points won';
+      return minor === 'runs' ? 'runs scored' : `${minor} won`;
     case 'seed':
       return 'seeding';
   }
@@ -34,7 +38,7 @@ const signed = (n: number) => (n > 0 ? `+${n}` : n < 0 ? `−${-n}` : '0');
 const short = (name: string) => name.split(' & ').map((p) => p.split(' ')[0]).join(' / ');
 
 /** "Three pairs on 1 win. Arjun / Dev are 2nd on head to head." */
-function tieNote(rows: StandingRow[], sets: boolean, pairs: boolean): string | null {
+function tieNote(rows: StandingRow[], words: [string, string], pairs: boolean): string | null {
   const split = rows.filter((r) => r.tiebreak && r.tiebreak !== 'match_wins');
   if (!split.length) return null;
   const parts: string[] = [];
@@ -45,7 +49,7 @@ function tieNote(rows: StandingRow[], sets: boolean, pairs: boolean): string | n
     const count = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six'][level.length] ?? String(level.length);
     parts.push(`${count} ${pairs ? 'pairs' : 'players'} on ${wins} win${wins === 1 ? '' : 's'}.`);
   }
-  for (const r of split) parts.push(`${short(r.name)} ${pairs ? 'are' : 'is'} ${ORDINAL[r.rank] ?? `#${r.rank}`} on ${tiebreakName(r.tiebreak!, sets)}.`);
+  for (const r of split) parts.push(`${short(r.name)} ${pairs ? 'are' : 'is'} ${ORDINAL[r.rank] ?? `#${r.rank}`} on ${tiebreakName(r.tiebreak!, words)}.`);
   return parts.join(' ');
 }
 
@@ -70,12 +74,12 @@ export default function GroupsScreen() {
   const stage = event.stages.find((s) => s.type === 'round_robin');
   const groups = stage?.groups ?? [];
   const group = groups.find((g) => g.id === groupId) ?? groups[0] ?? null;
-  const sets = SET_SPORTS.has(event.sport.slug);
+  const words = totalWords(event.sport.slug);
   const pairs = event.format.playersPerSide > 1;
   const qualifiers = event.drawFormat === 'groups_knockout' ? Number(event.drawConfig.qualifiersPerGroup ?? 2) : 0;
   const rows = group?.standings ?? [];
-  const note = tieNote(rows, sets, pairs);
-  const order = (event.tiebreakers.length ? event.tiebreakers : (['match_wins', 'head_to_head', 'major_diff', 'minor_diff'] as Tiebreaker[])).map((t) => tiebreakName(t, sets)).join(', ');
+  const note = tieNote(rows, words, pairs);
+  const order = (event.tiebreakers.length ? event.tiebreakers : (['match_wins', 'head_to_head', 'major_diff', 'minor_diff'] as Tiebreaker[])).map((t) => tiebreakName(t, words)).join(', ');
   const results = event.fixtures.filter((f) => f.groupId === group?.id && f.status === 'completed' && f.match);
 
   const cell = (text: string | number, opts: { w?: 400 | 700 | 800; color?: string; width?: number } = {}) => (
@@ -120,7 +124,7 @@ export default function GroupsScreen() {
               <T size={11} w={700} ls={0.06} color={colors.muted} flex>
                 {pairs ? 'PAIR' : 'PLAYER'}
               </T>
-              {['P', 'W', 'L', sets ? 'S±' : 'G±', sets ? 'G±' : 'PTS±'].map((h, i) => (
+              {['P', 'W', 'L', words[0] === 'sets' ? 'S±' : words[0] === 'wins' ? 'W±' : 'G±', words[1] === 'games' ? 'G±' : words[1] === 'runs' ? 'RUN±' : 'PTS±'].map((h, i) => (
                 <T key={h} size={11} w={700} ls={0.06} color={colors.muted} center style={{ width: i > 2 ? 44 : 30 }}>
                   {h}
                 </T>

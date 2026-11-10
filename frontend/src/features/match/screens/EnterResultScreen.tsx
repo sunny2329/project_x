@@ -9,21 +9,26 @@ import { Button, Dot, EmptyState, Field, Header, Notice, Row, Screen, T, Tap, Te
 import { firstName, toDay, weekdayComma } from '@/shared/utils/format';
 import { matchApi } from '../api/match.api';
 import { checkResult, ResultGrid } from '../components/ResultGrid';
+import { BasketballResult } from './BasketballResultScreen';
 import { lineupProblem } from '../lineup';
+import { maxPlayersPerSide, rulesTitle } from '../rules';
 import { useMatchDraft } from '../store/draft.store';
 
 /** "Already played?": type the score per game; the opponent confirms before ratings move. */
 export default function EnterResultScreen() {
   const { colors } = useTheme();
   const me = useAuthStore((s) => s.user);
-  const { sport, formatCode, rulesetId, lineup } = useMatchDraft();
+  const { sport, formatCode, rulesetId, override, lineup } = useMatchDraft();
   const [cells, setCells] = useState<string[][]>([]);
   const [date, setDate] = useState(new Date());
   const [picking, setPicking] = useState(false);
   const [venue, setVenue] = useState('');
   const { submit, submitting, formError } = useSubmit();
 
-  const ruleset = sport?.rulesets.find((r) => r.id === rulesetId) ?? sport?.rulesets[0];
+  const base = sport?.rulesets.find((r) => r.id === rulesetId) ?? sport?.rulesets[0];
+  if (sport && base?.scoringModel === 'baskets') return <BasketballResult sport={sport} />;
+  // The grid checks the score against the rules as changed ("Change a rule").
+  const ruleset = base ? { ...base, config: { ...base.config, ...override } } : undefined;
   const format = sport?.formats.find((f) => f.code === formatCode) ?? sport?.formats[0];
   if (!sport || !ruleset || !format) {
     return (
@@ -41,7 +46,7 @@ export default function EnterResultScreen() {
   };
   const confirmers = (lineup[1] ?? []).filter((p) => !p.isGuest && p.userId);
   const confirmerName = confirmers.map((p) => firstName(p.displayName)).join(' & ');
-  const problem = lineupProblem(lineup, format);
+  const problem = lineupProblem(lineup, { minPerSide: format.minPerSide, maxPerSide: maxPlayersPerSide(format.maxPerSide, ruleset.config) });
   const check = checkResult(ruleset, cells, lineup.map((p) => p.length));
 
   const send = () =>
@@ -50,6 +55,7 @@ export default function EnterResultScreen() {
         sport: sport.slug,
         format: format.code,
         rulesetId: ruleset.id,
+        ...(Object.keys(override).length ? { rulesOverride: override } : {}),
         sides: lineup.map((players) => ({ players: players.map((p) => p.input) })),
         manualScores: check.filled,
         playedOn: toDay(date),
@@ -82,7 +88,7 @@ export default function EnterResultScreen() {
       <Row gap={10} style={{ paddingVertical: 12, paddingHorizontal: 14, borderRadius: 14, backgroundColor: colors.surface }}>
         <Dot color={sport.accentColor} />
         <T size={14} w={600} flex numberOfLines={1}>
-          {[sport.name, format.name, ruleset.name].join(' · ')}
+          {[sport.name, format.name, rulesTitle(base!, override)].join(' · ')}
         </T>
         <TextButton label="Change" size={13} color={colors.soft} onPress={() => router.push({ pathname: '/match/setup', params: { mode: 'result' } })} />
       </Row>

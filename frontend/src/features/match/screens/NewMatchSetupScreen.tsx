@@ -3,11 +3,13 @@ import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { useAuthStore } from '@/features/auth/store/auth.store';
 import { sportText, useTheme } from '@/shared/theme';
-import { Avatar, Button, D, Dot, EmptyState, goBack, Header, Icon, IconButton, Label, RadioCard, Row, Screen, Segmented, T } from '@/shared/ui';
+import { Avatar, Button, D, Dot, EmptyState, goBack, Header, Icon, IconButton, Label, RadioCard, Row, Screen, Segmented, T, TextButton } from '@/shared/ui';
 import { AddPlayerSheet } from '../components/AddPlayerSheet';
+import { RulesSheet } from '../components/RulesSheet';
 import { lineupKeys, lineupProblem } from '../lineup';
-import { rulesetDetail } from '../rules';
+import { EDITABLE_RULES, maxPlayersPerSide, rulesetDetail, rulesTitle } from '../rules';
 import { useMatchDraft } from '../store/draft.store';
+import { BasketballSetup } from './BasketballSetupScreen';
 
 /**
  * Rules, singles or doubles, and players on each side. `mode=result` is the same screen opened
@@ -17,8 +19,9 @@ export default function NewMatchSetupScreen() {
   const { colors } = useTheme();
   const { mode } = useLocalSearchParams<{ mode?: string }>();
   const me = useAuthStore((s) => s.user);
-  const { sport, formatCode, rulesetId, lineup, setFormat, setRuleset, add, remove } = useMatchDraft();
+  const { sport, formatCode, rulesetId, override, lineup, setFormat, setRuleset, setRule, resetRules, add, remove } = useMatchDraft();
   const [adding, setAdding] = useState<number | null>(null);
+  const [editingRules, setEditingRules] = useState(false);
 
   if (!sport) {
     return (
@@ -29,10 +32,17 @@ export default function NewMatchSetupScreen() {
     );
   }
 
+  // Basketball has its own setup (quick starts, court, how the game ends), then teams and shirts.
+  if (sport.rulesets.some((r) => r.scoringModel === 'baskets')) return <BasketballSetup sport={sport} forResult={mode === 'result'} />;
+
   const format = sport.formats.find((f) => f.code === formatCode) ?? sport.formats[0]!;
   const color = sport.accentColor;
-  const problem = lineupProblem(lineup, format);
+  const ruleset = sport.rulesets.find((r) => r.id === rulesetId) ?? null;
+  const changed = Object.keys(override).length > 0;
+  const maxPerSide = maxPlayersPerSide(format.maxPerSide, { ...(ruleset?.config ?? {}), ...override });
+  const problem = lineupProblem(lineup, { minPerSide: format.minPerSide, maxPerSide });
   const forResult = mode === 'result';
+  const editable = ruleset ? (EDITABLE_RULES[ruleset.scoringModel] ?? []) : [];
 
   return (
     <Screen
@@ -45,7 +55,7 @@ export default function NewMatchSetupScreen() {
             </T>
           ) : null}
           <Button
-            label={forResult ? 'Done' : 'Next: who serves first'}
+            label={forResult ? 'Done' : ruleset?.scoringModel === 'overs' ? 'Next: who bats first' : 'Next: who serves first'}
             weight={700}
             disabled={!!problem}
             onPress={() => (forResult ? router.back() : router.push('/match/serve'))}
@@ -74,12 +84,27 @@ export default function NewMatchSetupScreen() {
       <View style={{ gap: 8 }}>
         <Label>Rules</Label>
         {sport.rulesets.map((r) => (
-          <RadioCard key={r.id} title={r.name} subtitle={rulesetDetail(r)} selected={r.id === rulesetId} color={color} onPress={() => setRuleset(r.id)} />
+          <RadioCard
+            key={r.id}
+            title={r.id === rulesetId && changed ? rulesTitle(r, override) : r.name}
+            subtitle={rulesetDetail(r.id === rulesetId ? { ...r, config: { ...r.config, ...override } } : r)}
+            selected={r.id === rulesetId}
+            color={color}
+            onPress={() => setRuleset(r.id)}
+          />
         ))}
+        {editable.length ? (
+          <TextButton
+            label={ruleset?.scoringModel === 'overs' ? 'Change a rule (players, overs, wickets…)' : 'Change a rule (points to win, cap…)'}
+            size={13}
+            color={colors.soft}
+            onPress={() => setEditingRules(true)}
+          />
+        ) : null}
       </View>
 
       <View style={{ gap: 8 }}>
-        <Label>Players</Label>
+        <Label>{maxPerSide < format.maxPerSide ? `Players · ${maxPerSide} a side` : 'Players'}</Label>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           {[0, 1].map((side) => (
             <View key={side} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -107,7 +132,7 @@ export default function NewMatchSetupScreen() {
                     <Icon name="close" size={14} color={colors.faint} />
                   </Pressable>
                 ))}
-                {lineup[side]!.length < format.maxPerSide ? (
+                {lineup[side]!.length < maxPerSide ? (
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={`Add player to side ${side === 0 ? 'A' : 'B'}`}
@@ -127,6 +152,16 @@ export default function NewMatchSetupScreen() {
           ))}
         </View>
       </View>
+
+      <RulesSheet
+        visible={editingRules}
+        onClose={() => setEditingRules(false)}
+        ruleset={ruleset}
+        override={override}
+        onChange={setRule}
+        onReset={resetRules}
+        note="The change is for this match only."
+      />
 
       <AddPlayerSheet
         visible={adding !== null}

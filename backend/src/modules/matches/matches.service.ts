@@ -90,7 +90,7 @@ export interface NewMatch {
   createdByUserId: string;
   venueId?: string | null;
   courtId?: string | null;
-  sides: Array<{ name?: string | null; teamId?: string | null; entryId?: string | null; playerIds: string[] }>;
+  sides: Array<{ name?: string | null; color?: string | null; teamId?: string | null; entryId?: string | null; playerIds: string[]; jerseyNumbers?: Array<number | null> }>;
 }
 
 export class MatchesService {
@@ -159,7 +159,13 @@ export class MatchesService {
         context: 'friendly',
         createdByUserId: userId,
         venueId,
-        sides: input.sides.map((side, i) => ({ name: side.name ?? null, teamId: side.teamId ?? null, playerIds: resolved[i]!.map((p) => p.playerId) })),
+        sides: input.sides.map((side, i) => ({
+          name: side.name ?? null,
+          color: side.color ?? null,
+          teamId: side.teamId ?? null,
+          playerIds: resolved[i]!.map((p) => p.playerId),
+          jerseyNumbers: side.players.map((p) => p.jerseyNumber ?? null),
+        })),
       });
       if (input.manualScores) {
         await this.recordManualResult(tx, id, userId, input.manualScores);
@@ -209,11 +215,11 @@ export class MatchesService {
     const sideIds: string[] = [];
     for (const [index, side] of m.sides.entries()) {
       const created = await tx.matchSide.create({
-        data: { matchId: match.id, sideIndex: index, name: side.name ?? null, teamId: side.teamId ?? null, entryId: side.entryId ?? null },
+        data: { matchId: match.id, sideIndex: index, name: side.name ?? null, color: side.color ?? null, teamId: side.teamId ?? null, entryId: side.entryId ?? null },
       });
       sideIds.push(created.id);
       await tx.matchParticipant.createMany({
-        data: side.playerIds.map((playerId, sortOrder) => ({ matchId: match.id, sideId: created.id, playerId, sortOrder })),
+        data: side.playerIds.map((playerId, sortOrder) => ({ matchId: match.id, sideId: created.id, playerId, sortOrder, jerseyNumber: side.jerseyNumbers?.[sortOrder] ?? null })),
       });
     }
     await syncSegments(tx, match.id, sideIds, initial.segments);
@@ -762,6 +768,7 @@ export function toCard(m: CardRecord, score: ScoreSummary, userId: string | null
       outcome: s.outcome,
     })),
     score: {
+      scoringModel: score.scoringModel,
       headline: score.headline,
       complete: score.complete,
       winnerSideIndex: score.winnerSideIndex,

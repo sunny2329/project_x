@@ -40,7 +40,7 @@ function MenuRow({ icon, title, sub, onPress, tone = 'normal' }: { icon: IconNam
 
 /** "Badminton · 19-18 in game 3". */
 function scoreLine(match: MatchView, score: ScoreSummary): string {
-  const now = score.sides.map((s) => s.current ?? s.primary).join('-');
+  const now = score.sides.map((s) => s.current ?? s.primary).join(score.scoringModel === 'overs' ? ' v ' : '-');
   return `${match.sport.name} · ${now} in ${unitLabel(score).toLowerCase()}`;
 }
 

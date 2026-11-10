@@ -8,7 +8,7 @@ import { useMatchDraft } from '../store/draft.store';
 import type { SportSummary } from '../types';
 
 /** Sports the friendly flow scores (the engine has a plugin for them). */
-const SCORED_MODELS = new Set(['rally', 'side_out', 'tennis']);
+const SCORED_MODELS = new Set(['rally', 'side_out', 'tennis', 'overs', 'baskets']);
 
 /** "What are you playing?": one card per sport, or "Already played?" to type a result in. */
 export default function NewMatchSportScreen() {

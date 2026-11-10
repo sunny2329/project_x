@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import type { DbTx } from '../../database/prisma.js';
-import { createScorer, replay, scoringRegistry, type ScoreSummary, type Scorer, type SegmentSummary } from '../../engine/scoring/index.js';
+import { createScorer, replay, rulesName, scoringRegistry, type ScoreSummary, type Scorer, type SegmentSummary } from '../../engine/scoring/index.js';
 import { toPlayerRef } from '../players/players.service.js';
 import type { LiveEvent, LiveState } from './live/live-store.js';
 import type { MatchStatic, MatchStatusName } from './matches.types.js';
@@ -34,7 +34,7 @@ export function toStatic(m: MatchRecord): MatchStatic {
     context: m.context,
     sport: { id: String(m.sport.id), slug: m.sport.slug, name: m.sport.name, iconKey: m.sport.iconKey, accentColor: m.sport.accentColor },
     format: { code: m.sportFormat.code, name: m.sportFormat.name, playersPerSide: m.sportFormat.playersPerSide },
-    ruleset: { id: m.ruleset?.id ?? null, name: m.ruleset?.name ?? null, scoringModel: m.scoringModel },
+    ruleset: { id: m.ruleset?.id ?? null, name: rulesName(scoringRegistry, m.scoringModel, m.rulesetConfig, m.ruleset?.name ?? null), scoringModel: m.scoringModel },
     scoringMode: m.scoringMode,
     shareToken: m.shareToken,
     createdByUserId: m.createdByUserId,
@@ -52,10 +52,11 @@ export function toStatic(m: MatchRecord): MatchStatic {
         }
       : null,
     sides: m.sides.map((side) => {
-      const players = side.participants.map((p) => toPlayerRef(p.player));
+      const players = side.participants.map((p) => ({ ...toPlayerRef(p.player), jerseyNumber: p.jerseyNumber }));
       return {
         index: side.sideIndex,
         name: side.name ?? players.map((p) => p.displayName.split(' ')[0]).join(' & '),
+        color: side.color,
         teamId: side.teamId,
         entryId: side.entryId,
         players,

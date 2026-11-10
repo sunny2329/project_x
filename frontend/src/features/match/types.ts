@@ -1,3 +1,7 @@
+import type { GameDetail, PlayEntry, PlayerLine } from '@/engine/scoring';
+
+export type { GameDetail, PlayEntry, PlayerLine };
+
 /*
  * Mirrors the backend's generic match API (backend/src/modules/matches/matches.types.ts and
  * backend/src/engine/scoring/types.ts). Nothing here is sport-specific: every sport's scoreboard
@@ -47,6 +51,10 @@ export interface ScoreSummary {
   callout: string | null;
   totals: { major: number[]; minor: number[]; majorLabel: string; minorLabel: string };
   actions: ScoringAction[];
+  /** Recent marks in the current unit (cricket: this over's balls). */
+  ticker?: string[];
+  /** Basketball: period, clock, team fouls and timeouts, player lines and the play log. */
+  game?: GameDetail;
 }
 
 export interface SportRef {
@@ -103,6 +111,14 @@ export interface PlayerOption {
 
 export type ParticipantInput = { playerId: string } | { userId: string } | { guest: { displayName: string; phone?: string | null } };
 
+/** A participant as a new match lists it: who, plus a shirt number (basketball). */
+export type MatchParticipantInput = ParticipantInput & { jerseyNumber?: number | null };
+
+/** A player in one match; the shirt number is this match's (basketball) or null. Older cached views may lack it. */
+export interface MatchPlayerRef extends PlayerRef {
+  jerseyNumber?: number | null;
+}
+
 export type MatchStatus = 'scheduled' | 'live' | 'completed' | 'abandoned' | 'disputed' | 'walkover' | 'retired';
 export type ResultType = 'played' | 'walkover' | 'no_show' | 'retired' | 'double_walkover';
 export type Verification = 'not_required' | 'pending' | 'confirmed' | 'disputed';
@@ -110,9 +126,11 @@ export type Verification = 'not_required' | 'pending' | 'confirmed' | 'disputed'
 export interface SideView {
   index: number;
   name: string;
+  /** Jersey colour for this match ("#3B82F6"), or null. */
+  color?: string | null;
   teamId: string | null;
   entryId: string | null;
-  players: PlayerRef[];
+  players: MatchPlayerRef[];
   outcome: 'won' | 'lost' | 'drawn' | null;
 }
 
@@ -166,7 +184,7 @@ export interface MatchCard {
   status: MatchStatus;
   sport: SportRef;
   sides: { index: number; name: string; outcome: SideView['outcome'] }[];
-  score: Pick<ScoreSummary, 'headline' | 'complete' | 'winnerSideIndex' | 'callout'> & {
+  score: Pick<ScoreSummary, 'scoringModel' | 'headline' | 'complete' | 'winnerSideIndex' | 'callout'> & {
     sides: { index: number; primary: string; current: string | null; serving: boolean }[];
   };
   mine: boolean;
@@ -178,7 +196,7 @@ export interface NewMatch {
   sport: string;
   format: string;
   rulesetId?: string;
-  sides: { name?: string; players: ParticipantInput[] }[];
+  sides: { name?: string; color?: string; players: MatchParticipantInput[] }[];
   /** Result entered afterwards: one [side 0, side 1] score per game/set. */
   manualScores?: number[][];
   /** Results afterwards: YYYY-MM-DD. */

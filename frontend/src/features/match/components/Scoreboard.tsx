@@ -16,11 +16,20 @@ export function currentUnit(score: ScoreSummary): { segment: SegmentSummary | nu
   return { segment: last, tiebreak, number: score.complete ? done : done + 1 };
 }
 
-/** "Game 3" / "Set 2" / "Final". */
+/** "Game 3" / "Set 2" / "2nd innings" / "Final". */
 export function unitLabel(score: ScoreSummary): string {
   if (score.complete) return 'Final';
+  if (score.scoringModel === 'overs') return score.segments.at(-1)?.children.at(-1)?.label ?? '1st innings';
+  if (score.scoringModel === 'baskets') return score.game?.periodLabel ?? 'Game';
   const word = score.totals.majorLabel === 'Sets' ? 'Set' : 'Game';
   return `${word} ${currentUnit(score).number}`;
+}
+
+/** A column heading for a game, set or period: "G1", "S2", "INN", "SO1". */
+export function segmentShort(score: ScoreSummary, segment: SegmentSummary): string {
+  if (score.scoringModel === 'overs') return segment.type === 'super_over' ? `SO${segment.sequence - 1}` : 'INN';
+  if (score.scoringModel === 'baskets') return segment.label;
+  return `${score.totals.majorLabel === 'Sets' ? 'S' : 'G'}${segment.sequence}`;
 }
 
 /** Header: close, "Badminton · Doubles" over the rules and court, LIVE, ⋯. */

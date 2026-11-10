@@ -37,7 +37,7 @@ function Face({ letter, name, back }: { letter: string; name: string; back?: boo
  * "Toss a coin": a full-screen flip that lands on side A or B at random, then says who won the
  * toss. The winner serves first (the caller picks that side).
  */
-export function CoinToss({ visible, sides, onResult, onClose }: { visible: boolean; sides: [string, string]; onResult: (side: 0 | 1) => void; onClose: () => void }) {
+export function CoinToss({ visible, sides, outcome = 'serve first', onResult, onClose }: { visible: boolean; sides: [string, string]; outcome?: string; onResult: (side: 0 | 1) => void; onClose: () => void }) {
   const { colors } = useTheme();
   const [spin] = useState(() => new Animated.Value(0));
   const [lift] = useState(() => new Animated.Value(0));
@@ -86,7 +86,7 @@ export function CoinToss({ visible, sides, onResult, onClose }: { visible: boole
           ) : (
             <>
               <D size={34} upper color="#F6F2EE" center>
-                {sides[result]} serve first
+                {sides[result]} {outcome}
               </D>
               <T size={14} color="#ABA39B" center>
                 Side {result === 0 ? 'A' : 'B'} won the toss.

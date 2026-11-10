@@ -1288,6 +1288,8 @@ model MatchSide {
   /// Tournament matches: the entry playing on this side.
   entryId   String?      @map("entry_id") @db.Uuid
   outcome   SideOutcome?
+  /// Jersey colour for this match, "#RRGGBB" (basketball team colours).
+  color     String?      @db.VarChar(9)
 
   match         Match               @relation(fields: [matchId], references: [id], onDelete: Cascade)
   team          Team?               @relation(fields: [teamId], references: [id])
@@ -1306,14 +1308,17 @@ model MatchSide {
 }
 
 model MatchParticipant {
-  id        String  @id @default(dbgenerated("uuidv7()")) @db.Uuid
-  matchId   String  @map("match_id") @db.Uuid
-  sideId    String  @map("side_id") @db.Uuid
-  playerId  String  @map("player_id") @db.Uuid
+  id           String  @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  matchId      String  @map("match_id") @db.Uuid
+  sideId       String  @map("side_id") @db.Uuid
+  playerId     String  @map("player_id") @db.Uuid
   /// Generic role/position: "player", "captain", later "goalkeeper", "wicket_keeper" ...
-  position  String? @db.VarChar(30)
+  position     String? @db.VarChar(30)
   /// Order within the side (doubles: who is player 1 / 2, which drives serve order).
-  sortOrder Int     @default(0) @map("sort_order") @db.SmallInt
+  sortOrder    Int     @default(0) @map("sort_order") @db.SmallInt
+  /// Shirt number for this match (basketball), 0-99, unique within the side.
+  // RAW SQL: CHECK 0-99, partial UNIQUE (side_id, jersey_number) WHERE NOT NULL
+  jerseyNumber Int?    @map("jersey_number") @db.SmallInt
 
   match  Match        @relation(fields: [matchId], references: [id], onDelete: Cascade)
   /// Composite FK guarantees the side belongs to the same match.

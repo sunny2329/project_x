@@ -17,7 +17,7 @@ export interface SportSummary {
 
 /**
  * Only active sports whose rulesets have a registered scoring plugin. Inactive sports
- * (volleyball, football, box cricket for now) never reach the app.
+ * (volleyball, football for now) never reach the app.
  */
 export async function listActiveSports(db: Db): Promise<SportSummary[]> {
   const sports = await db.sport.findMany({

@@ -7,7 +7,9 @@ import { sportText, useTheme, withAlpha } from '@/shared/theme';
 import { Badge, Button, D, Dot, EmptyState, Header, IconButton, Loading, Row, Screen, T } from '@/shared/ui';
 import { clockLower, minutes, shortName } from '@/shared/utils/format';
 import { matchApi, shareUrl } from '../api/match.api';
-import { unitLabel } from '../components/Scoreboard';
+import { HoopsSpectator } from '../components/basketball/Spectator';
+import { ThisOver } from '../components/CricketBoard';
+import { segmentShort, unitLabel } from '../components/Scoreboard';
 import type { MatchView } from '../types';
 
 const POLL_MS = 4_000;
@@ -35,8 +37,10 @@ export function SpectatorView({ match, reload }: { match: MatchView; reload: () 
 
   const score = match.score;
   const tint = sportText(colors, match.sport.slug);
-  const segs = score.segments;
-  const columns = segs.map((s) => ({ key: s.sequence, label: `${score.totals.majorLabel === 'Sets' ? 'S' : 'G'}${s.sequence}`, seg: s }));
+  const overs = score.scoringModel === 'overs';
+  // Cricket's big number already is the period in play; only finished ones get a column.
+  const segs = overs ? score.segments.filter((s) => s.complete) : score.segments;
+  const columns = segs.map((s) => ({ key: s.sequence, label: segmentShort(score, s), seg: s }));
   const ratingOf = (playerId: string) => details.data?.details.players.find((p) => p.playerId === playerId)?.rating ?? null;
   const avg = (i: number) => {
     const rs = (match.sides[i]?.players ?? []).map((p) => ratingOf(p.playerId)).filter((r): r is number => r !== null);
@@ -72,60 +76,68 @@ export function SpectatorView({ match, reload }: { match: MatchView; reload: () 
         </T>
       </View>
 
-      <View style={{ borderRadius: 24, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, overflow: 'hidden' }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', paddingTop: 12, paddingHorizontal: 16, paddingBottom: 6 }}>
-          <View style={{ flex: 1 }} />
-          {columns.map((c) => (
-            <T key={c.key} size={11} w={700} ls={0.08} color={colors.muted} center style={{ width: 40 }}>
-              {c.label}
-            </T>
-          ))}
-          <T size={11} w={700} ls={0.08} color={colors.muted} right style={{ width: 86 }}>
-            POINTS
-          </T>
-        </View>
-        {[0, 1].map((i) => {
-          const side = score.sides[i]!;
-          return (
-            <View key={i}>
-              {i === 1 ? <View style={{ height: 1, backgroundColor: colors.raised, marginHorizontal: 16 }} /> : null}
-              <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 10, paddingBottom: i === 1 ? 16 : 10 }}>
-                <View style={{ flex: 1, gap: 4 }}>
-                  {(match.sides[i]?.players.length ? match.sides[i]!.players.map((p) => shortName(p.displayName)) : [match.sides[i]?.name ?? '']).map((n) => (
-                    <T key={n} size={16} w={700} numberOfLines={1}>
-                      {n}
-                    </T>
-                  ))}
-                  {side.serving ? (
-                    <Row gap={6}>
-                      <Dot color={tint} />
-                      <T size={12} w={700} color={tint}>
-                        Serving{side.serveNote ? ` · ${side.serveNote}` : ''}
-                      </T>
-                    </Row>
-                  ) : null}
-                </View>
-                {columns.map((c) => (
-                  <D key={c.key} size={22} w={c.seg.complete && c.seg.winnerSideIndex === i ? 900 : 800} color={!c.seg.complete ? colors.faint : c.seg.winnerSideIndex === i ? colors.fg : colors.muted} style={{ width: 40, textAlign: 'center' }}>
-                    {c.seg.complete ? c.seg.display[i] : '·'}
-                  </D>
-                ))}
-                <D size={72} lh={70} color={side.serving ? tint : colors.fg} style={{ width: 86, textAlign: 'right' }}>
-                  {side.current ?? side.primary}
-                </D>
-              </View>
+      {score.scoringModel === 'baskets' && score.game ? (
+        <HoopsSpectator match={match} />
+      ) : (
+        <>
+          <View style={{ borderRadius: 24, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, overflow: 'hidden' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', paddingTop: 12, paddingHorizontal: 16, paddingBottom: 6 }}>
+              <View style={{ flex: 1 }} />
+              {columns.map((c) => (
+                <T key={c.key} size={11} w={700} ls={0.08} color={colors.muted} center style={{ width: overs ? 56 : 40 }}>
+                  {c.label}
+                </T>
+              ))}
+              <T size={11} w={700} ls={0.08} color={colors.muted} right style={{ width: overs ? 96 : 86 }}>
+                {overs ? 'SCORE' : 'POINTS'}
+              </T>
             </View>
-          );
-        })}
-        <View style={{ paddingVertical: 12, paddingHorizontal: 16, backgroundColor: score.callout ? withAlpha(match.sport.accentColor, 0.14) : colors.raised2, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-          <D size={26} ls={0.06} color={score.callout ? tint : colors.muted}>
-            {(score.callout ?? unitLabel(score)).toUpperCase()}
-          </D>
-          <T size={13} color={colors.soft}>
-            {unitLabel(score)}
-          </T>
-        </View>
-      </View>
+            {[0, 1].map((i) => {
+              const side = score.sides[i]!;
+              return (
+                <View key={i}>
+                  {i === 1 ? <View style={{ height: 1, backgroundColor: colors.raised, marginHorizontal: 16 }} /> : null}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 10, paddingBottom: i === 1 ? 16 : 10 }}>
+                    <View style={{ flex: 1, gap: 4 }}>
+                      {(match.sides[i]?.players.length ? match.sides[i]!.players.map((p) => shortName(p.displayName)) : [match.sides[i]?.name ?? '']).map((n) => (
+                        <T key={n} size={16} w={700} numberOfLines={1}>
+                          {n}
+                        </T>
+                      ))}
+                      {side.serving ? (
+                        <Row gap={6}>
+                          <Dot color={tint} />
+                          <T size={12} w={700} color={tint}>
+                            {overs ? 'Batting' : 'Serving'}{side.serveNote ? ` · ${side.serveNote}` : ''}
+                          </T>
+                        </Row>
+                      ) : null}
+                    </View>
+                    {columns.map((c) => (
+                      <D key={c.key} size={22} w={c.seg.complete && c.seg.winnerSideIndex === i ? 900 : 800} color={!c.seg.complete ? colors.faint : c.seg.winnerSideIndex === i ? colors.fg : colors.muted} style={{ width: overs ? 56 : 40, textAlign: 'center' }}>
+                        {c.seg.complete ? c.seg.display[i] : '·'}
+                      </D>
+                    ))}
+                    <D size={overs ? 38 : 72} lh={overs ? 38 : 70} color={side.serving ? tint : colors.fg} numberOfLines={1} style={{ width: overs ? 96 : 86, textAlign: 'right' }}>
+                      {side.current ?? side.primary}
+                    </D>
+                  </View>
+                </View>
+              );
+            })}
+            <View style={{ paddingVertical: 12, paddingHorizontal: 16, backgroundColor: score.callout ? withAlpha(match.sport.accentColor, 0.14) : colors.raised2, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <D size={26} ls={0.06} color={score.callout ? tint : colors.muted}>
+                {(score.callout ?? unitLabel(score)).toUpperCase()}
+              </D>
+              <T size={13} color={colors.soft}>
+                {unitLabel(score)}
+              </T>
+            </View>
+          </View>
+
+          {overs ? <ThisOver marks={score.ticker ?? []} /> : null}
+        </>
+      )}
 
       <View style={{ gap: 10, paddingVertical: 14, paddingHorizontal: 16, borderRadius: 16, backgroundColor: colors.surface }}>
         {match.startedAt ? (

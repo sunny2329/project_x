@@ -58,7 +58,8 @@ export async function createTestContext() {
   const google = new StubSocialVerifier();
   const apple = new StubSocialVerifier();
   const app = createApp({
-    env: { ...env, ACCESS_TOKEN_TTL_SECONDS: 900 },
+    // Long enough for a whole test file against remote Neon (accounts sign in once in beforeAll).
+    env: { ...env, ACCESS_TOKEN_TTL_SECONDS: 4 * 60 * 60 },
     logger: pino({ level: 'silent' }),
     pool,
     db,

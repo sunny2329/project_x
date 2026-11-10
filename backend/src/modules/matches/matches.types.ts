@@ -14,12 +14,19 @@ export interface SportRef {
   accentColor: string;
 }
 
+/** A player as listed in one match: the shirt number is this match's (basketball), else null. */
+export interface MatchPlayerRef extends PlayerRef {
+  jerseyNumber: number | null;
+}
+
 export interface SideView {
   index: number;
   name: string;
+  /** Jersey colour for this match ("#3B82F6"), or null. */
+  color: string | null;
   teamId: string | null;
   entryId: string | null;
-  players: PlayerRef[];
+  players: MatchPlayerRef[];
   outcome: 'won' | 'lost' | 'drawn' | null;
 }
 
@@ -86,7 +93,7 @@ export interface MatchCard {
   status: MatchStatusName;
   sport: SportRef;
   sides: Array<{ index: number; name: string; outcome: SideView['outcome'] }>;
-  score: Pick<ScoreSummary, 'headline' | 'complete' | 'winnerSideIndex' | 'callout'> & { sides: Array<{ index: number; primary: string; current: string | null; serving: boolean }> };
+  score: Pick<ScoreSummary, 'scoringModel' | 'headline' | 'complete' | 'winnerSideIndex' | 'callout'> & { sides: Array<{ index: number; primary: string; current: string | null; serving: boolean }> };
   mine: boolean;
   startedAt: string | null;
   updatedAt: string;

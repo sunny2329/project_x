@@ -2,7 +2,8 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Pressable, TextInput, View } from 'react-native';
 import { useSports } from '@/features/match/hooks/useSports';
-import { rulesetDetail } from '@/features/match/rules';
+import { RulesSheet } from '@/features/match/components/RulesSheet';
+import { changeRule, EDITABLE_RULES, rulesetDetail, rulesTitle } from '@/features/match/rules';
 import type { SportSummary } from '@/features/match/types';
 import { useSubmit } from '@/shared/hooks/useSubmit';
 import { displayFont, useTheme } from '@/shared/theme';
@@ -10,10 +11,16 @@ import { Button, Chip, D, DragList, Field, Group, GroupRow, Icon, Loading, Notic
 import { tournamentsApi } from '../api/tournaments.api';
 import { DRAW_FORMATS, type DrawFormat, type Tiebreaker } from '../types';
 
-const SCORED = new Set(['rally', 'side_out', 'tennis']);
+const SCORED = new Set(['rally', 'side_out', 'tennis', 'overs', 'baskets']);
 const TIEBREAKERS: Tiebreaker[] = ['match_wins', 'head_to_head', 'major_diff', 'minor_diff'];
 
-function tiebreakLabel(t: Tiebreaker, sets: boolean): string {
+/** Cricket and basketball count wins, then runs / points; racket sports count games and sets. */
+function tiebreakLabel(t: Tiebreaker, sets: boolean, model: string | undefined): string {
+  const unit = model === 'overs' ? 'Runs' : model === 'baskets' ? 'Points' : null;
+  if (unit && t === 'major_diff') return 'Wins minus losses';
+  if (unit && t === 'minor_diff') return `${unit} scored minus conceded`;
+  if (unit && t === 'major_won') return 'Wins';
+  if (unit && t === 'minor_won') return `${unit} scored`;
   return {
     match_wins: 'Matches won',
     head_to_head: 'Head to head',
@@ -23,27 +30,6 @@ function tiebreakLabel(t: Tiebreaker, sets: boolean): string {
     minor_won: sets ? 'Games won' : 'Points won',
   }[t];
 }
-
-/** Numbers in a ruleset an organizer may change ("points to win, cap…"). */
-const EDITABLE: Record<string, { key: string; label: string; min: number; max: number; odd?: boolean }[]> = {
-  rally: [
-    { key: 'pointsToWin', label: 'Points to win', min: 5, max: 50 },
-    { key: 'winBy', label: 'Win by', min: 1, max: 5 },
-    { key: 'cap', label: 'Cap', min: 5, max: 60 },
-    { key: 'bestOf', label: 'Best of', min: 1, max: 7, odd: true },
-  ],
-  side_out: [
-    { key: 'pointsToWin', label: 'Points to win', min: 5, max: 30 },
-    { key: 'winBy', label: 'Win by', min: 1, max: 5 },
-    { key: 'bestOf', label: 'Best of', min: 1, max: 5, odd: true },
-  ],
-  tennis: [
-    { key: 'bestOf', label: 'Best of (sets)', min: 1, max: 5, odd: true },
-    { key: 'setGames', label: 'Games per set', min: 1, max: 8 },
-    { key: 'tiebreakAt', label: 'Tiebreak at', min: 1, max: 8 },
-    { key: 'tiebreakPoints', label: 'Tiebreak to', min: 5, max: 15 },
-  ],
-};
 
 /** Add an event: sport, format, ruleset (optionally changed), draw format and its settings, tiebreak order, max entries. */
 export default function AddEventScreen() {
@@ -82,8 +68,7 @@ export default function AddEventScreen() {
   if (!all) return <Loading />;
   const ruleset = sport?.rulesets.find((r) => r.id === rulesetId) ?? null;
   const sets = ruleset?.scoringModel === 'tennis';
-  const editable = ruleset ? (EDITABLE[ruleset.scoringModel] ?? []) : [];
-  const config = { ...(ruleset?.config ?? {}), ...override } as Record<string, unknown>;
+  const editable = ruleset ? (EDITABLE_RULES[ruleset.scoringModel] ?? []) : [];
   const minEntries = draw === 'knockout' ? 2 : draw === 'round_robin' ? 3 : groupCount * Math.max(2, qualifiers + 1);
   const drawConfig = draw === 'knockout' ? { thirdPlaceMatch: thirdPlace } : draw === 'round_robin' ? { legs: Number(legs) } : { groupCount, qualifiersPerGroup: qualifiers, thirdPlaceMatch: thirdPlace, legs: Number(legs) };
   const max = Number(maxEntries) || undefined;
@@ -175,12 +160,11 @@ export default function AddEventScreen() {
         </T>
         <Pressable accessibilityRole="button" accessibilityLabel="Rules" onPress={() => setPickingRules(true)} style={{ flexDirection: 'row', alignItems: 'center', height: 52, borderRadius: 14, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, paddingHorizontal: 14 }}>
           <T size={16} w={600} flex numberOfLines={1}>
-            {ruleset?.name ?? 'Pick the rules'}
-            {Object.keys(override).length ? ' · changed' : ''}
+            {ruleset ? rulesTitle(ruleset, override) : 'Pick the rules'}
           </T>
           <Icon name="chevronDown" size={20} color={colors.muted} />
         </Pressable>
-        {editable.length ? <TextButton label="Change a rule (points to win, cap…)" size={13} color={colors.soft} onPress={() => setEditingRules(true)} /> : null}
+        {editable.length ? <TextButton label={ruleset?.scoringModel === 'overs' ? 'Change a rule (players, overs, wickets…)' : ruleset?.scoringModel === 'baskets' ? 'Change a rule (minutes, fouls, timeouts…)' : 'Change a rule (points to win, cap…)'} size={13} color={colors.soft} onPress={() => setEditingRules(true)} /> : null}
       </View>
 
       <View style={{ gap: 8 }}>
@@ -264,7 +248,7 @@ export default function AddEventScreen() {
                   {i + 1}
                 </D>
                 <T size={15} flex>
-                  {tiebreakLabel(t, sets)}
+                  {tiebreakLabel(t, sets, ruleset?.scoringModel)}
                 </T>
               </>
             )}
@@ -299,43 +283,15 @@ export default function AddEventScreen() {
         ))}
       </Sheet>
 
-      <Sheet visible={editingRules} onClose={() => setEditingRules(false)}>
-        <T size={18} w={700}>
-          Change a rule
-        </T>
-        <T size={13} color={colors.muted}>
-          Starts from {ruleset?.name}. Only what you change is saved with this event.
-        </T>
-        <View style={{ borderRadius: 16, backgroundColor: colors.bg, overflow: 'hidden' }}>
-          {editable.map((e, i) => {
-            const raw = config[e.key];
-            // No cap set yet: start from points-to-win + 9 (21 -> 30, as in badminton).
-            const value = typeof raw === 'number' ? raw : e.key === 'cap' ? Number(config.pointsToWin ?? 21) + 9 : e.min;
-            return (
-              <GroupRow key={e.key} minHeight={56} last={i === editable.length - 1} style={{ backgroundColor: colors.bg }}>
-                <T size={15} flex>
-                  {e.label}
-                </T>
-                <Stepper
-                  value={value}
-                  min={e.min}
-                  max={e.max}
-                  label={e.label.toLowerCase()}
-                  onChange={(v) => {
-                    // Best of stays odd: step by two.
-                    const next = e.odd ? (v > value ? Math.min(e.max, value + 2) : Math.max(e.min, value - 2)) : v;
-                    setOverride((o) => ({ ...o, [e.key]: next }));
-                  }}
-                />
-              </GroupRow>
-            );
-          })}
-        </View>
-        <Row gap={10}>
-          <Button label="Reset" variant="raised" height={50} style={{ flex: 1 }} onPress={() => setOverride({})} />
-          <Button label="Done" height={50} style={{ flex: 1 }} onPress={() => setEditingRules(false)} />
-        </Row>
-      </Sheet>
+      <RulesSheet
+        visible={editingRules}
+        onClose={() => setEditingRules(false)}
+        ruleset={ruleset}
+        override={override}
+        onChange={(key, value) => ruleset && setOverride((o) => changeRule(ruleset.scoringModel, ruleset.config, o, key, value))}
+        onReset={() => setOverride({})}
+        note="Only what you change is saved with this event."
+      />
     </Screen>
   );
 }
