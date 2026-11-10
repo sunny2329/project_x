@@ -65,8 +65,10 @@ export interface Palette {
   av: [string, string, string, string, string];
 }
 
-/** LIVE badges and unread counts (same in both themes). */
-export const LIVE = '#FF5468';
+/** LIVE badges, dots and borders (same in both themes). */
+export const LIVE = '#22C55E';
+/** Unread counts, likes and disputes (same in both themes). */
+export const ALERT = '#FF5468';
 /** READY / Q badges and the Approve button (same in both themes). */
 export const READY = '#4ADE80';
 /** Podium crown. */

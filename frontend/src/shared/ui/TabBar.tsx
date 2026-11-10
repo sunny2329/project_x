@@ -32,10 +32,10 @@ export function TabBar({ state, emitter, navigateToTab }: BottomTabBarProps) {
           const event = emitter.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
           if (!focused && !event.defaultPrevented) navigateToTab(route.key);
         }}
-        style={{ flex: 1, height: 52, alignItems: 'center', justifyContent: 'center', gap: 3 }}
+        style={{ flex: 1, minWidth: 0, height: 52, alignItems: 'center', justifyContent: 'center', gap: 3, paddingHorizontal: 1 }}
       >
         <Icon name={meta.icon} size={24} color={color} />
-        <T size={11} w={600} color={color} lh={14}>
+        <T size={11} w={600} color={color} lh={14} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={{ maxWidth: '100%' }}>
           {meta.label}
         </T>
       </Pressable>
@@ -47,7 +47,7 @@ export function TabBar({ state, emitter, navigateToTab }: BottomTabBarProps) {
         flexDirection: 'row',
         alignItems: 'center',
         paddingTop: 6,
-        paddingHorizontal: 8,
+        paddingHorizontal: 4,
         paddingBottom: Math.max(insets.bottom, 10) + 4,
         backgroundColor: colors.bar,
         borderTopWidth: 1,

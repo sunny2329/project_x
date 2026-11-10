@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react';
 import { TextInput, View } from 'react-native';
 import { useAuthStore } from '@/features/auth/store/auth.store';
 import { useResource } from '@/shared/hooks/useResource';
-import { bodyFont, LIVE, useTheme } from '@/shared/theme';
+import { ALERT, bodyFont, useTheme } from '@/shared/theme';
 import { Avatar, D, EmptyState, Icon, IconButton, Loading, Notice, Row, Screen, T, Tap } from '@/shared/ui';
 import { chatTime, firstName } from '@/shared/utils/format';
 import { chatApi } from '../api/chat.api';
@@ -99,7 +99,7 @@ export default function ChatListScreen() {
                     {preview(c, me?.id)}
                   </T>
                   {unread ? (
-                    <View style={{ minWidth: 22, height: 22, paddingHorizontal: 6, borderRadius: 11, backgroundColor: LIVE, alignItems: 'center', justifyContent: 'center' }}>
+                    <View style={{ minWidth: 22, height: 22, paddingHorizontal: 6, borderRadius: 11, backgroundColor: ALERT, alignItems: 'center', justifyContent: 'center' }}>
                       <T size={12} w={800} color={colors.ink}>
                         {c.unreadCount > 99 ? '99+' : c.unreadCount}
                       </T>

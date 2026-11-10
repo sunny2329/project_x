@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { Pressable, View } from 'react-native';
-import { LIVE, READY, sportText, useTheme } from '@/shared/theme';
+import { LIVE, READY, sportText, useTheme, withAlpha } from '@/shared/theme';
 import { Badge, D, T, Tap } from '@/shared/ui';
 import { clock, weekdayDayMonth } from '@/shared/utils/format';
 import { fixtureBadge } from '../status';
@@ -161,8 +161,8 @@ export function EventTabs({ event, active }: { event: EventDetail; active: Event
 /** A tinted chip (event pages, cards): "● Best of 3 · 21". */
 export function InfoChip({ label, dot, tone }: { label: string; dot?: string; tone?: 'progress' | 'ready' | 'neutral' }) {
   const { colors } = useTheme();
-  const bg = tone === 'progress' ? 'rgba(255,84,104,0.16)' : tone === 'ready' ? READY : colors.surface;
-  const fg = tone === 'progress' ? colors.bad : tone === 'ready' ? colors.ink : colors.fg;
+  const bg = tone === 'progress' ? withAlpha(LIVE, 0.16) : tone === 'ready' ? READY : colors.surface;
+  const fg = tone === 'progress' ? colors.good : tone === 'ready' ? colors.ink : colors.fg;
   return (
     <View style={{ height: 28, paddingHorizontal: 10, borderRadius: 8, backgroundColor: bg, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
       {dot ? <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: dot }} /> : null}

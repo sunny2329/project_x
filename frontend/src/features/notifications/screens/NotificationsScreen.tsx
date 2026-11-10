@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { ActivityIndicator, FlatList, RefreshControl, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { errorMessage, useResource } from '@/shared/hooks/useResource';
-import { LIVE, useTheme } from '@/shared/theme';
+import { ALERT, useTheme } from '@/shared/theme';
 import { Avatar, EmptyState, Header, Icon, type IconName, Loading, Notice, T, Tap } from '@/shared/ui';
 import { formatRelativeTime } from '@/shared/utils/time';
 import { notificationsApi } from '../api/notifications.api';
@@ -36,7 +36,7 @@ function NotificationRow({ n }: { n: AppNotification }) {
             borderRadius: 11,
             borderWidth: 2,
             borderColor: n.isRead ? colors.bg : colors.surface,
-            backgroundColor: n.type === 'like' ? LIVE : colors.primary,
+            backgroundColor: n.type === 'like' ? ALERT : colors.primary,
             alignItems: 'center',
             justifyContent: 'center',
           }}
@@ -57,7 +57,7 @@ function NotificationRow({ n }: { n: AppNotification }) {
           {formatRelativeTime(n.createdAt)}
         </T>
       </View>
-      {n.isRead ? null : <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: LIVE, marginTop: 6 }} />}
+      {n.isRead ? null : <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: ALERT, marginTop: 6 }} />}
     </Tap>
   );
 }

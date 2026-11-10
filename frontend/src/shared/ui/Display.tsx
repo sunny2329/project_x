@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { ActivityIndicator, Image, Pressable, View, type ViewStyle } from 'react-native';
 import { env } from '@/shared/config/env';
-import { avatarTone, LIVE, READY, useTheme } from '@/shared/theme';
+import { avatarTone, LIVE, READY, useTheme, withAlpha } from '@/shared/theme';
 import { Icon } from './Icon';
 import { D, T } from './Text';
 
@@ -104,7 +104,7 @@ export function Badge({
     pending: { bg: colors.warnBg, fg: colors.warnText },
     neutral: { bg: colors.raised, fg: colors.soft },
     bad: { bg: 'rgba(255,84,104,0.14)', fg: colors.bad },
-    progress: { bg: 'rgba(255,84,104,0.16)', fg: colors.bad },
+    progress: { bg: withAlpha(LIVE, 0.16), fg: colors.good },
     primary: { bg: colors.primary, fg: colors.onPrimary },
   }[tone];
   return (
