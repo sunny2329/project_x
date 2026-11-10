@@ -507,6 +507,12 @@ Frontend (`frontend/.env`, template `frontend/.env.example`): `EXPO_PUBLIC_API_U
 
 ## Changelog
 
+### 2026-11-10: Live is green; tab labels stay on one line (uncommitted)
+- `LIVE` (shared/theme/colors.ts) is now green `#22C55E`: LIVE badges, live dots and borders, the
+  "Live now" dot on Home, "IN PROGRESS" chips and the court board's Live count. Unread counts,
+  likes, disputes and the scoring-duties count keep the red, now named `ALERT`.
+- Bottom tab bar: labels are one line and shrink to fit (down to 80%), so "Tournaments" no longer wraps.
+
 ### 2026-11-10: Basketball 5v5 substitutions on the board
 - From `ProjectX App Screens (2).html`: it changes only the 5v5 live screen. Each team card has
   **⇄ SUB** next to FOUL (hidden when nobody on the bench can come on). It pauses the clock, then

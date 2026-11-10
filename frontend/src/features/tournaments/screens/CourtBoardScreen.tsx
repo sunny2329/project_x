@@ -3,7 +3,7 @@ import { View } from 'react-native';
 import { useNow } from '@/shared/hooks/useNow';
 import { useResource } from '@/shared/hooks/useResource';
 import { useSubmit } from '@/shared/hooks/useSubmit';
-import { LIVE, READY, sportText, useTheme } from '@/shared/theme';
+import { LIVE, READY, sportText, useTheme, withAlpha } from '@/shared/theme';
 import { Badge, Button, D, EmptyState, Header, Loading, Notice, Row, Screen, T, Tap } from '@/shared/ui';
 import { clock, clock12, weekdayDayMonth } from '@/shared/utils/format';
 import { tournamentsApi } from '../api/tournaments.api';
@@ -58,7 +58,7 @@ export default function CourtBoardScreen() {
 
       <Row gap={8}>
         {[
-          { n: counts.live, label: 'Live', bg: 'rgba(255,84,104,0.12)', fg: colors.bad },
+          { n: counts.live, label: 'Live', bg: withAlpha(LIVE, 0.12), fg: colors.good },
           { n: counts.ready, label: 'Ready to start', bg: 'rgba(74,222,128,0.1)', fg: colors.good },
           { n: counts.free, label: 'Free', bg: colors.surface, fg: colors.fg },
         ].map((s) => (

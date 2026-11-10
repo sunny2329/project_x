@@ -4,7 +4,7 @@ import { View } from 'react-native';
 import { useAuthStore } from '@/features/auth/store/auth.store';
 import { useResource } from '@/shared/hooks/useResource';
 import { useSubmit } from '@/shared/hooks/useSubmit';
-import { LIVE, useTheme, withAlpha } from '@/shared/theme';
+import { ALERT, useTheme, withAlpha } from '@/shared/theme';
 import { Avatar, Badge, Button, D, Dot, EmptyState, Field, Header, Icon, Loading, Notice, Row, Screen, Segmented, T } from '@/shared/ui';
 import { weekdayDayMonth } from '@/shared/utils/format';
 import { matchApi } from '../api/match.api';
@@ -74,7 +74,7 @@ export default function ConfirmResultScreen() {
             <Button
               label={answer === 'accept' ? 'Confirm result' : 'Send dispute'}
               weight={800}
-              color={answer === 'accept' ? undefined : LIVE}
+              color={answer === 'accept' ? undefined : ALERT}
               textColor={answer === 'accept' ? undefined : colors.onPrimary}
               disabled={answer === 'dispute' && !note.trim()}
               loading={submitting}
@@ -146,7 +146,7 @@ export default function ConfirmResultScreen() {
             ]}
             value={answer}
             onChange={setAnswer}
-            activeColor={answer === 'dispute' ? LIVE : undefined}
+            activeColor={answer === 'dispute' ? ALERT : undefined}
             activeText={answer === 'dispute' ? colors.ink : undefined}
           />
           {answer === 'dispute' ? (

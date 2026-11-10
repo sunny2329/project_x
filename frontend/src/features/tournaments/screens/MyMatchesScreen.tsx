@@ -4,7 +4,7 @@ import { View } from 'react-native';
 import { useAuthStore } from '@/features/auth/store/auth.store';
 import { useResource } from '@/shared/hooks/useResource';
 import { useSubmit } from '@/shared/hooks/useSubmit';
-import { LIVE, READY, useTheme } from '@/shared/theme';
+import { ALERT, LIVE, READY, useTheme } from '@/shared/theme';
 import { Badge, Button, EmptyState, Header, Icon, Loading, Notice, Row, Screen, Segmented, T, Tap } from '@/shared/ui';
 import { clock } from '@/shared/utils/format';
 import { tournamentsApi } from '../api/tournaments.api';
@@ -93,7 +93,7 @@ export default function MyMatchesScreen() {
             value: 'scoring',
             label: 'Scoring duties',
             badge: duties ? (
-              <View style={{ minWidth: 20, height: 20, paddingHorizontal: 5, borderRadius: 10, backgroundColor: LIVE, alignItems: 'center', justifyContent: 'center' }}>
+              <View style={{ minWidth: 20, height: 20, paddingHorizontal: 5, borderRadius: 10, backgroundColor: ALERT, alignItems: 'center', justifyContent: 'center' }}>
                 <T size={12} w={800} color={colors.ink}>
                   {duties}
                 </T>

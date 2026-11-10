@@ -8,7 +8,7 @@ import { matchApi } from '@/features/match/api/match.api';
 import { notificationsApi } from '@/features/notifications/api/notifications.api';
 import type { MatchCard, MatchView } from '@/features/match/types';
 import { useResource } from '@/shared/hooks/useResource';
-import { LIVE, useTheme } from '@/shared/theme';
+import { ALERT, LIVE, useTheme, withAlpha } from '@/shared/theme';
 import { Button, EmptyState, Icon, IconButton, Notice, T, Tap, Wordmark } from '@/shared/ui';
 import { firstName, plural } from '@/shared/utils/format';
 import { PostCard } from '../components/PostCards';
@@ -88,7 +88,7 @@ export default function HomeScreen() {
                     borderRadius: 9,
                     borderWidth: 2,
                     borderColor: colors.surface,
-                    backgroundColor: LIVE,
+                    backgroundColor: ALERT,
                     alignItems: 'center',
                     justifyContent: 'center',
                   }}
@@ -109,7 +109,7 @@ export default function HomeScreen() {
         <View style={{ gap: 10 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <View style={{ width: 16, height: 16, borderRadius: 8, backgroundColor: 'rgba(255,84,104,0.2)', alignItems: 'center', justifyContent: 'center' }}>
+              <View style={{ width: 16, height: 16, borderRadius: 8, backgroundColor: withAlpha(LIVE, 0.2), alignItems: 'center', justifyContent: 'center' }}>
                 <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: LIVE }} />
               </View>
               <T size={13} w={700} ls={0.08} upper>
