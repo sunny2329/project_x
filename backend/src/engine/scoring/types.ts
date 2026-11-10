@@ -30,6 +30,7 @@ export interface SideSummary {
   primary: string;
   /** The running score inside the current unit ("17", "40", "AD"), or null when there is none. */
   current: string | null;
+  /** The side with the initiative: serving, or batting in cricket. */
   serving: boolean;
   /** Pickleball doubles: server 1 or 2; null elsewhere. */
   serverNumber: 1 | 2 | null;
@@ -72,6 +73,64 @@ export interface ScoreSummary {
    */
   totals: { major: number[]; minor: number[]; majorLabel: string; minorLabel: string };
   actions: ScoringAction[];
+  /** Recent marks in the current unit (cricket: this over's balls, "1", "W", "Wd"). */
+  ticker?: string[];
+  /** Team games with a clock, periods and player stats (basketball). */
+  game?: GameDetail;
+}
+
+/** One line of the play log. Players are addressed by their order in the side (0-based). */
+export interface PlayEntry {
+  /** 1-based position in the log. */
+  seq: number;
+  kind: 'score' | 'foul' | 'timeout' | 'sub' | 'period_end';
+  period: number;
+  /** Seconds left in the period when it happened, if the scorer's clock was running. */
+  clock: number | null;
+  sideIndex: number | null;
+  points: number | null;
+  playerIndex: number | null;
+  assistIndex: number | null;
+  foulKind: string | null;
+  inIndex: number | null;
+  outIndex: number | null;
+  /** This foul was the player's last allowed one. */
+  fouledOut: boolean;
+  /** Running score after the play, side 0 first. */
+  score: number[];
+}
+
+export interface PlayerLine {
+  index: number;
+  points: number;
+  /** Baskets made worth 1 (free throws, or inside the arc in 1-and-2 scoring), 2 and 3. */
+  ones: number;
+  twos: number;
+  threes: number;
+  assists: number;
+  fouls: number;
+  onCourt: boolean;
+  fouledOut: boolean;
+}
+
+export interface GameDetail {
+  /** 1-based; past `periods` = overtime. */
+  period: number;
+  /** "Q3", "H1", "OT", "Game". */
+  periodLabel: string;
+  periods: number;
+  overtime: boolean;
+  /** Seconds left in the current period at the last play with a clock reading. */
+  clock: number | null;
+  /** Who has the ball (half court) or the possession arrow (full court). */
+  possessionSideIndex: number | null;
+  /** First-to game level when time ran out: the next basket wins. */
+  suddenDeath: boolean;
+  /** Per side: team fouls in the current window, at or over the limit, timeouts left. */
+  teams: { fouls: number; bonus: boolean; timeoutsLeft: number }[];
+  /** Per side, per player (by order in the side). */
+  players: PlayerLine[][];
+  plays: PlayEntry[];
 }
 
 export interface ScoringPlugin<Config = unknown, State = unknown, Event extends PluginEvent = PluginEvent> {
@@ -97,6 +156,11 @@ export interface ScoringPlugin<Config = unknown, State = unknown, Event extends 
    * 2 games, 42 points). Defaults to { major: 1, minor: 0 }.
    */
   walkoverScore?(config: Config): { major: number; minor: number };
+  /**
+   * Optional: the rules in a few words, from the config actually played ("5 overs · 4 wickets ·
+   * 6 a side"), shown instead of the ruleset's name once an organizer or scorer changed a rule.
+   */
+  describeRules?(config: Config): string;
 }
 
 export type ScoringErrorCode = 'UNKNOWN_SCORING_MODEL' | 'INVALID_CONFIG' | 'INVALID_SIDES' | 'INVALID_EVENT' | 'MATCH_COMPLETE' | 'INVALID_RESULT';

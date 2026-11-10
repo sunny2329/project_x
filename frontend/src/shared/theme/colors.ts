@@ -41,13 +41,26 @@ export interface Palette {
   warnLine: string;
   good: string;
   bad: string;
-  /** Sport text tints (readable on bg): badminton, table tennis, pickleball, padel, tennis, volleyball. */
+  /** Sport text tints (readable on bg): badminton, table tennis, pickleball, padel, tennis, volleyball, box cricket, basketball. */
   tBad: string;
   tTT: string;
   tPk: string;
   tPd: string;
   tTn: string;
   tVb: string;
+  tBc: string;
+  /** Basketball blue as text (#3B82F6 is too dark on bg). */
+  tBb: string;
+  /** Basketball blue tint behind cards (rgba of #3B82F6). */
+  bbTint: string;
+  /** Basketball court drawing: floorboards (two tones), the paint, and the court lines. */
+  floor: string;
+  floor2: string;
+  paint: string;
+  cline: string;
+  /** The light team's fill in charts (lead-by-minute area below the line) and its dot. */
+  wFill: string;
+  wDot: string;
   /** Initials-avatar backgrounds. */
   av: [string, string, string, string, string];
 }
@@ -92,6 +105,15 @@ export const darkPalette: Palette = {
   tPd: '#5FD4E8',
   tTn: '#B5E26A',
   tVb: '#5EDBC8',
+  tBc: '#4ADE80',
+  tBb: '#8AB4FF',
+  bbTint: 'rgba(59,130,246,0.14)',
+  floor: '#2B1B10',
+  floor2: '#24160D',
+  paint: 'rgba(232,93,4,0.30)',
+  cline: 'rgba(255,236,214,0.55)',
+  wFill: 'rgba(242,237,231,0.30)',
+  wDot: '#F2EDE7',
   av: ['#3B2A55', '#4A2433', '#173A43', '#3D2A17', '#26361A'],
 };
 
@@ -128,6 +150,15 @@ export const lightPalette: Palette = {
   tPd: '#0E7490',
   tTn: '#4D7C0F',
   tVb: '#0F766E',
+  tBc: '#15803D',
+  tBb: '#1D4ED8',
+  bbTint: 'rgba(59,130,246,0.10)',
+  floor: '#E9B67E',
+  floor2: '#DCA56A',
+  paint: 'rgba(194,65,12,0.32)',
+  cline: 'rgba(255,255,255,0.95)',
+  wFill: 'rgba(28,25,23,0.22)',
+  wDot: '#1C1917',
   av: ['#EBD9FF', '#FCE1EA', '#CDF3F8', '#FFE6CC', '#E3F5C8'],
 };
 
@@ -139,6 +170,8 @@ export const SPORT_COLORS: Record<string, string> = {
   padel: '#06B6D4',
   tennis: '#84CC16',
   volleyball: '#14B8A6',
+  'box-cricket': '#22C55E',
+  basketball: '#3B82F6',
 };
 
 /** The sport's readable text tint in this palette ("MATCH POINT" in the sport's colour). */
@@ -156,6 +189,10 @@ export function sportText(colors: Palette, slug: string | undefined): string {
       return colors.tTn;
     case 'volleyball':
       return colors.tVb;
+    case 'box-cricket':
+      return colors.tBc;
+    case 'basketball':
+      return colors.tBb;
     default:
       return colors.accentText;
   }

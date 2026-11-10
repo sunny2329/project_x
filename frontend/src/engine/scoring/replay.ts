@@ -13,6 +13,19 @@ export function parseConfig(plugin: AnyScoringPlugin, config: unknown): unknown 
   return parsed.data;
 }
 
+/**
+ * The rules as played, in a few words, when the plugin can say them ("5 overs · 4 wickets"), else
+ * `fallback` (the ruleset's name). Never throws: an unknown model or bad config keeps the name.
+ */
+export function rulesName(registry: ScoringRegistry, scoringModel: string, config: unknown, fallback: string): string;
+export function rulesName(registry: ScoringRegistry, scoringModel: string, config: unknown, fallback: string | null): string | null;
+export function rulesName(registry: ScoringRegistry, scoringModel: string, config: unknown, fallback: string | null): string | null {
+  if (!registry.has(scoringModel)) return fallback;
+  const plugin = registry.get(scoringModel);
+  const parsed = plugin.configSchema.safeParse(config);
+  return parsed.success && plugin.describeRules ? plugin.describeRules(parsed.data) : fallback;
+}
+
 /** Parses one event with the plugin's schema. Throws INVALID_EVENT. */
 export function parseEvent(plugin: AnyScoringPlugin, event: unknown): PluginEvent {
   const parsed = plugin.eventSchema.safeParse(event);

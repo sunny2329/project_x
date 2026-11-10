@@ -13,11 +13,37 @@ export const participantSchema = z.union([
   }),
 ]);
 
-const sideSchema = z.object({
-  name: z.string().trim().min(1).max(80).optional(),
-  teamId: z.uuid().optional(),
-  players: z.array(participantSchema).min(1, 'Each side needs a player').max(11),
-});
+/** Shirt number for this match (basketball): 0-99, unique within the side. */
+const jerseyNumber = z.number().int().min(0, 'Shirt numbers go from 0 to 99').max(99, 'Shirt numbers go from 0 to 99').nullish();
+
+/** A participant as a match lists it: who, plus their shirt number. */
+export const matchParticipantSchema = z.union([
+  z.object({ playerId: z.uuid(), jerseyNumber }),
+  z.object({ userId: z.uuid(), jerseyNumber }),
+  z.object({
+    guest: z.object({
+      displayName: z.string().trim().min(1, 'Enter a name').max(80),
+      phone: e164.nullish(),
+    }),
+    jerseyNumber,
+  }),
+]);
+
+const sideSchema = z
+  .object({
+    name: z.string().trim().min(1).max(80).optional(),
+    teamId: z.uuid().optional(),
+    /** Jersey colour, "#RRGGBB". */
+    color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'Colour must look like #3B82F6').optional(),
+    players: z.array(matchParticipantSchema).min(1, 'Each side needs a player').max(12, 'A side can list at most 12 players'),
+  })
+  .refine(
+    (side) => {
+      const numbers = side.players.map((p) => p.jerseyNumber).filter((n): n is number => typeof n === 'number');
+      return new Set(numbers).size === numbers.length;
+    },
+    { message: 'Two players on a team can’t wear the same number', path: ['players'] },
+  );
 
 /** Quick start: sport -> ruleset -> format (singles/doubles) -> players. */
 export const createMatchSchema = z

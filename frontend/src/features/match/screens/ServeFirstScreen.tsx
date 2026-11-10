@@ -13,11 +13,11 @@ import { useMatchDraft } from '../store/draft.store';
 const LINE = '#E8F0EC';
 const LINE_SOFT = 'rgba(232,240,236,0.6)';
 
-/** "Who serves first?": pick the side on a court (or toss a coin), then the first server in doubles. Starts the match. */
+/** "Who serves first?" ("Who bats first?" in cricket): pick the side on a court (or toss a coin), then the first server in doubles. Starts the match. */
 export default function ServeFirstScreen() {
   const { colors } = useTheme();
   const me = useAuthStore((s) => s.user);
-  const { sport, formatCode, rulesetId, lineup, firstServer, serveFirst } = useMatchDraft();
+  const { sport, formatCode, rulesetId, override, lineup, firstServer, serveFirst } = useMatchDraft();
   const [tossing, setTossing] = useState(false);
   const { submit, submitting, formError } = useSubmit();
 
@@ -32,6 +32,7 @@ export default function ServeFirstScreen() {
 
   const color = sport.accentColor;
   const ruleset = sport.rulesets.find((r) => r.id === rulesetId);
+  const overs = ruleset?.scoringModel === 'overs';
   const nameOf = (p: (typeof lineup)[number][number]) => (p.userId && p.userId === me?.id ? 'You' : p.displayName);
   const sideName = (i: 0 | 1) => lineup[i]!.map((p) => firstName(nameOf(p))).join(' & ') || `Side ${i === 0 ? 'A' : 'B'}`;
   const serving = lineup[firstServer]!;
@@ -54,7 +55,7 @@ export default function ServeFirstScreen() {
         format: formatCode ?? sport.formats[0]!.code,
         ...(rulesetId ? { rulesetId } : {}),
         sides: lineup.map((players) => ({ players: players.map((p) => p.input) })),
-        rulesOverride: { firstServerSideIndex: firstServer },
+        rulesOverride: { ...override, ...(overs ? { battingFirstSideIndex: firstServer } : { firstServerSideIndex: firstServer }) },
       });
       useMatchDraft.getState().reset();
       router.dismissAll();
@@ -116,9 +117,37 @@ export default function ServeFirstScreen() {
       </Row>
 
       <D size={44} lh={42} upper accessibilityRole="header">
-        Who serves first?
+        {overs ? 'Who bats first?' : 'Who serves first?'}
       </D>
 
+      {overs ? (
+        <View style={{ gap: 10 }}>
+          {([0, 1] as const).map((side) => {
+            const on = firstServer === side;
+            return (
+              <Pressable
+                key={side}
+                accessibilityRole="button"
+                accessibilityState={{ selected: on }}
+                accessibilityLabel={`${sideName(side)} bat first`}
+                onPress={() => pickSide(side)}
+                style={{ minHeight: 84, padding: 16, borderRadius: 18, justifyContent: 'center', gap: 4, backgroundColor: on ? withAlpha(color, 0.28) : colors.surface, borderWidth: on ? 2 : 1, borderColor: on ? color : colors.line }}
+              >
+                <T size={11} w={700} ls={0.06} color={colors.muted}>
+                  SIDE {side === 0 ? 'A' : 'B'}
+                </T>
+                <T size={16} w={700} numberOfLines={2}>
+                  {sideName(side)}
+                </T>
+              </Pressable>
+            );
+          })}
+          <T size={13} color={colors.muted}>
+            The other side chases. The app tracks overs, wickets and the target from here.
+          </T>
+        </View>
+      ) : (
+      <>
       <View style={{ height: 300, borderRadius: 18, backgroundColor: '#0F2A24', borderWidth: 2, borderColor: LINE, overflow: 'hidden' }}>
         <View style={{ position: 'absolute', left: 0, right: 0, top: 147, height: 2, backgroundColor: LINE }} />
         <View style={{ position: 'absolute', left: 0, right: 0, top: 102, height: 1, backgroundColor: LINE_SOFT }} />
@@ -160,8 +189,10 @@ export default function ServeFirstScreen() {
           {courtNote}
         </T>
       </View>
+      </>
+      )}
 
-      <CoinToss visible={tossing} sides={[sideName(0), sideName(1)]} onResult={pickSide} onClose={() => setTossing(false)} />
+      <CoinToss visible={tossing} sides={[sideName(0), sideName(1)]} outcome={overs ? 'bat first' : 'serve first'} onResult={pickSide} onClose={() => setTossing(false)} />
     </Screen>
   );
 }

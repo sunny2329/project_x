@@ -3,7 +3,7 @@ import { useWindowDimensions, View } from 'react-native';
 import { LIVE, SPORT_COLORS, useTheme } from '@/shared/theme';
 import { Button, D, Dot, Row, Screen, T, Wordmark } from '@/shared/ui';
 
-const DOTS = [SPORT_COLORS.badminton!, SPORT_COLORS['table-tennis']!, SPORT_COLORS.pickleball!, SPORT_COLORS.padel!, SPORT_COLORS.tennis!];
+const DOTS = [SPORT_COLORS.badminton!, SPORT_COLORS['table-tennis']!, SPORT_COLORS.pickleball!, SPORT_COLORS.padel!, SPORT_COLORS.tennis!, SPORT_COLORS['box-cricket']!];
 
 /** First screen when signed out: a live-score card, the pitch, Get started / Log in. */
 export default function WelcomeScreen() {
@@ -90,7 +90,7 @@ export default function WelcomeScreen() {
           </D>
         </D>
         <T size={16} lh={24} color={colors.muted}>
-          Scores, serves, brackets, standings and ratings for badminton, table tennis, pickleball, padel and tennis.
+          Scores, serves, brackets, standings and ratings for badminton, table tennis, pickleball, padel, tennis and box cricket.
         </T>
       </View>
 

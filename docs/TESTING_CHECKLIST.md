@@ -35,7 +35,7 @@ Each page lists the API calls it makes, the tables it **reads** and **writes**, 
 |---|---|---|
 | Composition | `app.ts` builds the app from injected deps; `server.ts` creates the real pool, Redis, SMS / Google / Apple providers, resumes unsent live-scoring queues, and shuts down on SIGTERM / SIGINT | [ ] The API starts with and without `REDIS_URL`; Ctrl+C stops it cleanly; unsent points are written after a restart |
 | Modules | `auth`, `profile`, `users`, `feed`, `social`, `notifications`, `chat`, `media`, `sports`, `players`, `matches` (+ `live/`), `tournaments`, `public` | [ ] Every module's routes are in Swagger `/docs` (106 operations) |
-| Engine | `src/engine/` (pure TS, no DB / HTTP): `scoring/` plugins `rally`, `side_out`, `tennis`; `tournament/` formats, seeding, advancement, standings; `rating/` Elo K=32 | [ ] `npm test` passes (engine tests + API flows) |
+| Engine | `src/engine/` (pure TS, no DB / HTTP): `scoring/` plugins `rally`, `side_out`, `tennis`, `overs`; `tournament/` formats, seeding, advancement, standings; `rating/` Elo K=32 | [ ] `npm test` passes (engine tests + API flows) |
 | Data | `database/pool.ts` (`pg`, timestamps read as UTC), `database/prisma.ts` (Prisma `relationJoins`: one query per `include` tree), migrations `0_baseline` … `4_notifications`, `seed.ts` (sports, formats, rulesets, type_master) | [ ] `npm run db:status` shows nothing pending |
 | Responses | success `{success: true, data}`; failure `{success: false, error: {code, message, details?}}`; unknown errors → 500 `INTERNAL_ERROR` with no stack | [ ] An unknown path → 404 `NOT_FOUND` in the envelope; a bad body → 400 `VALIDATION_ERROR` with `details` |
 | Auth | JWT access token (`ACCESS_TOKEN_TTL_SECONDS`) + rotating refresh token stored hashed in `auth_session` | see Part B |
@@ -332,6 +332,39 @@ What creates a notification (all go to `notification` with `actor_id` = who did 
 - [ ] Walkover after points were played → `MATCH_STARTED`; abandon on a tournament match → `TOURNAMENT_MATCH`
 - [ ] Undo with nothing to undo → `NOTHING_TO_UNDO`
 - [ ] Without Redis (`REDIS_URL` unset): it still works, but the data is in memory; in production each tap waits for Postgres
+
+#### 17b. `match/[id]` for box cricket (ScoreScreen with CricketBoard)
+- [ ] New match → Box Cricket → pick rules → "Next: who bats first" shows the two sides, and the coin toss says "bat first".
+- [ ] The chosen side bats first. Before the first ball "Other side bats first" swaps it; after a ball that button is gone.
+- [ ] Number keys add runs; Wide, No ball and Wicket highlight, then a number records the ball with them. This over's balls show above the keys.
+- [ ] The innings ends on overs, on wickets and on "End innings" (asks first). The chase shows "Need X off Y balls" and ends when the target is passed.
+- [ ] Level scores go to a super over with the second-batting side batting first. Undo works across innings.
+- [ ] Finish match → result shows the winner, "Won by …" and an INN column. Spectator and the public link show the score, overs and this over.
+- [ ] "Already played?" takes runs per side; level runs need the super over row; the opponent gets a confirmation request.
+- [ ] Tournament event: Box Cricket in Add event, Overs / Wickets rule changes, standings show W± and RUN±, a tied knockout still advances a winner.
+- [ ] Setup → "Change a rule (players, overs, wickets…)": every stepper moves; lowering Players a side pulls Wickets down and stops it there. The rules card and "Players · N a side" update; Add player disappears at N; too many players already added blocks Next with "Remove …".
+- [ ] A match started with changed rules plays them (e.g. 4-ball overs end after 4 legal balls, wide costs 2) and shows "5 overs · 4 wickets · 6 a side" on the score, spectator and result screens. Rematch keeps the changed rules. "Already played?" sends them too.
+- [ ] Add event with Players a side 8: the event shows the changed rules, adding an entry asks for 8 players, and an entry of 9 is refused.
+
+#### 17c. Basketball: setup, teams, jersey numbers, live scoring (needs migration `5_jerseys` + seed)
+- [ ] New match → Basketball opens the basketball setup. The 3V3 / 4V4 / 5V5 cards set everything; changing any option drops the card highlight. 5 a side switches to Full court. Timed shows periods, minutes (4-20) and "5 min OT"; First to points shows 11 / 15 / 21. The blue summary box follows every change.
+- [ ] Next: teams. 3v3/4v4: the court preview shows the starters (dashed red "?" without a number); team names edit inline; the colour dots recolour the header, the court and the numbers; "Add player" becomes "Add sub" once the team is full; tapping a player removes them. "While scoring" switches between "Team score only" and "Who scored too". With an empty team the button is disabled.
+- [ ] 5v5 teams: tabs per team, starting five on the court, "Open spot" adds a player; tap a starter then a bench player swaps them; up to 12 a team.
+- [ ] Jersey numbers: tapping a shirt or bench chip selects it; the pad takes at most 2 digits, ⌫ deletes, OK saves and jumps to the next player without a number; a number already used on that team shows "#N is already taken on this team" and OK stays grey. TO BENCH / PUT ON COURT swaps with the first sub / last starter. "No jerseys? …" fills only the gaps. The note under Tip off counts players without numbers.
+- [ ] Tip off creates the match (`POST /matches` with side name, colour, `jerseyNumber`, `rulesOverride`) and opens live scoring.
+- [ ] 3v3 live: Start clock runs the clock and shot clock (red at 5); +1/+2 add points and flip BALL; "N to win" and the bar move; per-player lines show "#7 8 pts · 1F". With "Who scored too", a basket shows "WHO SCORED +2?" chips for that team (Skip keeps it as a team basket); any other tap or Undo hides them. FOUL pauses the clock and asks "FOUL BY WHO?" (BENCH / TEAM). Team fouls reach the limit → BONUS.
+- [ ] "Last play" opens Who scored? for the latest basket (scorer, assist, And-one) or foul; Save credits it, and later plays can no longer be tagged.
+- [ ] Callout: BALL: X → GAME POINT · X near the target → X WIN. At 0:00 "Time up · call the game": leader wins, a tie shows "TIME · TIED · NEXT BASKET WINS" and the next basket wins.
+- [ ] 5v5 live: PERIOD / clock (red under 1:00) / SHOT, Start/Pause, 24 and 14 resets, ARROW flips possession; +1/+2/+3 and FOUL per team; foul dots go red at the limit; "TIMEOUTS n left · BONUS". The 5th personal foul shows OUT and that player's chip is greyed; they can't score or come back on.
+- [ ] 5v5 ⇄ SUB (next to FOUL, only when someone on the bench can come on): pauses the clock and asks "SUB · WHO'S COMING OFF?" (fouled-out players read FOULED OUT), then "#7 OFF · WHO'S COMING ON?" with the bench (fouled-out ones greyed); picking one sends the sub and Last play reads "Sub · #18 Karan on, #7 Arjun off". CANCEL works at both steps; any other play drops the chips. A 5th foul (from the chips or the ⋯ sheet) asks "#7 FOULED OUT · WHO COMES ON?"; LATER leaves them on court; with nobody left on the bench it doesn't ask.
+- [ ] ⋯ opens the foul sheet: team tabs with foul counts, on-court players with fouls, the foul-out / team-limit warning, foul kinds, timeouts (disabled at none left), Substitution (bench only, fouled-out players blocked), End quarter now (asks first), Match menu (end early, add scorer, abandon).
+- [ ] At 0:00 "Q1 over · see break" ends the period and shows the break (countdown, END OF Q1, lead line, period table, top scorers, fouls reset / timeouts / arrow). Start Q2 starts the clock; See full box score opens the timeline's Box tab. A tie after Q4 goes to OT (5:00); the last period's button says "final score".
+- [ ] Undo removes the last play (score, foul, tag, sub, timeout, period end) and the screen follows. Leaving and reopening keeps the clock where it stood.
+- [ ] Finish game → result: header in the winners' colour, "81 – 78", period table, player table (PTS, 2PT/3PT/FT or 1PT/2PT, AST, FLS in red when fouled out, "Team (not tagged)"), Player of the game. Rematch opens Teams with the same names, colours, numbers and rules. Timeline opens the game summary.
+- [ ] Timeline: summary sentence, lead chart (above = first team ahead), LEAD CHANGES / TIES / BEST RUN / BIGGEST LEAD, tabs Key moments / Q1… / Box, play list with scores, fouled-out lines in red.
+- [ ] Spectator (other phone): score card with period and the clock at the last play, fouls / TO / bonus, callout, PLAY BY PLAY (last 6), LEADING per team, refreshes every 4 s. Public link shows a column per period.
+- [ ] Enter a result → Basketball: rules row (Change → setup → teams → back), Teams row, −/+ boxes (typing works, max 300). Messages: tied, "Nobody reached 21… allowed", "Both teams can't reach 21", "stops at 21… 22 at most", "X win … Looks right"; timed: any untied score. The button sends to the opponent's captain (or saves for guests).
+- [ ] Tournament: Basketball in Add event with First to / time / foul / timeout rule changes; knockout draws and advances.
 
 #### 18. `match/[id]/result` (MatchResultScreen)
 | Action | API | Reads |

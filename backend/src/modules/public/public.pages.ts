@@ -126,16 +126,22 @@ export const PUBLIC_PAGE_SCRIPT = String.raw`(() => {
       const round = m.tournament && m.tournament.roundName ? ' · ' + m.tournament.roundName : live ? '' : ' · FINAL';
       const mins = m.startedAt && m.completedAt ? Math.max(1, Math.round((new Date(m.completedAt) - new Date(m.startedAt)) / 60000)) : null;
       const meta = [day(m.completedAt || m.startedAt), m.venue && m.venue.name, mins && mins < 600 ? mins + ' min' : null].filter(Boolean).map(esc).join(' · ');
-      const segs = s.segments.filter((g) => g.complete || g.scores.some((n) => n > 0));
+      const overs = s.scoringModel === 'overs';
+      // Basketball: a column per quarter (none for a first-to game), then the total.
+      const hoops = s.scoringModel === 'baskets';
+      const segs = hoops ? s.segments.filter((g) => g.type !== 'game') : s.segments.filter((g) => g.complete || (!overs && g.scores.some((n) => n > 0)));
       const cols = segs.length;
       const label = s.totals.majorLabel === 'Sets' ? 'S' : 'G';
-      const tpl = 'minmax(0,1fr) ' + (cols ? 'repeat(' + cols + ', 44px)' : '') + (live ? ' 64px' : '');
+      const colName = (g, i) => (hoops ? esc(g.label) : overs ? (g.type === 'super_over' ? 'SO' + i : 'INN') : label + (i + 1));
+      const colWidth = overs ? 64 : hoops ? 40 : 44;
+      const last = live || hoops;
+      const tpl = 'minmax(0,1fr) ' + (cols ? 'repeat(' + cols + ', ' + colWidth + 'px)' : '') + (last ? (overs ? ' 88px' : ' 64px') : '');
       const head = '<div class="grid" style="grid-template-columns:' + tpl + ';padding-bottom:4px"><span></span>' +
-        segs.map((g, i) => '<span class="h">' + label + (i + 1) + '</span>').join('') + (live ? '<span class="h">NOW</span>' : '') + '</div>';
+        segs.map((g, i) => '<span class="h">' + colName(g, i) + '</span>').join('') + (last ? '<span class="h">' + (hoops ? 'T' : 'NOW') + '</span>' : '') + '</div>';
       const row = (i) => '<div class="grid" style="grid-template-columns:' + tpl + '"><span class="side" style="' + (w === i ? 'font-weight:700' : 'color:var(--sub)') + '">' +
         '<span class="bar" style="background:' + (w === i || (live && i === 0) ? m.sport.accentColor : 'transparent') + '"></span>' + esc(names[i]) + '</span>' +
-        segs.map((g) => '<span class="d n' + (g.winnerSideIndex === i ? '' : ' lose') + '">' + esc(g.display ? g.display[i] : g.scores[i]) + '</span>').join('') +
-        (live ? '<span class="d n" style="color:' + m.sport.accentColor + '">' + esc(s.sides[i].current ?? '') + '</span>' : '') + '</div>';
+        segs.map((g) => '<span class="d n' + (hoops || g.winnerSideIndex === i ? '' : ' lose') + '">' + esc(g.display ? g.display[i] : g.scores[i]) + '</span>').join('') +
+        (last ? '<span class="d n" style="color:' + m.sport.accentColor + '">' + esc(s.sides[i].current ?? (overs || hoops ? s.sides[i].primary : '')) + '</span>' : '') + '</div>';
       app.innerHTML =
         '<div style="display:flex;flex-direction:column;gap:4px">' +
           '<span class="kicker" style="color:' + m.sport.accentColor + '"><span class="dot" style="background:' + m.sport.accentColor + '"></span>' +
@@ -147,7 +153,7 @@ export const PUBLIC_PAGE_SCRIPT = String.raw`(() => {
         '<div class="card">' + head + row(0) + '<div class="hair"></div>' + row(1) +
           (live && s.callout ? '<div style="padding:12px 16px;font-weight:800" class="d">' + esc(s.callout.toUpperCase()) + '</div>' : '') + '</div>' +
         '<div class="row2"><button class="btn" id="copy">Copy link</button><button class="btn" id="wa">WhatsApp</button></div>' +
-        cta('Score your own matches', 'One tap per point. Rules for five racket sports built in. Free.');
+        cta('Score your own matches', 'One tap per point. Rules for seven sports built in. Free.');
       document.getElementById('copy').onclick = copyLink;
       document.getElementById('wa').onclick = () => whatsapp(title + ' ' + s.headline);
       if (live) poll(showMatch, 3000);

@@ -1,0 +1,494 @@
+/**
+ * Basket scoring: basketball (3v3 / 4v4 half court, 5v5 full court). Two ways to end a game:
+ *
+ * - `target`: first to N points (win by `winBy`). If the time limit runs out first, the side
+ *   ahead wins; level at the limit = the next basket wins.
+ * - `timed`: periods (4 quarters, 2 halves or one game) of `periodMinutes`; more points at the end
+ *   wins, level = overtime periods until someone is ahead.
+ *
+ * The game clock and shot clock run on the scorer's phone; events carry the clock reading
+ * (seconds left in the period) so the log and spectators can show it. Points can be credited to a
+ * player (`playerIndex`, by order in the side) straight away or with a `tag` right after, which
+ * builds per-player points, assists and fouls. Team fouls, timeouts, fouling out and substitutions
+ * are tracked per the ruleset. Undo works as for every plugin: drop the last event and replay.
+ */
+import { z } from 'zod';
+import { ScoringError, type GameDetail, type PlayEntry, type PlayerLine, type ScoreSummary, type ScoringAction, type ScoringPlugin, type SegmentSummary, type SideInfo } from '../types.js';
+import { matchComplete, other, sideIndexSchema, type Pair } from './common.js';
+
+const MAX_PLAYERS = 12;
+const MAX_TOTAL = 999;
+
+export const basketsConfigSchema = z.object({
+  mode: z.enum(['target', 'timed']),
+  /** `target`: points that win the game. */
+  target: z.number().int().min(5).max(100).default(21),
+  /** `target`: lead needed at the target (1 = first to it wins). */
+  winBy: z.number().int().min(1).max(3).default(1),
+  /** `target`: minutes before the side ahead wins anyway. */
+  timeLimitMinutes: z.number().int().min(1).max(60).default(10),
+  /** `timed`: 4 quarters, 2 halves or one game. */
+  periods: z.union([z.literal(1), z.literal(2), z.literal(4)]).default(4),
+  periodMinutes: z.number().int().min(1).max(20).default(10),
+  overtimeMinutes: z.number().int().min(1).max(10).default(5),
+  /** Shots from outside the arc are worth 3 (else 2, with inside 1). Free throws are always 1. */
+  threePointers: z.boolean().default(false),
+  playersOnCourt: z.number().int().min(1).max(5).default(5),
+  court: z.enum(['half', 'full']).default('full'),
+  /** Seconds; 0 = no shot clock. Shown on the scorer's phone only. */
+  shotClock: z.number().int().min(0).max(35).default(24),
+  /** From this many team fouls on, every foul gives free throws ("bonus"). */
+  teamFoulLimit: z.number().int().min(1).max(15).default(5),
+  teamFoulsPer: z.enum(['period', 'game']).default('period'),
+  /** Personal fouls that send a player off for the game; 0 = nobody fouls out. */
+  foulOutAt: z.number().int().min(0).max(10).default(0),
+  timeouts: z.number().int().min(0).max(10).default(2),
+  timeoutsPer: z.enum(['half', 'game']).default('half'),
+  /** True = the clock stops on every whistle; false = running clock. Shown to the scorer only. */
+  stopClock: z.boolean().default(false),
+  /** Ask "who scored?" after each basket (per-player stats). */
+  tagPlayers: z.boolean().default(true),
+  firstPossessionSideIndex: sideIndexSchema.default(0),
+});
+
+export type BasketsConfig = z.infer<typeof basketsConfigSchema>;
+
+const clock = z.number().int().min(0).max(3600).nullish();
+const playerIndex = z.number().int().min(0).max(MAX_PLAYERS - 1);
+export const FOUL_KINDS = ['personal', 'shooting', 'technical', 'unsportsmanlike'] as const;
+
+export const basketsEventSchema = z.discriminatedUnion('type', [
+  z.object({
+    type: z.literal('score'),
+    sideIndex: sideIndexSchema,
+    points: z.union([z.literal(1), z.literal(2), z.literal(3)]),
+    playerIndex: playerIndex.nullish(),
+    assistIndex: playerIndex.nullish(),
+    clock,
+  }),
+  z.object({ type: z.literal('foul'), sideIndex: sideIndexSchema, playerIndex: playerIndex.nullish(), kind: z.enum(FOUL_KINDS).default('personal'), clock }),
+  z.object({ type: z.literal('timeout'), sideIndex: sideIndexSchema, clock }),
+  z.object({ type: z.literal('sub'), sideIndex: sideIndexSchema, outIndex: playerIndex, inIndex: playerIndex, clock }),
+  /** Credits the latest basket or foul to a player (the "who scored?" chips), with an assist. */
+  z.object({ type: z.literal('tag'), playerIndex, assistIndex: playerIndex.nullish() }),
+  /** Who has the ball (3v3) or the possession arrow (5v5). */
+  z.object({ type: z.literal('possession'), sideIndex: sideIndexSchema }),
+  /** The period's clock ran out (or the scorer ended it). `target`: the time limit. */
+  z.object({ type: z.literal('period_end'), clock }),
+  /** A result typed in afterwards: only the final score is known. */
+  z.object({ type: z.literal('result_total'), scores: z.array(z.number().int().min(0).max(MAX_TOTAL)).length(2) }),
+]);
+
+export type BasketsEvent = z.infer<typeof basketsEventSchema>;
+
+interface Play extends PlayEntry {
+  sideIndex: 0 | 1 | null;
+}
+
+export interface BasketsState {
+  sizes: Pair;
+  /** 1-based; above `periods` = overtime. Always 1 in `target` mode. */
+  period: number;
+  /** Points per side in each period started so far. */
+  periodScores: Pair[];
+  plays: Play[];
+  onCourt: [number[], number[]];
+  possession: 0 | 1;
+  /** `target`: level when time ran out, so the next basket wins. */
+  suddenDeath: boolean;
+  /** `target`: the time limit has been played. */
+  timeUp: boolean;
+  winner: 0 | 1 | null;
+  totalOnly: boolean;
+}
+
+const totals = (state: BasketsState): Pair => state.periodScores.reduce<Pair>((t, p) => [t[0] + p[0], t[1] + p[1]], [0, 0]);
+
+/** Which half a period belongs to, for "2 timeouts a half" (overtime counts as the last half). */
+function halfOf(config: BasketsConfig, period: number): number {
+  if (config.mode === 'target' || config.periods === 1) return 1;
+  if (config.periods === 2) return Math.min(period, 2);
+  return period <= 2 ? 1 : 2;
+}
+
+export function periodLabel(config: BasketsConfig, period: number): string {
+  if (config.mode === 'target') return 'Game';
+  if (period > config.periods) return period - config.periods === 1 ? 'OT' : `OT${period - config.periods}`;
+  if (config.periods === 4) return `Q${period}`;
+  if (config.periods === 2) return `H${period}`;
+  return 'Game';
+}
+
+function personalFouls(state: BasketsState, side: number, player: number): number {
+  return state.plays.filter((p) => p.kind === 'foul' && p.sideIndex === side && p.playerIndex === player).length;
+}
+
+function teamFouls(state: BasketsState, config: BasketsConfig, side: number): number {
+  return state.plays.filter((p) => p.kind === 'foul' && p.sideIndex === side && (config.teamFoulsPer === 'game' || p.period === state.period)).length;
+}
+
+function timeoutsLeft(state: BasketsState, config: BasketsConfig, side: number): number {
+  const half = halfOf(config, state.period);
+  const used = state.plays.filter((p) => p.kind === 'timeout' && p.sideIndex === side && (config.timeoutsPer === 'game' || halfOf(config, p.period) === half)).length;
+  return Math.max(0, config.timeouts - used);
+}
+
+const fouledOut = (state: BasketsState, config: BasketsConfig, side: number, player: number) => config.foulOutAt > 0 && personalFouls(state, side, player) >= config.foulOutAt;
+
+function checkPlayer(state: BasketsState, side: number, index: number | null | undefined, what: string) {
+  if (index === null || index === undefined) return;
+  if (index >= state.sizes[side]!) throw new ScoringError('INVALID_EVENT', `${what} is not on this team.`);
+}
+
+function play(state: BasketsState, fields: Omit<Play, 'seq' | 'period' | 'score' | 'clock' | 'playerIndex' | 'assistIndex' | 'points' | 'foulKind' | 'inIndex' | 'outIndex' | 'fouledOut'> & Partial<Play>, score: Pair): Play {
+  return {
+    seq: state.plays.length + 1,
+    period: state.period,
+    clock: null,
+    playerIndex: null,
+    assistIndex: null,
+    points: null,
+    foulKind: null,
+    inIndex: null,
+    outIndex: null,
+    fouledOut: false,
+    ...fields,
+    score,
+  };
+}
+
+function addPoints(state: BasketsState, side: 0 | 1, points: number): Pick<BasketsState, 'periodScores'> {
+  const periodScores = state.periodScores.map((p, i) => (i === state.periodScores.length - 1 ? ([...p] as Pair) : p));
+  periodScores.at(-1)![side] += points;
+  return { periodScores };
+}
+
+/** Who wins with these totals, if the game is over (`target` mode, after a basket). */
+function targetWinner(state: BasketsState, config: BasketsConfig, scorer: 0 | 1): 0 | 1 | null {
+  const t = totals(state);
+  if (state.suddenDeath) return scorer;
+  const lead = t[scorer] - t[other(scorer)];
+  return t[scorer] >= config.target && lead >= config.winBy ? scorer : null;
+}
+
+function applyScore(state: BasketsState, event: Extract<BasketsEvent, { type: 'score' }>, config: BasketsConfig): BasketsState {
+  if (event.points === 3 && !config.threePointers) throw new ScoringError('INVALID_EVENT', 'These rules have no 3-pointers.');
+  checkPlayer(state, event.sideIndex, event.playerIndex, 'That player');
+  checkPlayer(state, event.sideIndex, event.assistIndex, 'The assist');
+  if (event.playerIndex !== null && event.playerIndex !== undefined && fouledOut(state, config, event.sideIndex, event.playerIndex)) {
+    throw new ScoringError('INVALID_EVENT', 'That player has fouled out.');
+  }
+  const next = { ...state, ...addPoints(state, event.sideIndex, event.points) };
+  const entry = play(
+    state,
+    {
+      kind: 'score',
+      sideIndex: event.sideIndex,
+      points: event.points,
+      playerIndex: event.playerIndex ?? null,
+      assistIndex: event.assistIndex === event.playerIndex ? null : (event.assistIndex ?? null),
+      clock: event.clock ?? null,
+    },
+    totals(next),
+  );
+  const scored: BasketsState = {
+    ...next,
+    plays: [...state.plays, entry],
+    // Half court: the other team takes the ball after a basket. Full court keeps its arrow.
+    possession: config.mode === 'target' ? other(event.sideIndex) : state.possession,
+  };
+  if (config.mode !== 'target') return scored;
+  return { ...scored, winner: targetWinner(scored, config, event.sideIndex) };
+}
+
+function applyFoul(state: BasketsState, event: Extract<BasketsEvent, { type: 'foul' }>, config: BasketsConfig): BasketsState {
+  checkPlayer(state, event.sideIndex, event.playerIndex, 'That player');
+  const player = event.playerIndex ?? null;
+  if (player !== null && fouledOut(state, config, event.sideIndex, player)) throw new ScoringError('INVALID_EVENT', 'That player has already fouled out.');
+  const out = player !== null && config.foulOutAt > 0 && personalFouls(state, event.sideIndex, player) + 1 >= config.foulOutAt;
+  const entry = play(state, { kind: 'foul', sideIndex: event.sideIndex, playerIndex: player, foulKind: event.kind, clock: event.clock ?? null, fouledOut: out }, totals(state));
+  return { ...state, plays: [...state.plays, entry] };
+}
+
+function applyTag(state: BasketsState, event: Extract<BasketsEvent, { type: 'tag' }>, config: BasketsConfig): BasketsState {
+  const index = state.plays.findLastIndex((p) => p.kind === 'score' || p.kind === 'foul');
+  const target = state.plays[index];
+  // Only the very last play can be tagged: once anything else happened, the moment has passed.
+  if (!target || index !== state.plays.length - 1) throw new ScoringError('INVALID_EVENT', 'There is no basket or foul to credit.');
+  const side = target.sideIndex!;
+  checkPlayer(state, side, event.playerIndex, 'That player');
+  checkPlayer(state, side, event.assistIndex, 'The assist');
+  const without = { ...state, plays: state.plays.slice(0, index) };
+  if (fouledOut(without, config, side, event.playerIndex)) throw new ScoringError('INVALID_EVENT', 'That player has fouled out.');
+  const tagged: Play =
+    target.kind === 'score'
+      ? { ...target, playerIndex: event.playerIndex, assistIndex: event.assistIndex === event.playerIndex ? null : (event.assistIndex ?? null) }
+      : { ...target, playerIndex: event.playerIndex, fouledOut: config.foulOutAt > 0 && personalFouls(without, side, event.playerIndex) + 1 >= config.foulOutAt };
+  return { ...state, plays: [...without.plays, tagged] };
+}
+
+function applySub(state: BasketsState, event: Extract<BasketsEvent, { type: 'sub' }>, config: BasketsConfig): BasketsState {
+  const side = event.sideIndex;
+  checkPlayer(state, side, event.outIndex, 'The player going off');
+  checkPlayer(state, side, event.inIndex, 'The player coming on');
+  const court = state.onCourt[side];
+  if (!court.includes(event.outIndex)) throw new ScoringError('INVALID_EVENT', 'That player is not on court.');
+  if (court.includes(event.inIndex)) throw new ScoringError('INVALID_EVENT', 'That player is already on court.');
+  if (fouledOut(state, config, side, event.inIndex)) throw new ScoringError('INVALID_EVENT', 'That player has fouled out.');
+  const onCourt: [number[], number[]] = [[...state.onCourt[0]], [...state.onCourt[1]]];
+  onCourt[side] = court.map((p) => (p === event.outIndex ? event.inIndex : p));
+  const entry = play(state, { kind: 'sub', sideIndex: side, inIndex: event.inIndex, outIndex: event.outIndex, clock: event.clock ?? null }, totals(state));
+  return { ...state, onCourt, plays: [...state.plays, entry] };
+}
+
+function applyPeriodEnd(state: BasketsState, event: Extract<BasketsEvent, { type: 'period_end' }>, config: BasketsConfig): BasketsState {
+  const t = totals(state);
+  const entry = play(state, { kind: 'period_end', sideIndex: null, clock: event.clock ?? 0 }, t);
+  const plays = [...state.plays, entry];
+  const leader: 0 | 1 | null = t[0] === t[1] ? null : t[0] > t[1] ? 0 : 1;
+  if (config.mode === 'target') {
+    if (state.timeUp) throw new ScoringError('INVALID_EVENT', 'Time is already up: the next basket wins.');
+    return { ...state, plays, timeUp: true, suddenDeath: leader === null, winner: leader };
+  }
+  if (state.period >= config.periods && leader !== null) return { ...state, plays, winner: leader };
+  return { ...state, plays, period: state.period + 1, periodScores: [...state.periodScores, [0, 0]] };
+}
+
+function applyBaskets(state: BasketsState, event: BasketsEvent, config: BasketsConfig): BasketsState {
+  if (state.winner !== null) matchComplete();
+  if (state.totalOnly) matchComplete();
+  switch (event.type) {
+    case 'score':
+      return applyScore(state, event, config);
+    case 'foul':
+      return applyFoul(state, event, config);
+    case 'timeout': {
+      if (timeoutsLeft(state, config, event.sideIndex) === 0) throw new ScoringError('INVALID_EVENT', 'No timeouts left.');
+      const entry = play(state, { kind: 'timeout', sideIndex: event.sideIndex, clock: event.clock ?? null }, totals(state));
+      return { ...state, plays: [...state.plays, entry] };
+    }
+    case 'sub':
+      return applySub(state, event, config);
+    case 'tag':
+      return applyTag(state, event, config);
+    case 'possession':
+      return { ...state, possession: event.sideIndex };
+    case 'period_end':
+      return applyPeriodEnd(state, event, config);
+    case 'result_total': {
+      if (state.plays.length > 0) throw new ScoringError('INVALID_EVENT', 'This game already has plays scored.');
+      const [a, b] = event.scores as Pair;
+      if (a === b) throw new ScoringError('INVALID_RESULT', 'A game can’t end tied.');
+      return { ...state, periodScores: [[a, b]], totalOnly: true, winner: a > b ? 0 : 1 };
+    }
+  }
+}
+
+/** "First to 21 · 10 min limit" / "4 × 10 min · running clock". */
+export function describeBaskets(config: BasketsConfig): string {
+  if (config.mode === 'target') {
+    const parts = [`First to ${config.target}`, `${config.timeLimitMinutes} min limit`];
+    if (config.winBy > 1) parts.push(`win by ${config.winBy}`);
+    return parts.join(' · ');
+  }
+  const length = config.periods === 1 ? `One ${config.periodMinutes} min game` : `${config.periods} × ${config.periodMinutes} min`;
+  return `${length} · ${config.stopClock ? 'clock stops' : 'running clock'}`;
+}
+
+function segments(state: BasketsState, config: BasketsConfig): SegmentSummary[] {
+  if (state.totalOnly || config.mode === 'target') {
+    const t = totals(state);
+    const complete = state.winner !== null;
+    return [
+      {
+        type: 'game',
+        sequence: 1,
+        label: 'Game',
+        scores: t,
+        display: t.map(String),
+        winnerSideIndex: complete ? state.winner : null,
+        complete,
+        children: [],
+      },
+    ];
+  }
+  return state.periodScores.map((scores, i) => {
+    const period = i + 1;
+    const complete = period < state.period || state.winner !== null;
+    return {
+      type: period > config.periods ? 'overtime' : 'period',
+      sequence: period,
+      label: periodLabel(config, period),
+      scores: [...scores],
+      display: scores.map(String),
+      winnerSideIndex: complete && scores[0] !== scores[1] ? (scores[0] > scores[1] ? 0 : 1) : null,
+      complete,
+      children: [],
+    };
+  });
+}
+
+function playerLines(state: BasketsState, config: BasketsConfig): PlayerLine[][] {
+  return [0, 1].map((side) =>
+    Array.from({ length: state.sizes[side]! }, (_, index) => {
+      const mine = state.plays.filter((p) => p.sideIndex === side);
+      const made = (n: number) => mine.filter((p) => p.kind === 'score' && p.playerIndex === index && p.points === n).length;
+      const fouls = personalFouls(state, side, index);
+      return {
+        index,
+        points: made(1) + made(2) * 2 + made(3) * 3,
+        ones: made(1),
+        twos: made(2),
+        threes: made(3),
+        assists: mine.filter((p) => p.kind === 'score' && p.assistIndex === index).length,
+        fouls,
+        onCourt: state.onCourt[side as 0 | 1].includes(index),
+        fouledOut: config.foulOutAt > 0 && fouls >= config.foulOutAt,
+      };
+    }),
+  );
+}
+
+function callout(state: BasketsState, config: BasketsConfig): string | null {
+  const t = totals(state);
+  if (state.winner !== null) {
+    if (state.totalOnly) return null;
+    const by = Math.abs(t[0] - t[1]);
+    const ot = config.mode === 'timed' && state.period > config.periods;
+    return `Won by ${by}${ot ? ' in overtime' : ''}`;
+  }
+  if (config.mode === 'target') {
+    if (state.suddenDeath) return 'Tied at time · next basket wins';
+    const close = [0, 1].filter((s) => t[s]! >= config.target - 2 && t[s]! > t[other(s)]! - config.winBy + 1);
+    return close.length === 1 ? 'Game point' : null;
+  }
+  return state.period > config.periods ? 'Overtime' : null;
+}
+
+function actions(state: BasketsState, config: BasketsConfig): ScoringAction[] {
+  if (state.winner !== null) return [];
+  const values = config.threePointers ? [1, 2, 3] : [1, 2];
+  const out: ScoringAction[] = [];
+  for (const side of [0, 1] as const) {
+    for (const points of values) out.push({ id: `score-${side}-${points}`, label: `+${points}`, sideIndex: side, event: { type: 'score', sideIndex: side, points } as ScoringAction['event'] });
+    out.push({ id: `foul-${side}`, label: 'Foul', sideIndex: side, event: { type: 'foul', sideIndex: side, kind: 'personal' } as ScoringAction['event'] });
+    if (timeoutsLeft(state, config, side) > 0) out.push({ id: `timeout-${side}`, label: 'Timeout', sideIndex: side, event: { type: 'timeout', sideIndex: side } as ScoringAction['event'] });
+  }
+  if (!(config.mode === 'target' && state.timeUp)) {
+    out.push({ id: 'period-end', label: config.mode === 'target' ? 'Time' : `End ${periodLabel(config, state.period)}`, sideIndex: null, event: { type: 'period_end' } });
+  }
+  return out;
+}
+
+function detail(state: BasketsState, config: BasketsConfig): GameDetail {
+  const current = state.plays.filter((p) => p.period === state.period && p.clock !== null).at(-1);
+  return {
+    period: state.period,
+    periodLabel: periodLabel(config, state.period),
+    periods: config.mode === 'target' ? 1 : config.periods,
+    overtime: config.mode === 'timed' && state.period > config.periods,
+    clock: current?.clock ?? null,
+    possessionSideIndex: state.possession,
+    suddenDeath: state.suddenDeath,
+    teams: [0, 1].map((side) => {
+      const fouls = teamFouls(state, config, side);
+      return { fouls, bonus: fouls >= config.teamFoulLimit, timeoutsLeft: timeoutsLeft(state, config, side) };
+    }),
+    players: playerLines(state, config),
+    plays: state.plays,
+  };
+}
+
+export const basketsPlugin: ScoringPlugin<BasketsConfig, BasketsState, BasketsEvent> = {
+  scoringModel: 'baskets',
+  configSchema: basketsConfigSchema as unknown as z.ZodType<BasketsConfig>,
+  eventSchema: basketsEventSchema as unknown as z.ZodType<BasketsEvent>,
+
+  validateSides(_config, sides: SideInfo[]) {
+    if (sides.length !== 2) return 'This sport is played between exactly two sides.';
+    return sides.some((s) => s.playerCount < 1 || s.playerCount > MAX_PLAYERS) ? `Each team needs 1 to ${MAX_PLAYERS} players.` : null;
+  },
+
+  describeRules: (config) => describeBaskets(config),
+
+  initialState: (config, sides) => {
+    const sizes: Pair = [sides[0]!.playerCount, sides[1]!.playerCount];
+    // The first players listed start; the rest are on the bench.
+    const starters = (n: number) => Array.from({ length: Math.min(n, config.playersOnCourt) }, (_, i) => i);
+    return {
+      sizes,
+      period: 1,
+      periodScores: [[0, 0]],
+      plays: [],
+      onCourt: [starters(sizes[0]), starters(sizes[1])],
+      possession: config.firstPossessionSideIndex,
+      suddenDeath: false,
+      timeUp: false,
+      winner: null,
+      totalOnly: false,
+    };
+  },
+
+  applyEvent: (state, event, config) => applyBaskets(state, event, config),
+
+  isComplete: (state) => state.winner !== null,
+
+  summary(state, config): ScoreSummary {
+    const t = totals(state);
+    const live = state.winner === null;
+    return {
+      scoringModel: 'baskets',
+      complete: !live,
+      winnerSideIndex: state.winner,
+      sides: [0, 1].map((i) => ({
+        index: i,
+        primary: String(t[i]),
+        current: null,
+        serving: live && state.possession === i,
+        serverNumber: null,
+        serverPlayerIndex: null,
+        serveNote: null,
+      })),
+      segments: segments(state, config),
+      headline: `${t[0]}-${t[1]}`,
+      callout: callout(state, config),
+      totals: {
+        major: [state.winner === 0 ? 1 : 0, state.winner === 1 ? 1 : 0],
+        minor: [...t],
+        majorLabel: 'Wins',
+        minorLabel: 'Points',
+      },
+      actions: actions(state, config),
+      game: detail(state, config),
+    };
+  },
+
+  /**
+   * One row with the final score ([[21, 17]]). First-to games are replayed basket by basket so an
+   * impossible score (both past the target, or past it by more than one basket) is refused; timed
+   * games only record the total.
+   */
+  eventsForManualResult(config, _sides, scores) {
+    if (scores.length !== 1) throw new ScoringError('INVALID_RESULT', 'Enter the final score.');
+    const [a, b] = scores[0] as Pair;
+    if (a === b) throw new ScoringError('INVALID_RESULT', 'A game can’t end tied.');
+    if (config.mode === 'timed') return [{ type: 'result_total', scores: [a, b] }];
+    const winner: 0 | 1 = a > b ? 0 : 1;
+    const loser = other(winner);
+    const w = Math.max(a, b);
+    const l = Math.min(a, b);
+    // Keep it close (loser, winner, loser ...) so the winner gets there last, then let the last
+    // basket be as big as the rules allow: 20 + a 2-pointer is how a game to 21 ends 22-15.
+    const order: Array<0 | 1> = [];
+    const pairs = Math.min(w - 1, l);
+    for (let i = 0; i < pairs; i += 1) order.push(loser, winner);
+    for (let i = pairs; i < l; i += 1) order.push(loser);
+    const rest = w - pairs;
+    const last = Math.min(rest, config.threePointers ? 3 : 2);
+    const events: BasketsEvent[] = order.map((sideIndex) => ({ type: 'score', sideIndex, points: 1 }));
+    for (let i = 0; i < rest - last; i += 1) events.push({ type: 'score', sideIndex: winner, points: 1 });
+    events.push({ type: 'score', sideIndex: winner, points: last as 1 | 2 | 3 });
+    if (w < config.target) events.push({ type: 'period_end' });
+    return events;
+  },
+};

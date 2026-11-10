@@ -42,6 +42,36 @@ const DOUBLES: FormatSeed = { code: 'doubles', name: 'Doubles', playersPerSide: 
 const badmintonServe = { rotation: 'rally_winner', courtByScore: true, nextGameFirstServer: 'game_winner' };
 const tableTennisServe = { rotation: 'alternate', pointsPerServe: 2, everyPointFrom: 10, nextGameFirstServer: 'alternate' };
 
+/** Basketball quick starts (the setup screen's 3V3 / 4V4 / 5V5 cards). */
+const BASKETS_3V3 = {
+  mode: 'target',
+  target: 21,
+  timeLimitMinutes: 10,
+  threePointers: false,
+  playersOnCourt: 3,
+  court: 'half',
+  shotClock: 12,
+  teamFoulLimit: 7,
+  teamFoulsPer: 'game',
+  timeouts: 1,
+  timeoutsPer: 'game',
+};
+const BASKETS_4V4 = { ...BASKETS_3V3, mode: 'timed', periods: 2, periodMinutes: 10, playersOnCourt: 4 };
+const BASKETS_5V5 = {
+  mode: 'timed',
+  periods: 4,
+  periodMinutes: 10,
+  threePointers: true,
+  playersOnCourt: 5,
+  court: 'full',
+  shotClock: 24,
+  teamFoulLimit: 5,
+  teamFoulsPer: 'period',
+  foulOutAt: 5,
+  timeouts: 2,
+  timeoutsPer: 'half',
+};
+
 export const SPORTS: SportSeed[] = [
   {
     id: 2,
@@ -154,6 +184,46 @@ export const SPORTS: SportSeed[] = [
       { slug: 'one-set', name: 'One set · advantage', scoringModel: 'tennis', config: { bestOf: 1, deuce: 'advantage' } },
     ],
   },
+  {
+    id: 6,
+    slug: 'box-cricket',
+    name: 'Box Cricket',
+    category: 'bat_and_ball',
+    scoringModel: 'overs',
+    isActive: true,
+    iconKey: 'cricket',
+    accentColor: '#22C55E',
+    sortOrder: 6,
+    formats: [{ code: 'team', name: 'Team', playersPerSide: 6, minPerSide: 1, maxPerSide: 11 }],
+    rulesets: [
+      { slug: 'overs-6', name: '6 overs · 5 wickets', scoringModel: 'overs', isDefault: true, config: { overs: 6, wickets: 5 } },
+      { slug: 'overs-4', name: '4 overs · 3 wickets', scoringModel: 'overs', config: { overs: 4, wickets: 3 } },
+      { slug: 'overs-8', name: '8 overs · 5 wickets', scoringModel: 'overs', config: { overs: 8, wickets: 5 } },
+      { slug: 'overs-10', name: '10 overs · 7 wickets', scoringModel: 'overs', config: { overs: 10, wickets: 7 } },
+    ],
+  },
+  {
+    id: 9,
+    slug: 'basketball',
+    name: 'Basketball',
+    category: 'team',
+    scoringModel: 'baskets',
+    isActive: true,
+    iconKey: 'basketball',
+    accentColor: '#3B82F6',
+    sortOrder: 7,
+    // Players on court come from the rules (playersOnCourt); a team may list subs up to 12.
+    formats: [
+      { code: '3v3', name: '3v3', playersPerSide: 3, minPerSide: 1, maxPerSide: 12 },
+      { code: '4v4', name: '4v4', playersPerSide: 4, minPerSide: 1, maxPerSide: 12 },
+      { code: '5v5', name: '5v5', playersPerSide: 5, minPerSide: 1, maxPerSide: 12 },
+    ],
+    rulesets: [
+      { slug: '3v3-21', name: 'First to 21 · 10 min limit', scoringModel: 'baskets', isDefault: true, config: BASKETS_3V3 },
+      { slug: '4v4-halves', name: '2 × 10 min · running clock', scoringModel: 'baskets', config: BASKETS_4V4 },
+      { slug: '5v5-quarters', name: '4 × 10 min · running clock', scoringModel: 'baskets', config: BASKETS_5V5 },
+    ],
+  },
   // ----- Not in the MVP: kept, hidden (is_active = false). -----
   {
     id: 4,
@@ -176,8 +246,8 @@ export const SPORTS: SportSeed[] = [
       },
     ],
   },
-  // Football and box cricket need scoring plugins that don't exist yet ("timed_goals", "overs";
-  // the old engines are parked in src/engine/scoring/parked). No rulesets until then.
+  // Football needs a scoring plugin that doesn't exist yet ("timed_goals"; the old engine is parked
+  // in src/engine/scoring/parked). No rulesets until then.
   {
     id: 5,
     slug: 'football',
@@ -189,19 +259,6 @@ export const SPORTS: SportSeed[] = [
     accentColor: '#3B82F6',
     sortOrder: 51,
     formats: [{ code: 'team', name: 'Team', playersPerSide: 5, minPerSide: 1, maxPerSide: 11 }],
-    rulesets: [],
-  },
-  {
-    id: 6,
-    slug: 'box-cricket',
-    name: 'Box Cricket',
-    category: 'bat_and_ball',
-    scoringModel: 'overs',
-    isActive: false,
-    iconKey: 'cricket',
-    accentColor: '#22C55E',
-    sortOrder: 52,
-    formats: [{ code: 'team', name: 'Team', playersPerSide: 6, minPerSide: 1, maxPerSide: 11 }],
     rulesets: [],
   },
 ];

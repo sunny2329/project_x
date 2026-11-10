@@ -20,12 +20,14 @@ function shortCallout(callout: string | null): string | null {
 /** Home's "Live now" strip card: sport · game, callout, both sides with games won and the running score. */
 export function LiveMatchCard({ match, width = 236 }: { match: MatchCard; width?: number }) {
   const { colors } = useTheme();
-  const unit = currentUnitLabel(match);
+  const unit = match.score.scoringModel === 'overs' || match.score.scoringModel === 'baskets' ? null : currentUnitLabel(match);
   const callout = shortCallout(match.score.callout);
   const leading = (() => {
     const [a, b] = match.score.sides;
-    const n = (s: typeof a) => Number(s?.current ?? s?.primary ?? 0);
-    return n(a) === n(b) ? null : n(a) > n(b) ? 0 : 1;
+    // parseFloat: cricket's "48/3" compares on its runs; a side yet to bat ("-") or "AD" doesn't compare.
+    const n = (s: typeof a) => Number.parseFloat(s?.current ?? s?.primary ?? '0');
+    const [x, y] = [n(a), n(b)];
+    return Number.isNaN(x) || Number.isNaN(y) || x === y ? null : x > y ? 0 : 1;
   })();
   return (
     <Tap
@@ -60,7 +62,7 @@ export function LiveMatchCard({ match, width = 236 }: { match: MatchCard; width?
                 {s.primary}
               </D>
             ) : null}
-            <D size={26} style={{ width: 32, textAlign: 'right' }} color={dim ? colors.soft : colors.fg}>
+            <D size={26} style={{ minWidth: 32, textAlign: 'right' }} color={dim ? colors.soft : colors.fg}>
               {s?.current ?? s?.primary ?? '0'}
             </D>
           </View>

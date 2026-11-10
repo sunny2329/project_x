@@ -44,8 +44,12 @@ export function fitToFormat(lineup: Lineup, format: Pick<FormatOption, 'maxPerSi
 }
 
 /** Why the match can't start yet, or null when the lineup is complete. */
-export function lineupProblem(lineup: Lineup, format: Pick<FormatOption, 'minPerSide'>): string | null {
+export function lineupProblem(lineup: Lineup, format: Pick<FormatOption, 'minPerSide'> & { maxPerSide?: number }): string | null {
   for (const [index, players] of lineup.entries()) {
+    if (format.maxPerSide !== undefined && players.length > format.maxPerSide) {
+      const extra = players.length - format.maxPerSide;
+      return `Remove ${extra} player${extra === 1 ? '' : 's'} from ${index === 0 ? 'your side' : 'the other side'} (${format.maxPerSide} a side)`;
+    }
     if (players.length < format.minPerSide) {
       const needed = format.minPerSide - players.length;
       return `Add ${needed} more player${needed === 1 ? '' : 's'} to ${index === 0 ? 'your side' : 'the other side'}`;

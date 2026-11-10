@@ -7,14 +7,15 @@ import type { RulesetOption } from '../types';
 type Config = Record<string, unknown>;
 
 /** How many rows to offer: best of 3 -> 3 games / sets. */
-export function rowsFor(ruleset: Pick<RulesetOption, 'config'>): number {
+export function rowsFor(ruleset: Pick<RulesetOption, 'scoringModel' | 'config'>): number {
+  if (ruleset.scoringModel === 'overs') return 2; // The match, and a super over if it was tied.
   const n = Number(ruleset.config.bestOf ?? 1);
   return Number.isFinite(n) && n > 0 ? n : 1;
 }
 
 /** A plain-words reason a game score can't be final, or null if it could be (rally and side-out). */
 export function gameProblem(model: string, config: Config, a: number, b: number, deciding: boolean): string | null {
-  if (model === 'tennis') return null;
+  if (model === 'tennis' || model === 'overs') return null;
   const to = Number((deciding && config.decidingGamePoints) || config.pointsToWin || 21);
   const winBy = Number(config.winBy ?? 2);
   const cap = config.cap ? Number(config.cap) : null;
@@ -79,7 +80,9 @@ export function ResultGrid({
 }) {
   const { colors } = useTheme();
   const rows = rowsFor(ruleset);
+  const overs = ruleset.scoringModel === 'overs';
   const unit = ruleset.scoringModel === 'tennis' ? 'Set' : 'Game';
+  const rowName = (i: number) => (overs ? (i === 0 ? 'Runs' : 'Super over') : `${unit} ${i + 1}`);
   const grid = Array.from({ length: rows }, (_, i) => cells[i] ?? ['', '']);
   const set = (row: number, col: number, v: string) => {
     const next = grid.map((r) => [...r]);
@@ -99,13 +102,18 @@ export function ResultGrid({
       {grid.map((row, i) => (
         <Row key={i} gap={8}>
           <T size={13} w={600} color={colors.muted} style={{ width: 60 }}>
-            {unit} {i + 1}
+            {rowName(i)}
           </T>
           {[0, 1].map((col) => (
-            <NumberBox key={col} value={row[col]!} onChange={(v) => set(i, col, v)} label={`${unit} ${i + 1}, ${names[col]} ${unit === 'Set' ? 'games' : 'points'}`} invalid={check.invalidRow === i} />
+            <NumberBox key={col} value={row[col]!} onChange={(v) => set(i, col, v)} label={`${rowName(i)}, ${names[col]} ${overs ? 'runs' : unit === 'Set' ? 'games' : 'points'}`} invalid={check.invalidRow === i} />
           ))}
         </Row>
       ))}
+      {overs ? (
+        <T size={13} color={colors.muted}>
+          Fill in the super over only if the runs were level.
+        </T>
+      ) : null}
       {check.message ? <Notice tone="error" icon="alert" text={check.message} /> : null}
     </View>
   );

@@ -1,7 +1,7 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import type { Db, DbTx } from '../../database/prisma.js';
 import { Prisma } from '../../database/prisma.js';
-import { parseConfig, scoringRegistry, type ScoreSummary } from '../../engine/scoring/index.js';
+import { parseConfig, rulesName, scoringRegistry, type ScoreSummary } from '../../engine/scoring/index.js';
 import {
   DEFAULT_TIEBREAKERS,
   fillGroupQualifiers,
@@ -39,6 +39,18 @@ type StoredSource = SlotSource & { byeArrived?: boolean };
 
 const invalid = (field: string, message: string) => AppError.badRequest('VALIDATION_ERROR', 'Some fields are invalid.', { [field]: [message] });
 const notFound = (what: string) => AppError.notFound(`${what.toUpperCase()}_NOT_FOUND`, `This ${what} does not exist.`);
+
+type EventRules = { ruleset: { name: string; scoringModel: string; config: Prisma.JsonValue }; rulesOverride: Prisma.JsonValue };
+const eventConfig = (e: EventRules) => ({ ...(e.ruleset.config as object), ...((e.rulesOverride as object | null) ?? {}) });
+
+/** The event's rules as played ("5 overs · 4 wickets · 6 a side" once an organizer changed one). */
+const eventRulesName = (e: EventRules) => rulesName(scoringRegistry, e.ruleset.scoringModel, eventConfig(e), e.ruleset.name);
+
+/** Most players an entry may list under the event's rules (box cricket "6 a side"), or null. */
+function playersCap(e: EventRules): number | null {
+  const cap = (eventConfig(e) as { playersPerSide?: unknown }).playersPerSide;
+  return typeof cap === 'number' ? cap : null;
+}
 
 function slugify(name: string): string {
   const base = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60) || 'tournament';
@@ -293,8 +305,9 @@ export class TournamentsService implements MatchDecidedHook {
         name: e.name,
         status: e.status,
         sport: { id: String(e.sport.id), slug: e.sport.slug, name: e.sport.name, iconKey: e.sport.iconKey, accentColor: e.sport.accentColor },
-        format: { code: e.sportFormat.code, name: e.sportFormat.name, playersPerSide: e.sportFormat.playersPerSide },
-        ruleset: { id: e.ruleset.id, name: e.ruleset.name },
+        // A rule such as box cricket's "8 a side" sets how many players an entry lists.
+        format: { code: e.sportFormat.code, name: e.sportFormat.name, playersPerSide: playersCap(e) ?? e.sportFormat.playersPerSide },
+        ruleset: { id: e.ruleset.id, name: eventRulesName(e) },
         drawFormat: e.format,
         drawConfig: e.formatConfig,
         tiebreakers: e.tiebreakers,
@@ -476,6 +489,8 @@ export class TournamentsService implements MatchDecidedHook {
     if (input.players.length < f.minPerSide || input.players.length > f.maxPerSide) {
       throw invalid('players', `${event.name} entries need ${f.playersPerSide} player${f.playersPerSide > 1 ? 's' : ''}`);
     }
+    const cap = playersCap(event);
+    if (cap !== null && input.players.length > cap) throw invalid('players', `${event.name} is ${cap} a side: list at most ${cap} player${cap > 1 ? 's' : ''}`);
     if (event.maxEntries) {
       const n = await this.db.tournamentEntry.count({ where: { eventId, status: { in: ['pending', 'approved'] } } });
       if (n >= event.maxEntries) throw AppError.conflict('EVENT_FULL', 'This event is full.');
@@ -896,8 +911,8 @@ export class TournamentsService implements MatchDecidedHook {
       name: event.name,
       status: event.status,
       sport: { id: String(event.sport.id), slug: event.sport.slug, name: event.sport.name, iconKey: event.sport.iconKey, accentColor: event.sport.accentColor },
-      format: { code: event.sportFormat.code, name: event.sportFormat.name, playersPerSide: event.sportFormat.playersPerSide },
-      ruleset: { id: event.ruleset.id, name: event.ruleset.name },
+      format: { code: event.sportFormat.code, name: event.sportFormat.name, playersPerSide: playersCap(event) ?? event.sportFormat.playersPerSide },
+      ruleset: { id: event.ruleset.id, name: eventRulesName(event) },
       drawFormat: event.format,
       drawConfig: event.formatConfig,
       tiebreakers: event.tiebreakers,

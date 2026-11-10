@@ -11,6 +11,8 @@ plugin**. No schema migration and no `if (sport === …)` anywhere.
 | `rally` | `backend/src/engine/scoring/plugins/rally.ts` | Every rally scores: badminton, table tennis, pickleball (rally), volleyball, squash (PAR) … |
 | `side_out` | `plugins/side-out.ts` | Only the server scores: traditional pickleball, old-style squash/racquetball |
 | `tennis` | `plugins/tennis.ts` | 15/30/40 games, sets, tiebreaks: tennis, padel, beach tennis |
+| `overs` | `plugins/overs.ts` | Limited-overs innings, super over when tied: box cricket, tape-ball cricket |
+| `baskets` | `plugins/baskets.ts` | Running points, first to N or timed periods with overtime, fouls, timeouts, subs, per-player points: basketball (3v3 to 5v5), netball, handball-style games |
 
 If one fits, skip to step 3: a new sport is just a catalog entry with rulesets.
 
@@ -27,15 +29,21 @@ Create `backend/src/engine/scoring/plugins/<model>.ts` implementing `ScoringPlug
 - `validateSides`, `initialState`, `applyEvent` (pure, never mutate), `isComplete`.
 - `summary(state)` → `ScoreSummary`: the only thing the app, feed, profile, public pages and
   standings read. Fill `actions` with the buttons the scorer may press next. The app draws
-  those buttons generically, so the scoring screen needs no new code. Put the score hierarchy
-  (innings → over, half …) in `segments`; it is mirrored into `match_segments`.
-- Optional: `eventsForManualResult` (results typed in afterwards) and `walkoverScore`.
+  the buttons that belong to a side (`sideIndex` 0 or 1) generically, so a two-button sport needs no
+  new scoring screen. Match-level actions (`sideIndex: null`) need their own controls, as
+  `components/CricketBoard.tsx` does for `overs` and `components/basketball/Board.tsx` for `baskets` (play-by-play detail goes in a model-specific summary field, like `ScoreSummary.game`). Put the score hierarchy (innings → over, half …) in
+  `segments`; it is mirrored into `match_segments`. Also add the model to `SCORED_MODELS`
+  (`NewMatchSportScreen`) and `SCORED` (`AddEventScreen`), and run `npm run sync-engine` in `frontend`.
+- Optional: `eventsForManualResult` (results typed in afterwards), `walkoverScore`, and
+  `describeRules` (the rules in a few words from the config played, shown once a rule was changed).
+- Rules a scorer or organizer may change: add them to `EDITABLE_RULES` in `frontend/src/features/match/rules.ts`;
+  the shared `RulesSheet` shows them in a friendly's setup and in Add event.
 
 Register it in `backend/src/engine/scoring/index.ts` (`createDefaultRegistry`), then add tests next
 to the plugin (see `rally.test.ts`). `registry.test.ts` proves a plugin registers without
 touching the core, and checks that `src/engine` imports nothing from the app, DB or HTTP.
 
-Stuck halfway? Engines for football (`timed_goals`) and box cricket (`overs`) are parked in
+Stuck halfway? The football (`timed_goals`) engine is parked in
 `backend/src/engine/scoring/parked/` and can be ported to the interface.
 
 ## 3. Add the sport to the catalog

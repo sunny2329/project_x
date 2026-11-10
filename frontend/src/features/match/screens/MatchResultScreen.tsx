@@ -10,8 +10,14 @@ import { Badge, Button, D, EmptyState, Header, Icon, IconButton, Label, Loading,
 import { firstName, minutes } from '@/shared/utils/format';
 import { matchApi, shareUrl } from '../api/match.api';
 import { useSports } from '../hooks/useSports';
+import { inkOn, setupFromConfig } from '../basketball';
+import { teamColor } from '../components/basketball/Board';
+import { PlayerOfTheGame, PlayerTable } from '../components/basketball/BoxScore';
+import { PeriodTable } from '../components/basketball/QuarterBreak';
+import { segmentShort } from '../components/Scoreboard';
 import type { LineupPlayer } from '../lineup';
-import { useMatchDraft } from '../store/draft.store';
+import { overrideFrom } from '../rules';
+import { freshHoops, useMatchDraft } from '../store/draft.store';
 import type { MatchView } from '../types';
 import { sideLabel } from './ScoreScreen';
 
@@ -60,9 +66,11 @@ export default function MatchResultScreen() {
     return null;
   }
 
-  const color = m.sport.accentColor;
-  const ink = colors.ink;
   const winner = m.score.winnerSideIndex;
+  const hoops = m.score.scoringModel === 'baskets';
+  const color = hoops ? teamColor(m, winner ?? 0, colors.sideB) : m.sport.accentColor;
+  const ink = hoops ? inkOn(color) : colors.ink;
+  const plays = hoops ? (m.score.game?.plays.length ?? 0) : 0;
   const mySide = m.sides.find((s) => s.players.some((p) => p.userId === me?.id)) ?? null;
   const mine = mySide?.players.find((p) => p.userId === me?.id);
   const letter = mySide && winner !== null ? (mySide.index === winner ? 'W' : 'L') : null;
@@ -73,7 +81,9 @@ export default function MatchResultScreen() {
   const trend = profile?.ratingTrends.find((t) => t.sportId === m.sport.id)?.points ?? [];
   const badge = statusBadge(m);
   const segs = m.score.segments.filter((s) => s.complete || s.scores.some((n) => n > 0));
-  const unit = m.score.totals.majorLabel === 'Sets' ? 'SET' : 'GAME';
+  const overs = m.score.scoringModel === 'overs';
+  const unit = overs ? 'SCORE' : m.score.totals.majorLabel === 'Sets' ? 'SET' : 'GAME';
+  const col = overs ? 64 : 44;
   const duration = m.startedAt && m.completedAt ? minutes((Date.parse(m.completedAt) - Date.parse(m.startedAt)) / 1000) : null;
   const decided = m.status === 'completed' || m.status === 'retired' || m.status === 'walkover';
   const share = () => void Share.share({ message: `${m.sides.map((s) => s.name).join(' vs ')}: ${m.score.headline}\n${shareUrl(m)}`, url: shareUrl(m) });
@@ -84,7 +94,25 @@ export default function MatchResultScreen() {
     const lineup = m.sides.map((s) =>
       s.players.map((p): LineupPlayer => ({ key: p.userId ?? p.playerId, displayName: p.displayName, isGuest: p.isGuest, userId: p.userId, input: { playerId: p.playerId } })),
     );
-    useMatchDraft.getState().restore({ sport, formatCode: m.format.code, rulesetId: m.ruleset.id, lineup, firstServer: 0 });
+    const ruleset = sport.rulesets.find((r) => r.id === m.ruleset.id);
+    // Same rules as played: whatever was changed from the ruleset, minus who batted or served first.
+    const override = ruleset ? overrideFrom(ruleset.scoringModel, ruleset.config, m.rulesetConfig) : {};
+    if (hoops) {
+      // Same teams, names, colours and numbers; the setup screen keeps the rules as played.
+      const jerseys = Object.fromEntries(m.sides.flatMap((s) => s.players.map((p) => [p.userId ?? p.playerId, p.jerseyNumber ?? null])));
+      const hoopsDraft = {
+        ...freshHoops(),
+        setup: setupFromConfig((m.rulesetConfig ?? {}) as Record<string, unknown>),
+        names: [m.sides[0]!.name, m.sides[1]!.name] as [string, string],
+        colors: [teamColor(m, 0, '#F2EDE7'), teamColor(m, 1, '#F2EDE7')] as [string, string],
+        jerseys,
+        tagPlayers: (m.rulesetConfig as { tagPlayers?: unknown } | null)?.tagPlayers !== false,
+      };
+      useMatchDraft.getState().restore({ sport, formatCode: m.format.code, rulesetId: m.ruleset.id, lineup, firstServer: 0, hoops: hoopsDraft });
+      router.push('/match/teams');
+      return;
+    }
+    useMatchDraft.getState().restore({ sport, formatCode: m.format.code, rulesetId: m.ruleset.id, override, lineup, firstServer: 0 });
     router.push('/match/serve');
   };
 
@@ -99,7 +127,7 @@ export default function MatchResultScreen() {
         <Row between>
           <IconButton icon="close" label="Close" tone="translucent" color={ink} onPress={() => (router.canGoBack() ? router.dismissAll() : router.replace('/'))} />
           <T size={13} w={700} color={ink} numberOfLines={1} style={{ flexShrink: 1 }}>
-            {[m.sport.name, m.format.name, duration].filter(Boolean).join(' · ')}
+            {hoops ? [m.format.code, m.score.game?.periods === 1 ? null : `${m.score.game?.periods} periods`, 'Final', duration].filter(Boolean).join(' · ') : [m.sport.name, m.format.name, duration].filter(Boolean).join(' · ')}
           </T>
           <IconButton icon="share" label="Share" tone="translucent" color={ink} onPress={share} />
         </Row>
@@ -107,12 +135,33 @@ export default function MatchResultScreen() {
           <T size={13} w={800} ls={0.1} color={ink}>
             {winner === null ? (m.status === 'abandoned' ? 'NO RESULT' : 'DRAW') : m.sides[winner]!.players.length > 1 ? 'WINNERS' : 'WINNER'}
           </T>
-          <D size={56} lh={52} upper color={ink} numberOfLines={2}>
-            {winner === null ? m.sides.map((s) => s.name).join(' v ') : sideLabel(m, winner, true)}
-          </D>
-          <D size={26} w={800} color={ink}>
-            {resultLine(m)}
-          </D>
+          {hoops && winner !== null && m.resultType === 'played' ? (
+            <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 10 }}>
+              <D size={40} lh={38} upper color={ink} numberOfLines={2} flex>
+                {m.sides[winner]!.name}
+              </D>
+              <D size={58} lh={52} color={ink}>
+                {String(m.score.sides[winner]!.primary)}
+                <D size={28} color={ink} style={{ opacity: 0.6 }}>
+                  {` – ${m.score.sides[winner === 0 ? 1 : 0]!.primary}`}
+                </D>
+              </D>
+            </View>
+          ) : (
+            <>
+              <D size={56} lh={52} upper color={ink} numberOfLines={2}>
+                {winner === null ? m.sides.map((s) => s.name).join(' v ') : sideLabel(m, winner, true)}
+              </D>
+              <D size={26} w={800} color={ink}>
+                {resultLine(m)}
+              </D>
+            </>
+          )}
+          {overs && m.resultType === 'played' && m.score.callout ? (
+            <T size={15} w={700} color={ink}>
+              {m.score.callout}
+            </T>
+          ) : null}
           {badge ? <Badge label={badge.label} tone={badge.tone} style={{ marginTop: 6 }} /> : null}
         </View>
       </View>
@@ -123,23 +172,39 @@ export default function MatchResultScreen() {
         contentStyle={{ paddingTop: 18 }}
         footer={
           <View style={{ gap: 10 }}>
-            <Row gap={10}>
-              <Button label="Rematch" icon="rematch" variant="outline" height={54} size={15} style={{ flex: 1 }} onPress={rematch} />
-              <Button label="Share" icon="share" variant="outline" height={54} size={15} style={{ flex: 1 }} onPress={share} />
-            </Row>
-            <Button label="Done" weight={800} onPress={() => (router.canGoBack() ? router.dismissAll() : router.replace('/'))} />
+            {hoops ? (
+              <Row gap={8}>
+                <Button label="Rematch" variant="outline" height={52} size={15} style={{ flex: 1 }} onPress={rematch} />
+                {plays ? <Button label="Timeline" variant="outline" height={52} size={15} style={{ flex: 1 }} onPress={() => router.push({ pathname: '/match/[id]/timeline', params: { id } })} /> : null}
+                <Button label="Done" weight={800} height={52} style={{ flex: 1.2 }} onPress={() => (router.canGoBack() ? router.dismissAll() : router.replace('/'))} />
+              </Row>
+            ) : (
+              <>
+                <Row gap={10}>
+                  <Button label="Rematch" icon="rematch" variant="outline" height={54} size={15} style={{ flex: 1 }} onPress={rematch} />
+                  <Button label="Share" icon="share" variant="outline" height={54} size={15} style={{ flex: 1 }} onPress={share} />
+                </Row>
+                <Button label="Done" weight={800} onPress={() => (router.canGoBack() ? router.dismissAll() : router.replace('/'))} />
+              </>
+            )}
           </View>
         }
       >
-        {segs.length ? (
+        {hoops && m.score.game ? (
+          <>
+            <PeriodTable match={m} score={m.score} rules={{ periods: m.score.game.periods }} highlight={winner} />
+            {plays ? <PlayerTable match={m} score={m.score} initialSide={winner ?? 0} /> : null}
+            <PlayerOfTheGame match={m} score={m.score} />
+          </>
+        ) : segs.length ? (
           <View style={{ borderRadius: 16, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, overflow: 'hidden' }}>
             <View style={{ flexDirection: 'row', paddingVertical: 10, paddingHorizontal: 14 }}>
               <T size={12} w={700} ls={0.06} color={colors.muted} flex>
                 {unit}
               </T>
               {segs.map((s) => (
-                <T key={s.sequence} size={12} w={700} color={colors.muted} center style={{ width: 44 }}>
-                  {s.type === 'match_tiebreak' ? 'TB' : s.sequence}
+                <T key={s.sequence} size={12} w={700} color={colors.muted} center style={{ width: col }}>
+                  {overs ? segmentShort(m.score, s) : s.type === 'match_tiebreak' ? 'TB' : s.sequence}
                 </T>
               ))}
             </View>
@@ -153,7 +218,7 @@ export default function MatchResultScreen() {
                   {segs.map((s) => {
                     const took = s.winnerSideIndex === side.index;
                     return (
-                      <D key={s.sequence} size={22} w={took ? 900 : 800} color={took ? (won ? sportText(colors, m.sport.slug) : colors.fg) : colors.muted} style={{ width: 44, textAlign: 'center' }}>
+                      <D key={s.sequence} size={22} w={took ? 900 : 800} color={took ? (won ? sportText(colors, m.sport.slug) : colors.fg) : colors.muted} style={{ width: col, textAlign: 'center' }}>
                         {s.display[side.index]}
                       </D>
                     );

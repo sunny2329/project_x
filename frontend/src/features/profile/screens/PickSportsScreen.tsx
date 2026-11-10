@@ -9,13 +9,14 @@ import { profileApi } from '../api/profile.api';
 import { toggleSport, type SportSelection } from '../sportSelection';
 import { useProfileStore } from '../store/profile.store';
 
-/** The racket sports the app is built for; any not yet switched on in the catalogue show "Coming soon". */
+/** The sports the app is built for; any not yet switched on in the catalogue show "Coming soon". */
 const ROSTER: { slug: string; name: string }[] = [
   { slug: 'badminton', name: 'Badminton' },
   { slug: 'table-tennis', name: 'Table tennis' },
   { slug: 'pickleball', name: 'Pickleball' },
   { slug: 'padel', name: 'Padel' },
   { slug: 'tennis', name: 'Tennis' },
+  { slug: 'box-cricket', name: 'Box cricket' },
   { slug: 'volleyball', name: 'Volleyball' },
 ];
 

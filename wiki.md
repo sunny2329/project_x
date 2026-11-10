@@ -24,9 +24,9 @@ PROJECT_X is a sports social + sports ecosystem mobile application, built module
    polling) — done; its tables are created by Prisma migration `3_app_redesign`.
    **Redis** — live match state, session cache, chat polling (see "Performance and Redis").
 4. **Product focus (2026-10-14 pivot): racket sports first** — badminton, table tennis, pickleball,
-   padel, tennis — with **friendly matches** and **tournaments**, on a sport-agnostic core (scoring
-   plugins + generic match/event/segment model). Volleyball, football and box cricket are kept but
-   inactive. Plan: `docs/pivot/PLAN.md`; adding a sport: `ADDING_A_SPORT.md`.
+   padel, tennis — plus **box cricket** (2026-10-31), with **friendly matches** and **tournaments**, on
+   a sport-agnostic core (scoring plugins + generic match/event/segment model). Volleyball and
+   football are kept but inactive. Plan: `docs/pivot/PLAN.md`; adding a sport: `ADDING_A_SPORT.md`.
    `docs/scoring-and-tournaments.md` (corporate organizations, medal tables) is post-MVP.
 5. **App UI (2026-10-21): every screen rebuilt from the `ProjectX-UI/` designs** (read
    `ProjectX-UI/HANDOFF.md` first). See "App navigation" and "Design system".
@@ -312,8 +312,11 @@ took ~3 s. Decided: move Neon to Singapore (ap-southeast-1, ~70 ms) and add Redi
   - `scoring/`: the `ScoringPlugin` interface (`types.ts`), `ScoringRegistry`, `replay()`, and the
     MVP plugins `rally` (badminton, table tennis, pickleball rally, volleyball), `side_out`
     (traditional pickleball, 0-0-2 start), `tennis` (tennis, padel: advantage/golden point, tiebreaks,
-    match tiebreak). Every plugin tracks the server on every point. `parked/` holds the football and
-    box-cricket engines (not registered).
+    match tiebreak), `overs` (box cricket: team totals, super over when tied; every rule and the
+    players a side can be changed per match or event), `baskets` (basketball: first-to games with a
+    time limit, or timed periods with overtime; fouls, foul-outs, timeouts, subs, per-player points
+    and assists; `ScoreSummary.game` carries the play-by-play and box score). The racket plugins track
+    the server on every point. `parked/` holds the football engine (not registered).
   - `tournament/`: formats registry (`knockout`, `round_robin`, `groups_knockout`), seeding with byes,
     advancement (walkover / no-show / retirement / double walkover, 3rd-place routing),
     standings with ordered tiebreakers.
@@ -348,7 +351,7 @@ took ~3 s. Decided: move Neon to Singapore (ap-southeast-1, ~70 ms) and add Redi
 | --- | --- |
 | Sports | `GET /sports` (active only, with formats + rulesets), `GET /sports/:slug` |
 | Players | `GET /players?q=`, `GET /players/me`, `GET/POST /players/guests`, `POST /players/claim` |
-| Matches | `POST /matches` (`{sport, format, rulesetId?, sides:[{players:[{userId}|{playerId}|{guest}]}], manualScores?}`), `GET /matches/live`, `GET /matches/pending-confirmations`, `GET /matches/:id`, `POST /matches/:id/events` (`{event, version, clientEventId?}`), `/undo`, `/complete`, `/retire`, `/walkover`, `/abandon`, `/confirm`, `/scorers` |
+| Matches | `POST /matches` (`{sport, format, rulesetId?, rulesOverride?, sides:[{name?, color?, players:[{userId}|{playerId}|{guest}, jerseyNumber?]}], manualScores?}`; `color` `#RRGGBB`, shirt numbers 0-99 unique per side), `GET /matches/live`, `GET /matches/pending-confirmations`, `GET /matches/:id`, `POST /matches/:id/events` (`{event, version, clientEventId?}`), `/undo`, `/complete`, `/retire`, `/walkover`, `/abandon`, `/confirm`, `/scorers` |
 | Tournaments | `GET/POST /tournaments`, `GET/PATCH /tournaments/:id`, `POST /tournaments/:id/{staff,courts,events}`, `DELETE /tournaments/:id/staff/:userId/:role`, `POST /courts/:id/scorers` |
 | Categories | `GET/PATCH /tournament-events/:id`, `POST /tournament-events/:id/entries`, `POST /tournament-events/:id/draw` (`{preview?, randomSeed?}`), `DELETE /tournament-events/:id/draw`, `PATCH /entries/:id` (approve, seed) |
 | Fixtures | `GET /fixtures/mine`, `GET/PATCH /fixtures/:id` (court, time), `POST /fixtures/:id/start`, `/walkover`, `/result` |
@@ -360,6 +363,9 @@ took ~3 s. Decided: move Neon to Singapore (ap-southeast-1, ~70 ms) and add Redi
 - Scheduling is manual (court + time per fixture); no automatic scheduler or clash detection.
 - Double elimination / Swiss: add a format in `engine/tournament/formats.ts` (no schema change).
 - Legacy `match_*`, `mst_sport*`, `usr_sport_*`, `usr_user_sport` tables are frozen, not dropped.
+- Basketball: the game and shot clocks run on the scorer's phone only (each play carries the
+  reading); spectators see the clock at the last play. Only made baskets are recorded (no misses or
+  rebounds), so the box score has no shooting percentages.
 
 ## Auth module
 
@@ -500,6 +506,87 @@ Frontend (`frontend/.env`, template `frontend/.env.example`): `EXPO_PUBLIC_API_U
   the test harness must be rewritten to build an isolated copy of the `project_x` tables.
 
 ## Changelog
+
+### 2026-11-10: Basketball 5v5 substitutions on the board
+- From `ProjectX App Screens (2).html`: it changes only the 5v5 live screen. Each team card has
+  **⇄ SUB** next to FOUL (hidden when nobody on the bench can come on). It pauses the clock, then
+  the card's chips ask "SUB · WHO'S COMING OFF?" and then "#7 OFF · WHO'S COMING ON?" (CANCEL at
+  either step). A 5th foul, whether credited from the chips or the ⋯ sheet, asks "#7 FOULED OUT ·
+  WHO COMES ON?" (LATER keeps them on). It sends the existing `sub` event, so the engine, API and DB
+  are unchanged. Sub plays now read "Sub · #18 Karan on, #7 Arjun off".
+- Tests: 4 new cases in `components/basketball/Board.test.tsx`; checklist §17c.
+- This entry and the 2026-11-08, 2026-11-03 and 2026-10-31 entries below were committed in d25d04b
+  (branch `feat/basketball-box-cricket`).
+
+### 2026-11-08: Basketball is a live sport
+- Engine: new `baskets` plugin (`backend/src/engine/scoring/plugins/baskets.ts`, tests in
+  `baskets.test.ts`). Two ways a game ends: **first to N** (default 21, optional win-by, a 10 min
+  limit after which the leader wins and a tie goes to "next basket wins"), or **timed** (1, 2 or 4
+  periods, overtime until someone leads). Events: `score` (1/2/3, optional player, assist, clock),
+  `foul` (personal, shooting, technical, unsportsmanlike), `timeout`, `sub`, `tag` (credit the last
+  basket or foul to a player), `possession`, `period_end`, `result_total` (typed-in timed result).
+  Enforces 3-pointers off, fouling out (no scoring or coming back on), timeouts per half or game,
+  team fouls per period or game (bonus). New `ScoreSummary.game` (`GameDetail`: period, clock at the
+  last play, possession, team fouls/bonus/timeouts, per-player lines, the full play list).
+- Catalog: `basketball` (id 9, category team), formats 3v3 / 4v4 / 5v5 (1-12 a side), rulesets
+  3v3 first to 21 (default), 4v4 2 × 10 min, 5v5 4 × 10 min. **Needs `npm run db:seed`** on each
+  database (done on `project_x`).
+- DB: migration `5_jerseys` (applied to `project_x` with the owner's OK):
+  `match_participants.jersey_number` (0-99, unique per side) and `match_sides.color` (`#RRGGBB`).
+  `POST /matches` takes side `name`, `color` and player `jerseyNumber`; match views return them.
+- Public match page: a column per period plus the total.
+- App, from `ProjectX App Screens (1).html`: Basketball setup (quick starts, players a side, court,
+  first-to or timed, periods, minutes, 1·2 or 1·2·3), Teams (half-court preview, names, jersey
+  colours, subs, "Who scored too" / "Team score only"; 5v5: starting five on court, tap to swap with
+  the bench), Jersey numbers (court + bench, number pad, clash check, auto-number, Tip off), live
+  scoring (3v3 layout: clock, shot clock, ball, team cards with "N to win" and per-player lines; 5v5
+  layout: period, big clock, 24/14 resets, possession arrow, foul dots, timeouts; inline "Who scored
+  +2?" / "Foul by who?" chips), the foul sheet (kinds, foul-out warning, timeouts, substitution, end
+  the period, match menu), the who-scored sheet (assist, and-one), quarter break, box score on the
+  result screen (period table, players, player of the game, rematch keeps teams and numbers), game
+  timeline (`/match/[id]/timeline`: lead chart, lead changes, ties, best run, biggest lead, key
+  moments per period, box score), spectator view, and Enter a result (−/+ with the design's checks).
+  Clocks: `store/clock.store.ts` (saved per match in SecureStore). Helpers: `features/match/basketball.ts`.
+- Not built from the design: misses (so no "5/9" shooting splits), the top scorer on Enter a result,
+  and the who-scored sheet's auto-close timer (it opens from "Last play"; the inline chips do the quick path).
+- Tests: engine `baskets.test.ts` (31), API `flows.api.test.ts` basketball flows (create, live with
+  tags/fouls/subs/undo, 5v5 overtime and foul-out, typed-in results, knockout), app
+  `basketball.test.ts`, `components/basketball/Board.test.tsx`, `store/draft.store.test.ts`,
+  `store/clock.store.test.ts`.
+- Test harness: access tokens now last 4 h in tests (was 15 min). `flows.api.test.ts` runs about 18 min
+  against remote Neon and signs in once, so its last tests were getting 401s.
+
+### 2026-11-03: Box cricket rules and players a side are configurable
+- Engine (`plugins/overs.ts`): new optional `playersPerSide` (1-11): no side may list more players,
+  and wickets / super-over wickets can't outnumber it (last man stands = as many wickets as players).
+  Wickets now go to 11. New optional plugin method `describeRules(config)` and core helper
+  `rulesName()` (`replay.ts`): cricket names the rules as played ("5 overs · 4 wickets · 6 a side ·
+  4-ball overs").
+- API: match views (`ruleset.name`) and tournament events use that name, so changed rules show
+  everywhere. Events with a players-a-side rule report it as `format.playersPerSide` (the app asks
+  for that many players per entry) and refuse bigger entries (400).
+- App: "Change a rule" is now on a friendly's setup too, not just Add event, through one shared
+  `components/RulesSheet.tsx`; the rule list moved to `rules.ts` (`EDITABLE_RULES`, `changeRule`,
+  `rulesTitle`, `overrideFrom`, `maxPlayersPerSide`). Cricket offers players a side, overs (1-50),
+  wickets, balls an over (1-10), runs for a wide / no-ball (0-2), super-over overs and wickets.
+  Fewer players a side pulls the wickets down with it. The friendly lineup is capped at the players a
+  side ("Players · 6 a side"); the change goes with live matches, typed-in results and rematches.
+- Tests: engine cases in `overs.test.ts`, two new API flows (changed friendly rules, players a side
+  in a tournament), app `CricketBoard.test.tsx` rule helpers and `RulesSheet.test.tsx`.
+
+### 2026-10-31: Box Cricket is a live sport
+- Engine: new `overs` plugin (`backend/src/engine/scoring/plugins/overs.ts`, replaces the parked
+  engine, tests in `overs.test.ts`). Balls with runs 0-6, wide, no-ball and wicket; overs, wickets or
+  passing the target end an innings; "End innings"; swap who bats before the first ball.
+- A level match goes to a super over, repeated until someone wins, so a played match always has a
+  winner and knockouts and standings needed no change. Friendlies can't end as a tie.
+- Team totals only: no batter or bowler stats. Standings use wins, then run difference (no net run rate).
+- Catalog: `box-cricket` active, format Team (1-11 a side, sides may differ), rulesets 6 overs · 5
+  wickets (default), 4 · 3, 8 · 5, 10 · 7. **Needs `npm run db:seed`** on each database: deploys don't seed.
+- App: cricket scoreboard and number pad on the score screen (`components/CricketBoard.tsx`), "Who
+  bats first?" toss, spectator, result, manual entry (runs, plus a super over row), tournament rules
+  and standings wording. New `ScoreSummary.ticker` (this over's balls); live cards carry `scoringModel`.
+- Public match page: cricket columns and score.
 
 ### 2026-10-27: Hosted test backend on Render, EAS build profiles
 - API runs on Render (free plan, Singapore) as `project-x-api` at `https://project-x-api-yf0w.onrender.com`,

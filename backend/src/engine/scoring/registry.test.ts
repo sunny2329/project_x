@@ -55,7 +55,7 @@ describe('scoring registry', () => {
   });
 
   it('rejects unknown models, duplicate registration, bad configs and bad events', () => {
-    expect(() => scoringRegistry.get('overs')).toThrow('No scoring plugin');
+    expect(() => scoringRegistry.get('no_such_model')).toThrow('No scoring plugin');
     expect(() => createDefaultRegistry().register(firstTo).register(firstTo)).toThrow('already registered');
     expect(() => createScorer(scoringRegistry, 'rally', { pointsToWin: 21, bestOf: 2 }, [])).toThrow(ScoringError);
     const scorer = createScorer(scoringRegistry, 'rally', { pointsToWin: 21, bestOf: 3 }, [{ index: 0, playerCount: 1 }, { index: 1, playerCount: 1 }]);
