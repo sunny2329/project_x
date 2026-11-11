@@ -1,11 +1,11 @@
 import { useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { Alert, View } from 'react-native';
+import {View} from 'react-native';
 import { useAuthStore } from '@/features/auth/store/auth.store';
 import { useResource } from '@/shared/hooks/useResource';
 import { useSubmit } from '@/shared/hooks/useSubmit';
 import { useTheme } from '@/shared/theme';
-import { Avatar, Badge, Button, D, EmptyState, Field, Group, GroupRow, Header, Label, Loading, Notice, Row, Screen, Segmented, Sheet, T, TextButton } from '@/shared/ui';
+import { Avatar, Badge, Button, D, EmptyState, Field, Group, GroupRow, Header, Label, Loading, Notice, Row, Screen, Segmented, Sheet, showAlert, T, TextButton } from '@/shared/ui';
 import { tournamentsApi } from '../api/tournaments.api';
 import { UserPickerSheet } from '../components/UserPickerSheet';
 import type { StaffRole, Tournament } from '../types';
@@ -69,7 +69,7 @@ export default function StaffCourtsScreen() {
 
   const removeStaff = (row: (typeof rows)[number]) => {
     if (row.role === 'organizer' || !t.isOrganizer) return;
-    Alert.alert(`Remove ${row.name}?`, row.role === 'court_scorer' ? 'They stop scoring their courts.' : 'They lose access to running this tournament.', [
+    showAlert(`Remove ${row.name}?`, row.role === 'court_scorer' ? 'They stop scoring their courts.' : 'They lose access to running this tournament.', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Remove',

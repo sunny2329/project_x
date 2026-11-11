@@ -1,12 +1,12 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Alert, FlatList, KeyboardAvoidingView, Platform, TextInput, View } from 'react-native';
+import {FlatList, KeyboardAvoidingView, Platform, TextInput, View} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/features/auth/store/auth.store';
 import { usersApi } from '@/features/profile/api/profile.api';
 import { useResource } from '@/shared/hooks/useResource';
 import { bodyFont, useTheme } from '@/shared/theme';
-import { Avatar, D, Dot, IconButton, Loading, Notice, Row, T, Tap } from '@/shared/ui';
+import { Avatar, D, Dot, IconButton, Loading, Notice, Row, showAlert, T, Tap } from '@/shared/ui';
 import { clock, dayLabel, firstName } from '@/shared/utils/format';
 import { useChat } from '../hooks/useChat';
 import { conversationTitle, otherMembers } from '../format';
@@ -173,7 +173,7 @@ export default function ChatThreadScreen() {
                   onLongPress={
                     mine && !m.deleted
                       ? () =>
-                          Alert.alert('Delete message?', 'It’s removed for everyone.', [
+                          showAlert('Delete message?', 'It’s removed for everyone.', [
                             { text: 'Cancel', style: 'cancel' },
                             { text: 'Delete', style: 'destructive', onPress: () => void chat.remove(m.id).catch(() => undefined) },
                           ])

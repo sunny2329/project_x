@@ -1,4 +1,4 @@
-import * as SecureStore from 'expo-secure-store';
+import { kv } from '@/shared/storage/kv';
 import { create } from 'zustand';
 
 const KEY = 'projectx.scoring.prefs';
@@ -19,10 +19,10 @@ export const useScoringPrefs = create<ScoringPrefs>((set, get) => ({
   set(changes) {
     set(changes);
     const { keepAwake, haptics } = get();
-    void SecureStore.setItemAsync(KEY, JSON.stringify({ keepAwake, haptics })).catch(() => undefined);
+    void kv.set(KEY, JSON.stringify({ keepAwake, haptics })).catch(() => undefined);
   },
   async restore() {
-    const saved = await SecureStore.getItemAsync(KEY).catch(() => null);
+    const saved = await kv.get(KEY).catch(() => null);
     if (!saved) return;
     try {
       const parsed = JSON.parse(saved) as Partial<ScoringPrefs>;

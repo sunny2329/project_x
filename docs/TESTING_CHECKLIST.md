@@ -722,3 +722,15 @@ When `REDIS_URL` isn't set, all of this lives in process memory: a restart loses
 - [ ] **Speed (each Neon round trip is ~480 ms from India while the database is in us-west-2):** creating a tournament < 4 s, a draw < 12 s, a fixture result < 30 s, a scoring tap answers at once (Redis). Anything much slower is a regression
 - [ ] **Automated tests:** `cd backend && npm test` is fully green (110+ API and engine tests); `cd frontend && npx tsc --noEmit && npx expo lint` show 0 errors
 - [ ] **Small phone and large phone:** headers (Home: bell, search, new post) don't overflow; text doesn't clip
+
+#### Web app (PWA): https://radsadi26-project-x.expo.app
+- [ ] iPhone Safari: opens on Welcome; Share → Add to Home Screen shows the ProjectX icon and name; the home-screen app opens full screen (no Safari bars), dark status bar area.
+- [ ] Android Chrome: "Install app" / Add to Home screen offered; opens standalone.
+- [ ] Log in with phone + password or a text code (no Google / Apple buttons on the web). Reload: still signed in. Log out asks "Log out?" in a browser dialog and works.
+- [ ] Every confirmation works in the browser: end quarter / call time, abandon match, delete chat message, unlink, draw and court actions.
+- [ ] Dates: Enter a result (date played), Create tournament, schedule time use the browser's date / time picker.
+- [ ] Live scoring (badminton, Box Cricket, Basketball 3v3 and 5v5): taps, undo, clocks; reopening the page keeps the game clock.
+- [ ] A shared link straight to a page (e.g. /match/new) opens the app, not a 404.
+- [ ] On a computer the app is a centred phone-width column.
+- [ ] After `npm run web:deploy`, reopening the home-screen app shows the new version.
+

@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Platform, View } from 'react-native';
+import {Platform, View} from 'react-native';
 import { authApi } from '@/features/auth/api/auth.api';
 import { getAppleCredential } from '@/features/auth/social/apple';
 import { getGoogleIdToken } from '@/features/auth/social/google';
@@ -10,7 +10,7 @@ import { useResource } from '@/shared/hooks/useResource';
 import { useSubmit } from '@/shared/hooks/useSubmit';
 import { useScoringPrefs } from '@/shared/prefs/scoring-prefs.store';
 import { useTheme, useThemeStore, type ThemeMode } from '@/shared/theme';
-import { Button, Group, GroupRow, Header, Icon, Label, Notice, Screen, Segmented, T, Toggle } from '@/shared/ui';
+import { Button, Group, GroupRow, Header, Icon, Label, Notice, Screen, Segmented, showAlert, T, Toggle } from '@/shared/ui';
 import { ago, prettyPhone } from '@/shared/utils/format';
 
 function deviceLine(s: SessionInfo): string {
@@ -48,7 +48,7 @@ export default function SettingsScreen() {
     });
 
   const unlink = (p: LinkedIdentity['provider']) =>
-    Alert.alert(`Unlink ${p === 'google' ? 'Google' : 'Apple'}?`, 'You can still log in with your phone.', [
+    showAlert(`Unlink ${p === 'google' ? 'Google' : 'Apple'}?`, 'You can still log in with your phone.', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Unlink', style: 'destructive', onPress: () => void link.submit(async () => identities.setData(await authApi.unlink(p))) },
     ]);
@@ -56,7 +56,7 @@ export default function SettingsScreen() {
   const providerRow = (p: LinkedIdentity['provider'], last: boolean) => {
     const id = linked(p);
     const name = p === 'google' ? 'Google' : 'Apple';
-    const unavailable = p === 'apple' && Platform.OS !== 'ios' && !id;
+    const unavailable = ((p === 'apple' && Platform.OS !== 'ios') || Platform.OS === 'web') && !id;
     return (
       <GroupRow last={last} onPress={id ? () => unlink(p) : undefined} label={id ? `${name} linked` : name}>
         <T size={15} flex>
@@ -187,7 +187,7 @@ export default function SettingsScreen() {
         textColor={colors.bad}
         style={{ marginTop: 'auto' }}
         onPress={() =>
-          Alert.alert('Log out?', undefined, [
+          showAlert('Log out?', undefined, [
             { text: 'Cancel', style: 'cancel' },
             { text: 'Log out', style: 'destructive', onPress: () => void signOut() },
           ])

@@ -1,9 +1,9 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { Alert, Share, View } from 'react-native';
+import {Share, View} from 'react-native';
 import { useResource } from '@/shared/hooks/useResource';
 import { useSubmit } from '@/shared/hooks/useSubmit';
 import { useTheme } from '@/shared/theme';
-import { Button, D, EmptyState, Header, Icon, IconButton, type IconName, Label, Loading, Notice, Row, Screen, T, Tap } from '@/shared/ui';
+import { Button, D, EmptyState, Header, Icon, IconButton, Label, Loading, Notice, Row, Screen, showAlert, T, Tap, type IconName } from '@/shared/ui';
 import { dateRange, plural } from '@/shared/utils/format';
 import { publicTournamentUrl, tournamentsApi } from '../api/tournaments.api';
 import { drawSummary } from '../components/TournamentBits';
@@ -90,10 +90,10 @@ export default function OrgDashboardScreen() {
   const confirmAdvance = () => {
     if (!next?.to) return;
     if (next.to === 'registration_open' && !t.events.length) {
-      Alert.alert('Add an event first', 'Players register for events, so add at least one.');
+      showAlert('Add an event first', 'Players register for events, so add at least one.');
       return;
     }
-    Alert.alert(`${next.action}?`, next.to === 'registration_open' ? 'Players can find the tournament and send entries.' : next.to === 'registration_closed' ? 'No new entries after this. You can still add players yourself.' : undefined, [
+    showAlert(`${next.action}?`, next.to === 'registration_open' ? 'Players can find the tournament and send entries.' : next.to === 'registration_closed' ? 'No new entries after this. You can still add players yourself.' : undefined, [
       { text: 'Cancel', style: 'cancel' },
       { text: next.action!, onPress: () => advance(next.to!) },
     ]);

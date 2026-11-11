@@ -1,9 +1,8 @@
-import DateTimePicker from '@react-native-community/datetimepicker';
 import { useState } from 'react';
 import { useOpened } from '@/shared/hooks/useSearch';
 import { Platform } from 'react-native';
 import { useTheme } from '@/shared/theme';
-import { Button, RadioCard, Row, Sheet, T } from '@/shared/ui';
+import { Button, DatePicker, RadioCard, Row, Sheet, T } from '@/shared/ui';
 import { parseDay } from '@/shared/utils/format';
 import type { Tournament } from '../types';
 
@@ -46,7 +45,7 @@ export function TimePickerSheet({ visible, day, current, onPick, onClose }: { vi
   if (Platform.OS === 'android') {
     // Android shows its own dialog; no sheet around it.
     return visible ? (
-      <DateTimePicker
+      <DatePicker
         value={value}
         mode="time"
         minuteInterval={5}
@@ -62,7 +61,7 @@ export function TimePickerSheet({ visible, day, current, onPick, onClose }: { vi
       <T size={20} w={700}>
         Pick time
       </T>
-      <DateTimePicker value={value} mode="time" display="spinner" minuteInterval={5} onChange={(_, d) => d && setValue(d)} textColor={colors.fg} />
+      <DatePicker value={value} mode="time" display="spinner" minuteInterval={5} onChange={(_, d) => d && setValue(d)} textColor={colors.fg} />
       <Row gap={10}>
         {current ? <Button label="Clear" variant="raised" style={{ flex: 1 }} onPress={() => onPick(null)} /> : null}
         <Button label="Set time" style={{ flex: 1 }} onPress={() => pick(value)} />

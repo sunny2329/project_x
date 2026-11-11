@@ -507,6 +507,46 @@ Frontend (`frontend/.env`, template `frontend/.env.example`): `EXPO_PUBLIC_API_U
 
 ## Changelog
 
+### 2026-11-11: Web app (PWA) on Expo Hosting (uncommitted)
+- Why: no Apple developer account yet, so iPhone users get the app as a PWA (Safari → Share → Add to
+  Home Screen). Android users can use it too, or the APK.
+- Live at **https://radsadi26-project-x.expo.app** (Expo Hosting, `radsadi26` account, project
+  `project-x`). Deploy: `cd frontend && npm run web:deploy` (exports with the Render API URL, then
+  `eas deploy --prod`). `web.output: 'single'` (one index.html for every route).
+- PWA files in `frontend/public/`: `index.html` (manifest link, iPhone home-screen tags, theme colour,
+  service worker registration, phone-width column on wide screens), `manifest.json`, icons
+  (192 / 512 / maskable / apple-touch, made from `assets/icon.png`), `sw.js` (network first; keeps the
+  last app shell for offline opening; never caches API calls).
+- Web versions of native-only pieces (Metro picks `*.web.ts(x)` on web):
+  `shared/storage/kv(.web).ts` (SecureStore on phones, localStorage in the browser; session, theme,
+  scoring prefs and game clocks use it); `shared/ui/alert(.web).ts` → `showAlert` (React Native's
+  Alert does nothing on the web; all 10 confirmations now use it); `shared/ui/DatePicker(.web).tsx`
+  (native picker / `<input type=date|time>`); `features/auth/social/google|apple.web.ts` (off on the
+  web; Login hides the Google / Apple buttons, Settings can't link them there). Haptics are skipped.
+- API: Render `CORS_ORIGINS=https://radsadi26-project-x.expo.app` (set 2026-11-11 with the owner's
+  OK). Other origins stay blocked; the native apps don't send an Origin.
+- Packages: `react-native-web`, `@expo/metro-runtime` (`npx expo install`).
+- Tests: `alert.web.test.ts`, `kv.web.test.ts`, `DatePicker.web.test.tsx`.
+- Web limits: no push notifications, no Google / Apple sign-in, keep-awake depends on the browser.
+- Black-screen fix (2026-11-11): `public/index.html` now (1) adds what older iPhone Safari lacks before
+  the app runs: `requestIdleCallback` (expo-router's tab `Lazy` calls it unguarded, which crashes
+  Safari after login), `Array#at / findLast / findLastIndex / toSpliced / toSorted / toReversed`,
+  `String#at`, `Object.hasOwn`; (2) shows "Loading ProjectX…" until the app draws, and the root
+  layout keeps showing it on the web while fonts and the session load (it rendered nothing before);
+  (3) if the app crashes while starting, shows the error and browser version with "Try again" instead
+  of a black screen (`window.__appStarted` turns this off once the app is up).
+
+### 2026-11-10: Android fix for the basketball setup rules card; first EAS build (uncommitted)
+- Basketball setup: the rules card ("Points per basket", shot clock, foul limit, timeouts) and the
+  timed card ("4 quarters / 2 halves / 1 game") showed as tall empty boxes on Android. Their
+  segmented buttons had `flex: 1` inside the setting row's content-sized right side, which Android
+  measures at zero width. `Seg` now grows only with `grow` (the full-width "Players a side" and
+  "Court" bars). Test: `screens/BasketballSetupScreen.test.tsx`.
+- EAS: project `project-x` on the `radsadi26` Expo account (`app.config.ts` has `owner` and
+  `extra.eas.projectId`), Android keystore kept by Expo. EAS installs with npm 10, which rejected the
+  lockfile (expo-router's optional `react-dom` resolved to 19.3.1 against `react` 19.3.0), so
+  `react-dom` is pinned to 19.3.0 via `npx expo install react-dom`.
+
 ### 2026-11-10: Live is green; tab labels stay on one line (uncommitted)
 - `LIVE` (shared/theme/colors.ts) is now green `#22C55E`: LIVE badges, live dots and borders, the
   "Live now" dot on Home, "IN PROGRESS" chips and the court board's Live count. Unread counts,
@@ -596,8 +636,8 @@ Frontend (`frontend/.env`, template `frontend/.env.example`): `EXPO_PUBLIC_API_U
 
 ### 2026-10-27: Hosted test backend on Render, EAS build profiles
 - API runs on Render (free plan, Singapore) as `project-x-api` at `https://project-x-api-yf0w.onrender.com`,
-  auto-deploying `main`. Build: `cd backend && npm ci && npm run build`; start runs `db:deploy` then
-  `npm start`. It's in `NODE_ENV=development` with `SMS_PROVIDER=dev` (fixed OTP) for closed testing.
+  auto-deploying `main`. Build: `cd backend && npm ci && npm run build`; start is `cd backend && npm start`
+  only (checked 2026-11-10): it does **not** run `db:deploy`, so migrations and the seed are run by hand. It's in `NODE_ENV=development` with `SMS_PROVIDER=dev` (fixed OTP) for closed testing.
   The free plan sleeps after 15 minutes, so the first request after that takes about 50s.
 - App: `frontend/eas.json` adds `development`, `preview` (internal; an APK on Android, ad hoc on iOS)
   and `production` profiles. `preview` and `production` set `EXPO_PUBLIC_API_URL` to the Render URL.

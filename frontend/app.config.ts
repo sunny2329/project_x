@@ -31,6 +31,13 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     },
     predictiveBackGestureEnabled: false,
   },
+  // Web app (PWA, hosted on Expo Hosting): one index.html for every route; public/ holds the
+  // manifest, icons, service worker and the iPhone home-screen tags (public/index.html).
+  web: {
+    output: 'single',
+    bundler: 'metro',
+    favicon: './assets/favicon.png',
+  },
   plugins: [
     'expo-router',
     'expo-secure-store',
@@ -50,4 +57,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       : []),
   ],
   experiments: { typedRoutes: true },
+  owner: 'radsadi26',
+  extra: { ...config.extra, eas: { projectId: '4967cbc7-3da7-409b-84ec-f117b923c02c' } },
 });

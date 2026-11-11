@@ -1,4 +1,4 @@
-import * as SecureStore from 'expo-secure-store';
+import { kv } from '@/shared/storage/kv';
 import { Appearance } from 'react-native';
 import { create } from 'zustand';
 
@@ -24,10 +24,10 @@ export const useThemeStore = create<ThemeState>((set) => ({
   setMode: (mode) => {
     set({ mode });
     applyToNative(mode);
-    void SecureStore.setItemAsync(KEY, mode).catch(() => undefined);
+    void kv.set(KEY, mode).catch(() => undefined);
   },
   restore: async () => {
-    const saved = await SecureStore.getItemAsync(KEY).catch(() => null);
+    const saved = await kv.get(KEY).catch(() => null);
     if (saved === 'light' || saved === 'dark' || saved === 'system') {
       set({ mode: saved });
       applyToNative(saved);

@@ -1,11 +1,10 @@
-import DateTimePicker from '@react-native-community/datetimepicker';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { Platform, Pressable, TextInput, View } from 'react-native';
 import { createScorer, manualResultEvents, ScoringError, scoringRegistry } from '@/engine/scoring';
 import { useSubmit } from '@/shared/hooks/useSubmit';
 import { useTheme } from '@/shared/theme';
-import { Button, Dot, Field, Header, Icon, Notice, Row, Screen, T, Tap, TextButton } from '@/shared/ui';
+import { Button, DatePicker, Dot, Field, Header, Icon, Notice, Row, Screen, T, Tap, TextButton } from '@/shared/ui';
 import { firstName, toDay, weekdayComma } from '@/shared/utils/format';
 import { matchApi } from '../api/match.api';
 import { checkHoopsResult, configFromSetup, formatCode, hoopsRules, setupLine, shortTeam } from '../basketball';
@@ -170,7 +169,7 @@ export function BasketballResult({ sport }: { sport: SportSummary }) {
           </T>
         </Tap>
         {picking ? (
-          <DateTimePicker
+          <DatePicker
             value={date}
             mode="date"
             maximumDate={new Date()}

@@ -1,11 +1,10 @@
-import DateTimePicker from '@react-native-community/datetimepicker';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { Platform, View } from 'react-native';
 import { useAuthStore } from '@/features/auth/store/auth.store';
 import { useSubmit } from '@/shared/hooks/useSubmit';
 import { useTheme } from '@/shared/theme';
-import { Button, Dot, EmptyState, Field, Header, Notice, Row, Screen, T, Tap, TextButton } from '@/shared/ui';
+import { Button, DatePicker, Dot, EmptyState, Field, Header, Notice, Row, Screen, T, Tap, TextButton } from '@/shared/ui';
 import { firstName, toDay, weekdayComma } from '@/shared/utils/format';
 import { matchApi } from '../api/match.api';
 import { checkResult, ResultGrid } from '../components/ResultGrid';
@@ -106,7 +105,7 @@ export default function EnterResultScreen() {
           </T>
         </Tap>
         {picking ? (
-          <DateTimePicker
+          <DatePicker
             value={date}
             mode="date"
             maximumDate={new Date()}

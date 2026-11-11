@@ -118,43 +118,48 @@ export default function LoginScreen() {
 
       <Button label={tab === 'pass' ? 'Log in' : 'Send code'} weight={700} onPress={go} loading={submitting} />
 
-      <Row gap={12}>
-        <View style={{ flex: 1, height: 1, backgroundColor: colors.line }} />
-        <T size={13} color={colors.faint}>
-          or
-        </T>
-        <View style={{ flex: 1, height: 1, backgroundColor: colors.line }} />
-      </Row>
+      {/* Google / Apple are native SDKs: not offered in the web app. */}
+      {Platform.OS === 'web' ? null : (
+        <>
+          <Row gap={12}>
+            <View style={{ flex: 1, height: 1, backgroundColor: colors.line }} />
+            <T size={13} color={colors.faint}>
+              or
+            </T>
+            <View style={{ flex: 1, height: 1, backgroundColor: colors.line }} />
+          </Row>
 
-      <View style={{ gap: 0 }}>
-        <Row gap={12}>
-          {(['Google', 'Apple'] as const).map((provider) => (
-            <Button
-              key={provider}
-              label={provider}
-              variant="outline"
-              height={52}
-              radius={14}
-              weight={600}
-              style={{ flex: 1 }}
-              disabled={provider === 'Apple' && Platform.OS !== 'ios'}
-              onPress={() => void social.submit(async () => void (provider === 'Google' ? await signInWithGoogle() : await signInWithApple()))}
-            >
-              <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' }}>
-                <T size={13} w={800} color={colors.onPrimary}>
-                  {provider[0]}
-                </T>
-              </View>
-              <T size={15} w={600}>
-                {provider}
-              </T>
-            </Button>
-          ))}
-        </Row>
-        <T size={12} lh={18} color={colors.muted} center style={{ marginTop: 14 }}>
-          Google and Apple work once linked in Settings.
-        </T>
-      </View>
+          <View style={{ gap: 0 }}>
+            <Row gap={12}>
+              {(['Google', 'Apple'] as const).map((provider) => (
+                <Button
+                  key={provider}
+                  label={provider}
+                  variant="outline"
+                  height={52}
+                  radius={14}
+                  weight={600}
+                  style={{ flex: 1 }}
+                  disabled={provider === 'Apple' && Platform.OS !== 'ios'}
+                  onPress={() => void social.submit(async () => void (provider === 'Google' ? await signInWithGoogle() : await signInWithApple()))}
+                >
+                  <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' }}>
+                    <T size={13} w={800} color={colors.onPrimary}>
+                      {provider[0]}
+                    </T>
+                  </View>
+                  <T size={15} w={600}>
+                    {provider}
+                  </T>
+                </Button>
+              ))}
+            </Row>
+            <T size={12} lh={18} color={colors.muted} center style={{ marginTop: 14 }}>
+              Google and Apple work once linked in Settings.
+            </T>
+          </View>
+        </>
+      )}
 
       <Row gap={6} style={{ marginTop: 'auto', justifyContent: 'center' }}>
         <T size={14} color={colors.muted}>

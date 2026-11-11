@@ -1,10 +1,10 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, View } from 'react-native';
+import {View} from 'react-native';
 import { useResource } from '@/shared/hooks/useResource';
 import { useSubmit } from '@/shared/hooks/useSubmit';
 import { sportText, useTheme, withAlpha } from '@/shared/theme';
-import { Button, D, EmptyState, Field, Header, Icon, Label, Loading, Notice, Row, Screen, Sheet, T, TextButton } from '@/shared/ui';
+import { Button, D, EmptyState, Field, Header, Icon, Label, Loading, Notice, Row, Screen, Sheet, showAlert, T, TextButton } from '@/shared/ui';
 import { tournamentsApi } from '../api/tournaments.api';
 import { drawSummary, fixtureSide } from '../components/TournamentBits';
 import type { DrawPreview, EventDetail } from '../types';
@@ -202,7 +202,7 @@ export default function DrawScreen() {
     });
 
   const reset = () =>
-    Alert.alert('Reset the draw?', 'All fixtures for this event are removed. You can make a new draw after.', [
+    showAlert('Reset the draw?', 'All fixtures for this event are removed. You can make a new draw after.', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Reset draw',

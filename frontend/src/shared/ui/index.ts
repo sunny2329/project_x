@@ -11,3 +11,5 @@ export * from './Screen';
 export * from './Sheet';
 export * from './TabBar';
 export * from './Text';
+export * from './alert';
+export * from './DatePicker';
