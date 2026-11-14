@@ -6,6 +6,7 @@ import { createLogger } from './config/logger.js';
 import { createPool } from './database/pool.js';
 import { DevSmsSender, TwilioSmsSender } from './modules/auth/providers/sms-sender.js';
 import { RedisLiveStore } from './modules/matches/live/live-store.js';
+import { parseWindow, startKeepAlive } from './utils/keep-alive.js';
 import { AppleIdentityVerifier, GoogleIdentityVerifier } from './modules/auth/providers/social-identity.js';
 
 const env = loadEnv();
@@ -38,8 +39,16 @@ app.services.matches.resumePending().catch((error: unknown) => logger.error({ er
 
 const server = app.listen(env.PORT, () => logger.info(`API listening on port ${env.PORT}`));
 
+const IST_OFFSET_MINUTES = 330;
+const keepAliveUrl = env.KEEP_ALIVE_URL ?? env.RENDER_EXTERNAL_URL;
+const stopKeepAlive =
+  keepAliveUrl && env.KEEP_ALIVE_HOURS_IST !== 'off'
+    ? startKeepAlive({ baseUrl: keepAliveUrl, window: parseWindow(env.KEEP_ALIVE_HOURS_IST, IST_OFFSET_MINUTES), logger })
+    : undefined;
+
 function shutdown(signal: string): void {
   logger.info(`${signal} received, shutting down`);
+  stopKeepAlive?.();
   server.close(() => {
     Promise.allSettled([app.services.db.$disconnect(), pool.end(), redis?.quit()]).finally(() => process.exit(0));
   });

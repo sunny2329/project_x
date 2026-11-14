@@ -476,7 +476,7 @@ Backend (`backend/.env`, template `backend/.env.example`): `NODE_ENV`, `PORT`, `
 tests), `DB_POOL_MAX`, `JWT_ACCESS_SECRET` (≥ 32 chars), `ACCESS_TOKEN_TTL_SECONDS`,
 `REFRESH_TOKEN_TTL_DAYS`, `SMS_PROVIDER` (`twilio` | `dev`), `TWILIO_ACCOUNT_SID`,
 `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER`, `DEV_OTP_CODE`, `GOOGLE_CLIENT_IDS`,
-`APPLE_BUNDLE_IDS`, `API_DOCS` (`true`/`false`; unset = Swagger UI on outside production). Validated at start-up by `src/config/env.ts`; the server refuses to start if
+`APPLE_BUNDLE_IDS`, `API_DOCS` (`true`/`false`; unset = Swagger UI on outside production), `KEEP_ALIVE_URL` (default: Render's `RENDER_EXTERNAL_URL`), `KEEP_ALIVE_HOURS_IST` (default `6-24`, or `off`). Validated at start-up by `src/config/env.ts`; the server refuses to start if
 any is invalid. `SMS_PROVIDER=dev` (every code is `DEV_OTP_CODE`, sends nothing) is rejected in production.
 
 Frontend (`frontend/.env`, template `frontend/.env.example`): `EXPO_PUBLIC_API_URL`,
@@ -506,6 +506,24 @@ Frontend (`frontend/.env`, template `frontend/.env.example`): `EXPO_PUBLIC_API_U
   the test harness must be rewritten to build an isolated copy of the `project_x` tables.
 
 ## Changelog
+
+### 2026-11-14: Render keep-alive; Neon move to Singapore prepared
+- Why: Render's free plan sleeps after 15 min idle (~50 s cold start), and Neon is in us-west-2
+  (Oregon) while the API is on Render Singapore, so every query is a trans-Pacific round trip.
+- Keep-alive (`backend/src/utils/keep-alive.ts`, started in `server.ts`): pings its own
+  `<RENDER_EXTERNAL_URL>/health` every 10 min, only between `KEEP_ALIVE_HOURS_IST` (default 6-24
+  India time). Not 24/7 because the 750 free instance hours/month are shared by every free service
+  in the Render workspace (dock-yard, fleet-tat and t_erp are also free there); 18 h/day ≈ 560 h.
+  Off locally (no URL). A self-ping can't wake a sleeping server, so `.github/workflows/wake-api.yml`
+  pings `/health` daily at 06:00 IST (00:30 UTC).
+- Tests: `utils/keep-alive.test.ts` (20): window parsing and validation, same-day and past-midnight
+  windows, IST half-hour offset, interval/stop, skipped outside the window, failed and non-2xx pings
+  logged without stopping, timer is `unref`ed, env defaults and rejections.
+- Neon: the database is Postgres 18 (41 MB, 83 tables in `public`, `pgcrypto`). The Singapore
+  (`aws-ap-southeast-1`) project still has to be created; then dump/restore and swap the Render env
+  vars. `pg_dump` 18 is in the `pg18` micromamba env (`/home/dell/tools/mamba/envs/pg18/bin`); the
+  default `psql`/`pg_dump` are 16 and refuse an 18 server. Locally, `sslmode=verify-full` needs
+  `&sslrootcert=system` for psql.
 
 ### 2026-11-10: Live is green; tab labels stay on one line (uncommitted)
 - `LIVE` (shared/theme/colors.ts) is now green `#22C55E`: LIVE badges, live dots and borders, the
