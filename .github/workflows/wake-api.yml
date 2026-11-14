@@ -1,0 +1,22 @@
+# Wakes the Render API at the start of the keep-alive window (KEEP_ALIVE_HOURS_IST, default 6-24).
+# The server keeps itself awake from then on (backend/src/utils/keep-alive.ts), but it can't wake
+# itself up after sleeping overnight. GitHub may start scheduled runs a few minutes late.
+name: Wake API
+
+on:
+  schedule:
+    - cron: '30 0 * * *' # 06:00 IST
+  workflow_dispatch:
+
+jobs:
+  wake:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Ping /health until it answers
+        run: |
+          for attempt in 1 2 3 4 5 6; do
+            if curl -fsS --max-time 60 https://project-x-api-yf0w.onrender.com/health; then exit 0; fi
+            sleep 20
+          done
+          exit 1

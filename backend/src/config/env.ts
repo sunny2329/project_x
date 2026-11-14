@@ -1,5 +1,6 @@
 import dotenv from 'dotenv';
 import { z } from 'zod';
+import { parseWindow } from '../utils/keep-alive.js';
 
 dotenv.config({ quiet: true });
 
@@ -44,10 +45,29 @@ const envSchema = z
     GOOGLE_CLIENT_IDS: csv,
     APPLE_BUNDLE_IDS: csv,
 
+    /**
+     * Keep-alive: the server pings its own public URL every 10 minutes so Render's free plan doesn't
+     * put it to sleep. On when a URL is known (Render sets RENDER_EXTERNAL_URL itself).
+     */
+    KEEP_ALIVE_URL: z.string().url().optional(),
+    RENDER_EXTERNAL_URL: z.string().url().optional(),
+    /** Hours (India time) to stay awake, start-end, end exclusive, may wrap past midnight. "off" disables. */
+    KEEP_ALIVE_HOURS_IST: z
+      .string()
+      .regex(/^(off|\s*\d{1,2}\s*-\s*\d{1,2}\s*)$/, 'KEEP_ALIVE_HOURS_IST must look like "6-24" or be "off"')
+      .default('6-24'),
+
     /** Swagger UI at /docs. Unset = on outside production. */
     API_DOCS: z.enum(['true', 'false']).optional(),
   })
   .superRefine((env, ctx) => {
+    if (env.KEEP_ALIVE_HOURS_IST !== 'off') {
+      try {
+        parseWindow(env.KEEP_ALIVE_HOURS_IST, 0);
+      } catch (error) {
+        ctx.addIssue({ code: 'custom', path: ['KEEP_ALIVE_HOURS_IST'], message: (error as Error).message });
+      }
+    }
     if (env.SMS_PROVIDER === 'twilio') {
       for (const key of ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_FROM_NUMBER'] as const) {
         if (!env[key]) ctx.addIssue({ code: 'custom', path: [key], message: `${key} is required when SMS_PROVIDER=twilio` });
