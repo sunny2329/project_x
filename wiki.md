@@ -367,6 +367,38 @@ took ~3 s. Decided: move Neon to Singapore (ap-southeast-1, ~70 ms) and add Redi
   reading); spectators see the clock at the last play. Only made baskets are recorded (no misses or
   rebounds), so the box score has no shooting percentages.
 
+## Teams
+
+Saved teams: a named group of players in **one sport** (a doubles pair, a basketball squad). A
+person can be in any number of teams, in any sports, and in several teams in the same sport.
+Tables `teams`, `team_members`, `team_stats` (since `1_core_schema`; no migration was needed).
+
+- **API** `/api/v1/teams` (`backend/src/modules/teams/`): `GET /` (my teams, or `?userId=`, plus
+  `&sport=<slug>`; sorted by name; nobody blocked either way sees the other's), `POST /`
+  `{ sport, name, members? }` (creator = captain; members are `ParticipantInput`s: player, user or new
+  guest), `GET /:id` (anyone signed in: members captains first, record, last 10 decided matches,
+  `myRole`, `canManage`), `PATCH /:id` `{ name }`, `DELETE /:id`, `POST /:id/members` `{ members }`,
+  `DELETE /:id/members/:playerId` (captain removes, or anyone leaves with their own player id;
+  `team: null` once you're out), `PATCH /:id/members/:playerId` `{ role: 'captain' | 'player' }`.
+- **Rules:** captains manage (403 `NOT_TEAM_CAPTAIN`); several captains allowed, never zero
+  (409 `LAST_CAPTAIN`); guests can't be captains. Up to 30 players. Players already in the team are
+  skipped; someone who left is re-added by reopening their row (`left_at` cleared, role player).
+  Leaving keeps the row (`left_at`). The last captain leaving hands over to the registered member who
+  joined first; with no registered member left the team is deleted. Deleting keeps matches: their
+  `match_sides.team_id` / `tournament_entries.team_id` become NULL and side names stay.
+- **Matches:** a side's `teamId` must exist and be the match's sport (400 `teamId`), same for
+  tournament entries. `team_stats` is rebuilt with the match (played/won/lost on the team page).
+- **App** (`frontend/src/features/teams/`): Profile has a Teams section (3 shown, See all →
+  `/teams`), other players' profiles list their teams. `/teams` (sport filter chips when there are
+  several sports), `/teams/new` (`?sport=` preselects), `/team/[id]` (record, players, recent
+  matches; captains add, rename, delete, change roles, remove; members leave; "Play a match as this
+  team" starts a draft with the team as side A in the smallest format that fits it).
+  Match setup (and basketball Teams) has "Saved team" per side: `draft.pickTeam` fills the side
+  (players a side, or 12 in basketball, skipping anyone on the other side; basketball also takes the
+  name) and the create calls send `teamId` (+ `name` outside basketball). `confirmAction`
+  (`shared/utils/confirm.ts`) uses `window.confirm` on the web, where `Alert.alert` does nothing.
+- Not yet: notifications when someone adds you, team photos/colours, picking an opponent's team.
+
 ## Auth module
 
 ### Screens and flows
@@ -506,6 +538,17 @@ Frontend (`frontend/.env`, template `frontend/.env.example`): `EXPO_PUBLIC_API_U
   the test harness must be rewritten to build an isolated copy of the `project_x` tables.
 
 ## Changelog
+
+### 2026-11-15: Teams in any sport (uncommitted)
+- See "Teams" above. Backend `modules/teams` (service, routes), `teamId` checked when creating
+  matches and tournament entries. App: Teams list, new team, team page, Teams on both profiles,
+  "Saved team" in match setup and basketball Teams.
+- Tests: `teams/__tests__/teams.api.test.ts` (14): create with members and guests, validation and
+  limits, 404s, one person in many teams across sports and several in one sport, sport filter,
+  someone else's teams with my role, captain-only actions, re-adding who left, the 30 cap, roles
+  (guest can't captain, last captain), removing, hand-over, deleting when no registered member
+  remains, deleting keeps matches, team in a match (sport check, record, recent matches), blocked
+  accounts. App: 4 draft-store tests (fill a side, replace, unlink, reset, basketball subs and name).
 
 ### 2026-11-14: Render keep-alive; Neon move to Singapore prepared
 - Why: Render's free plan sleeps after 15 min idle (~50 s cold start), and Neon is in us-west-2

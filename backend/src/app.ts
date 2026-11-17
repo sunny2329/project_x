@@ -39,6 +39,8 @@ import { createPublicRouters } from './modules/public/public.routes.js';
 import { createSportsRouter } from './modules/sports/sports.routes.js';
 import { createTournamentRouters } from './modules/tournaments/tournaments.routes.js';
 import { TournamentsService } from './modules/tournaments/tournaments.service.js';
+import { createTeamsRouter } from './modules/teams/teams.routes.js';
+import { TeamsService } from './modules/teams/teams.service.js';
 import { socialRepository } from './modules/social/social.repository.js';
 import { createSocialRouter } from './modules/social/social.routes.js';
 import { sendSuccess } from './utils/api-response.js';
@@ -137,6 +139,7 @@ export function createApp(deps: AppDependencies): Express & { services: AppServi
   app.use('/api/v1/profile', createProfileRouter(profileService, requireAuth));
   app.use('/api/v1/players', createPlayersRouter(players, requireAuth));
   app.use('/api/v1/matches', createMatchesRouter(matches, requireAuth));
+  app.use('/api/v1/teams', createTeamsRouter(new TeamsService(db, players), requireAuth));
   app.use('/api/v1/tournaments', tournamentRouters.tournaments);
   app.use('/api/v1/tournament-events', tournamentRouters.events);
   app.use('/api/v1/entries', tournamentRouters.entries);

@@ -1,7 +1,7 @@
 import { PRESETS } from '../basketball';
 import type { LineupPlayer } from '../lineup';
 import type { SportSummary } from '../types';
-import { freshHoops, useMatchDraft } from './draft.store';
+import { freshHoops, teamSide, useMatchDraft } from './draft.store';
 
 jest.mock('expo-router', () => ({ router: {} }));
 
@@ -78,5 +78,68 @@ describe('basketball draft', () => {
     expect(useMatchDraft.getState().hoops).toEqual(hoops);
     useMatchDraft.getState().restore({ sport, formatCode: '3v3', rulesetId: 'r1', lineup: [[], []], firstServer: 0 });
     expect(useMatchDraft.getState().hoops).toEqual(freshHoops());
+  });
+});
+
+describe('saved teams', () => {
+  const badminton = {
+    id: 1,
+    slug: 'badminton',
+    name: 'Badminton',
+    formats: [
+      { code: 'singles', name: 'Singles', minPerSide: 1, maxPerSide: 1 },
+      { code: 'doubles', name: 'Doubles', minPerSide: 2, maxPerSide: 2 },
+    ],
+    rulesets: [{ id: 'b1', slug: 'bwf', isDefault: true, scoringModel: 'rally', config: {} }],
+  } as unknown as SportSummary;
+  const squad = (...ks: string[]) => ks.map(player);
+
+  it('fills a side with the team’s players up to the players a side, skipping anyone on the other side', () => {
+    const d = useMatchDraft.getState();
+    d.start(badminton, null, null);
+    d.setFormat('doubles');
+    d.add(1, player('b'));
+    useMatchDraft.getState().pickTeam(0, { id: 't1', name: 'Smash Bros' }, squad('a', 'b', 'c', 'd'));
+    expect(keys(0)).toEqual(['a', 'c']);
+    expect(keys(1)).toEqual(['b']);
+    expect(useMatchDraft.getState().teams).toEqual([{ id: 't1', name: 'Smash Bros' }, null]);
+    expect(teamSide(useMatchDraft.getState().teams, 0)).toEqual({ teamId: 't1', name: 'Smash Bros' });
+    expect(teamSide(useMatchDraft.getState().teams, 1)).toEqual({});
+  });
+
+  it('replaces whoever was on that side, and moves a team picked for the other side', () => {
+    const d = useMatchDraft.getState();
+    d.start(badminton, null, null);
+    d.setFormat('doubles');
+    d.add(0, player('x'));
+    useMatchDraft.getState().pickTeam(1, { id: 't1', name: 'Smash Bros' }, squad('a', 'b'));
+    useMatchDraft.getState().pickTeam(0, { id: 't1', name: 'Smash Bros' }, squad('c', 'd'));
+    expect(keys(0)).toEqual(['c', 'd']);
+    expect(useMatchDraft.getState().teams).toEqual([{ id: 't1', name: 'Smash Bros' }, null]);
+  });
+
+  it('unlinks a team without touching the players, and forgets teams on a new match', () => {
+    const d = useMatchDraft.getState();
+    d.start(badminton, null, null);
+    d.setFormat('doubles');
+    useMatchDraft.getState().pickTeam(0, { id: 't1', name: 'Pair' }, squad('a', 'b'));
+    useMatchDraft.getState().unlinkTeam(0);
+    expect(useMatchDraft.getState().teams).toEqual([null, null]);
+    expect(keys(0)).toEqual(['a', 'b']);
+
+    useMatchDraft.getState().pickTeam(1, { id: 't2', name: 'Other' }, squad('c'));
+    useMatchDraft.getState().start(badminton, null, null);
+    expect(useMatchDraft.getState().teams).toEqual([null, null]);
+    useMatchDraft.getState().pickTeam(1, { id: 't2', name: 'Other' }, squad('c'));
+    useMatchDraft.getState().reset();
+    expect(useMatchDraft.getState().teams).toEqual([null, null]);
+  });
+
+  it('in basketball, lists subs too (up to 12) and names the side after the team', () => {
+    const many = Array.from({ length: 14 }, (_, i) => `p${i}`);
+    useMatchDraft.getState().pickTeam(1, { id: 'h', name: 'Hoop Dreams' }, squad(...many));
+    const s = useMatchDraft.getState();
+    expect(keys(1)).toHaveLength(12);
+    expect(s.hoops.names).toEqual(['Team A', 'Hoop Dreams']);
   });
 });

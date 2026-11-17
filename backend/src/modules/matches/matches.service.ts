@@ -31,6 +31,7 @@ import {
 import type { ConfirmationView, MatchCard, MatchDetails, MatchStatusName, MatchView, RatingChange, ResultTypeName } from './matches.types.js';
 import type { CreateMatchInput, ScoreEventInput } from './matches.validation.js';
 import { rebuildPlayerStats, rebuildTeamStats } from './stats.js';
+import { assertTeamsUsable } from '../teams/teams.service.js';
 
 /** Called inside the transaction that decides a match (tournaments advance the winner). */
 export interface MatchDecidedHook {
@@ -144,6 +145,7 @@ export class MatchesService {
       for (const side of input.sides) resolved.push(await players.resolve(userId, side.players as ParticipantInput[], tx));
       const ids = resolved.flat().map((p) => p.playerId);
       if (new Set(ids).size !== ids.length) throw AppError.badRequest('VALIDATION_ERROR', 'Some fields are invalid.', { sides: ['A player can only be on one side, once'] });
+      await assertTeamsUsable(tx, input.sides.map((side) => side.teamId), sport.id);
 
       let venueId = input.venueId ?? null;
       if (!venueId && input.venueName) {

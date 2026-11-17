@@ -8,7 +8,8 @@ import { firstName } from '@/shared/utils/format';
 import { colorWord, inkOn, setupLine, TEAM_COLORS } from '../basketball';
 import { AddPlayerSheet } from '../components/AddPlayerSheet';
 import { CourtPlayers, HalfCourt, type CourtSpot } from '../components/basketball/Court';
-import { lineupKeys, type LineupPlayer } from '../lineup';
+import { TeamPickerSheet } from '@/features/teams/components/TeamBits';
+import { fromTeamMember, lineupKeys, type LineupPlayer } from '../lineup';
 import { useMatchDraft } from '../store/draft.store';
 
 const MAX_TEAM = 12;
@@ -65,8 +66,9 @@ export default function BasketballTeamsScreen() {
   const { colors } = useTheme();
   const { mode } = useLocalSearchParams<{ mode?: string }>();
   const me = useAuthStore((s) => s.user);
-  const { sport, lineup, hoops, add, remove, setHoops, swap } = useMatchDraft();
+  const { sport, lineup, hoops, teams, add, remove, setHoops, swap, pickTeam } = useMatchDraft();
   const [adding, setAdding] = useState<number | null>(null);
+  const [pickingTeam, setPickingTeam] = useState<number | null>(null);
   const [tab, setTab] = useState<0 | 1>(0);
   const [selected, setSelected] = useState<number | null>(null);
 
@@ -122,7 +124,16 @@ export default function BasketballTeamsScreen() {
     </Row>
   );
   const sheet = (
-    <AddPlayerSheet
+    <>
+      <TeamPickerSheet
+        visible={pickingTeam !== null}
+        sport={sport.slug}
+        sportName={sport.name}
+        side={pickingTeam ?? 0}
+        onPick={(team) => pickTeam(pickingTeam ?? 0, { id: team.id, name: team.name }, team.members.map(fromTeamMember))}
+        onClose={() => setPickingTeam(null)}
+      />
+      <AddPlayerSheet
       visible={adding !== null}
       side={adding ?? 1}
       sport={sport.slug}
@@ -130,7 +141,8 @@ export default function BasketballTeamsScreen() {
       taken={lineupKeys(lineup)}
       onAdd={(p) => add(adding ?? 1, p)}
       onClose={() => setAdding(null)}
-    />
+      />
+    </>
   );
 
   // ------------------------------------------------------------------ 3v3 / 4v4
@@ -236,6 +248,14 @@ export default function BasketballTeamsScreen() {
                     </T>
                   </Pressable>
                 ) : null}
+                <Pressable accessibilityRole="button" accessibilityLabel={`Use a saved team for ${hoops.names[side]}`} onPress={() => setPickingTeam(side)} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 6 }}>
+                  <View style={{ width: 34, alignItems: 'center' }}>
+                    <Icon name="people" size={16} color={colors.muted} />
+                  </View>
+                  <T size={13} w={600} color={colors.muted} flex numberOfLines={1}>
+                    {teams[side] ? `Playing as ${teams[side].name} · change` : 'Use a saved team'}
+                  </T>
+                </Pressable>
               </View>
             </View>
           );
@@ -401,6 +421,14 @@ export default function BasketballTeamsScreen() {
               </T>
             </Pressable>
           ) : null}
+          <Pressable accessibilityRole="button" accessibilityLabel={`Use a saved team for ${hoops.names[tab]}`} onPress={() => setPickingTeam(tab)} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 6 }}>
+            <View style={{ width: 34, alignItems: 'center' }}>
+              <Icon name="people" size={16} color={colors.muted} />
+            </View>
+            <T size={13} w={600} color={colors.muted} flex numberOfLines={1}>
+              {teams[tab] ? `Playing as ${teams[tab].name} · change` : 'Use a saved team'}
+            </T>
+          </Pressable>
         </View>
       </View>
       {sheet}

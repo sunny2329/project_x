@@ -8,7 +8,7 @@ import { Button, D, EmptyState, Header, IconButton, Label, Notice, Row, Screen, 
 import { firstName } from '@/shared/utils/format';
 import { matchApi } from '../api/match.api';
 import { CoinToss } from '../components/CoinToss';
-import { useMatchDraft } from '../store/draft.store';
+import { teamSide, useMatchDraft } from '../store/draft.store';
 
 const LINE = '#E8F0EC';
 const LINE_SOFT = 'rgba(232,240,236,0.6)';
@@ -17,7 +17,7 @@ const LINE_SOFT = 'rgba(232,240,236,0.6)';
 export default function ServeFirstScreen() {
   const { colors } = useTheme();
   const me = useAuthStore((s) => s.user);
-  const { sport, formatCode, rulesetId, override, lineup, firstServer, serveFirst } = useMatchDraft();
+  const { sport, formatCode, rulesetId, override, lineup, firstServer, serveFirst, teams } = useMatchDraft();
   const [tossing, setTossing] = useState(false);
   const { submit, submitting, formError } = useSubmit();
 
@@ -54,7 +54,7 @@ export default function ServeFirstScreen() {
         sport: sport.slug,
         format: formatCode ?? sport.formats[0]!.code,
         ...(rulesetId ? { rulesetId } : {}),
-        sides: lineup.map((players) => ({ players: players.map((p) => p.input) })),
+        sides: lineup.map((players, side) => ({ ...teamSide(teams, side), players: players.map((p) => p.input) })),
         rulesOverride: { ...override, ...(overs ? { battingFirstSideIndex: firstServer } : { firstServerSideIndex: firstServer }) },
       });
       useMatchDraft.getState().reset();

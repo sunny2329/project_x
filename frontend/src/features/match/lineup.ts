@@ -57,3 +57,18 @@ export function lineupProblem(lineup: Lineup, format: Pick<FormatOption, 'minPer
   }
   return null;
 }
+
+/** A saved team's member as a lineup player (registered players are keyed by user id, like search results). */
+export function fromTeamMember(m: { playerId: string; userId: string | null; displayName: string; isGuest: boolean }): LineupPlayer {
+  return { key: m.userId ?? m.playerId, displayName: m.displayName, isGuest: m.isGuest, userId: m.userId, input: { playerId: m.playerId } };
+}
+
+/**
+ * Puts a saved team's players on `side`, replacing who was there: everyone not already on the
+ * other side, up to `maxPerSide` (the first listed are captains, then by when they joined).
+ */
+export function withTeam(lineup: Lineup, side: number, members: LineupPlayer[], maxPerSide: number): Lineup {
+  const elsewhere = new Set(lineup.flatMap((players, i) => (i === side ? [] : players.map((p) => p.key))));
+  const players = members.filter((p) => !elsewhere.has(p.key)).slice(0, maxPerSide);
+  return lineup.map((current, i) => (i === side ? players : current));
+}

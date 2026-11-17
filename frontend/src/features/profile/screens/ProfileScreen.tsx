@@ -2,7 +2,9 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { useWindowDimensions, View } from 'react-native';
 import { useAuthStore } from '@/features/auth/store/auth.store';
-import { errorMessage } from '@/shared/hooks/useResource';
+import { TeamRow } from '@/features/teams/components/TeamBits';
+import { teamsApi } from '@/features/teams/api/teams.api';
+import { errorMessage, useResource } from '@/shared/hooks/useResource';
 import { sportText, useTheme } from '@/shared/theme';
 import { Button, Chip, D, EmptyState, ExpandableAvatar, IconButton, Label, Loading, Notice, Row, Screen, Sparkline, T, Tap, TextButton } from '@/shared/ui';
 import { shortDay } from '@/shared/utils/format';
@@ -26,6 +28,7 @@ export default function ProfileScreen() {
   const [sportId, setSportId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const teams = useResource(() => teamsApi.list(), []);
 
   const load = useCallback(async () => {
     try {
@@ -64,7 +67,7 @@ export default function ProfileScreen() {
       refreshing={refreshing}
       onRefresh={async () => {
         setRefreshing(true);
-        await load();
+        await Promise.all([load(), teams.reload()]);
         setRefreshing(false);
       }}
     >
@@ -154,6 +157,18 @@ export default function ProfileScreen() {
       ) : (
         <EmptyState title="No sports yet" body="Pick what you play to get a rating for each sport." action={<Button label="Pick sports" inline height={44} onPress={() => router.push('/profile/edit')} />} />
       )}
+
+      <Row between>
+        <Label>Teams</Label>
+        <TextButton label={teams.data?.teams.length ? 'See all' : 'New team'} onPress={() => router.push(teams.data?.teams.length ? '/teams' : '/teams/new')} style={{ paddingVertical: 8 }} />
+      </Row>
+      {teams.data?.teams.length ? (
+        teams.data.teams.slice(0, 3).map((t) => <TeamRow key={t.id} team={t} />)
+      ) : teams.data ? (
+        <T size={14} color={colors.muted}>
+          No teams yet. Save your partner or squad to pick them fast when you start a match.
+        </T>
+      ) : null}
 
       <Row between>
         <Label>Recent matches</Label>

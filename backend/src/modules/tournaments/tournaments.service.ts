@@ -24,6 +24,7 @@ import { AppError } from '../../utils/app-error.js';
 import { TX_OPTIONS, type MatchDecidedHook, type MatchesService } from '../matches/matches.service.js';
 import type { MatchView } from '../matches/matches.types.js';
 import type { ParticipantInput, PlayersService } from '../players/players.service.js';
+import { assertTeamsUsable } from '../teams/teams.service.js';
 import type { z } from 'zod';
 import type {
   addEntrySchema,
@@ -504,6 +505,7 @@ export class TournamentsService implements MatchDecidedHook {
       if (new Set(people.map((p) => p.playerId)).size !== people.length) throw invalid('players', 'A player can only be listed once');
       const clash = await tx.tournamentEntryMember.findFirst({ where: { eventId, playerId: { in: people.map((p) => p.playerId) } }, include: { player: true } });
       if (clash) throw invalid('players', `${clash.player.displayName} is already entered in this event`);
+      await assertTeamsUsable(tx, [input.teamId], event.sportId);
       const entryId = randomUUID();
       await tx.tournamentEntry.create({
         data: {

@@ -23,7 +23,7 @@ const DIGITS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'];
 export default function JerseyNumbersScreen() {
   const { colors } = useTheme();
   const me = useAuthStore((s) => s.user);
-  const { sport, rulesetId, lineup, hoops, add, setJersey, autoJerseys, swap } = useMatchDraft();
+  const { sport, rulesetId, lineup, hoops, add, setJersey, autoJerseys, swap, teams } = useMatchDraft();
   const [tab, setTab] = useState<0 | 1>(0);
   const [selKey, setSelKey] = useState<string | null>(null);
   const [buf, setBuf] = useState('');
@@ -96,6 +96,7 @@ export default function JerseyNumbersScreen() {
         sides: lineup.map((players, side) => ({
           name: hoops.names[side]!.trim() || `Team ${side === 0 ? 'A' : 'B'}`,
           color: hoops.colors[side],
+          ...(teams[side] ? { teamId: teams[side].id } : {}),
           players: players.map((p) => {
             const n = num(p);
             return typeof n === 'number' ? { ...p.input, jerseyNumber: n } : p.input;
