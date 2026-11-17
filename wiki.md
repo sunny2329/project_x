@@ -539,7 +539,7 @@ Frontend (`frontend/.env`, template `frontend/.env.example`): `EXPO_PUBLIC_API_U
 
 ## Changelog
 
-### 2026-11-15: Teams in any sport (uncommitted)
+### 2026-11-15: Teams in any sport (commit `1dbc0c1`, branch `feat/teams`, pushed; PR not opened yet)
 - See "Teams" above. Backend `modules/teams` (service, routes), `teamId` checked when creating
   matches and tournament entries. App: Teams list, new team, team page, Teams on both profiles,
   "Saved team" in match setup and basketball Teams.
@@ -568,7 +568,7 @@ Frontend (`frontend/.env`, template `frontend/.env.example`): `EXPO_PUBLIC_API_U
   default `psql`/`pg_dump` are 16 and refuse an 18 server. Locally, `sslmode=verify-full` needs
   `&sslrootcert=system` for psql.
 
-### 2026-11-10: Live is green; tab labels stay on one line (uncommitted)
+### 2026-11-10: Live is green; tab labels stay on one line (commit `815ab74`, PR #2)
 - `LIVE` (shared/theme/colors.ts) is now green `#22C55E`: LIVE badges, live dots and borders, the
   "Live now" dot on Home, "IN PROGRESS" chips and the court board's Live count. Unread counts,
   likes, disputes and the scoring-duties count keep the red, now named `ALERT`.
