@@ -75,7 +75,7 @@ export interface TournamentFormat<Config = unknown> {
 
 export class TournamentError extends Error {
   constructor(
-    readonly code: 'UNKNOWN_FORMAT' | 'INVALID_CONFIG' | 'NOT_ENOUGH_ENTRIES' | 'INVALID_RESULT' | 'NOT_READY',
+    readonly code: 'UNKNOWN_FORMAT' | 'INVALID_CONFIG' | 'NOT_ENOUGH_ENTRIES' | 'INVALID_RESULT' | 'NOT_READY' | 'CONFLICT',
     message: string,
   ) {
     super(message);

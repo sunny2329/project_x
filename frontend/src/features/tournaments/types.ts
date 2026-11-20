@@ -123,6 +123,8 @@ export interface StandingRow {
   majorLost: number;
   minorWon: number;
   minorLost: number;
+  /** Withdrawn or disqualified: ranked last whatever the results. */
+  withdrawn?: boolean;
 }
 
 export interface EntryView {
@@ -132,6 +134,8 @@ export interface EntryView {
   status: 'pending' | 'approved' | 'withdrawn' | 'disqualified';
   rating: number;
   createdAt: string;
+  /** Has played a match: it can be withdrawn but not deleted. */
+  hasMatches?: boolean;
   players: { playerId: string; userId: string | null; displayName: string; isGuest: boolean }[];
 }
 

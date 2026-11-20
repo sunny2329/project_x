@@ -116,9 +116,10 @@ export default function BracketScreen() {
     const stage = [...event.stages].reverse().find((s) => s.type === 'knockout');
     if (!stage) return null;
     const all = event.fixtures.filter((f) => f.stageId === stage.id);
-    // A 3rd-place match sits outside the tree.
+    // A 3rd-place match and play-ins (late entries) sit outside the tree.
     const third = all.find((f) => /3rd|third/i.test(f.roundName ?? ''));
-    const tree = all.filter((f) => f !== third);
+    const playIns = all.filter((f) => f.roundName === 'Play-in').sort((a, b) => a.round - b.round || a.position - b.position);
+    const tree = all.filter((f) => f !== third && !playIns.includes(f));
     const rounds = [...new Set(tree.map((f) => f.round))].sort((a, b) => a - b);
     const columns = rounds.map((r) => tree.filter((f) => f.round === r).sort((a, b) => a.position - b.position));
     const first = columns[0]?.length ?? 0;
@@ -129,7 +130,7 @@ export default function BracketScreen() {
         return { x: c * (CARD_W + GAP_X), y: slot * i + (slot - GAP_Y - CARD_H) / 2 };
       }),
     );
-    return { stage, columns, pos, third, height, width: columns.length * (CARD_W + GAP_X) - GAP_X };
+    return { stage, columns, pos, third, playIns, height, width: columns.length * (CARD_W + GAP_X) - GAP_X };
   }, [event]);
 
   if (loading) return <Loading />;
@@ -169,6 +170,21 @@ export default function BracketScreen() {
               />
             ))}
           </ScrollView>
+
+          {layout.playIns.length ? (
+            <View style={{ gap: 8 }}>
+              <T size={12} w={700} ls={0.06} color={colors.muted} style={{ paddingHorizontal: 20 }}>
+                PLAY-INS · WINNERS JOIN THE FIRST ROUND
+              </T>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingHorizontal: 20 }}>
+                {layout.playIns.map((f) => (
+                  <View key={f.id} style={{ width: CARD_W, height: CARD_H }}>
+                    <BracketCard f={f} slug={event.sport.slug} x={0} y={0} />
+                  </View>
+                ))}
+              </ScrollView>
+            </View>
+          ) : null}
 
           <ScrollView
             ref={scroller}

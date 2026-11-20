@@ -3,6 +3,8 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Share, View } from 'react-native';
 import { chatApi } from '@/features/chat/api/chat.api';
+import { teamsApi } from '@/features/teams/api/teams.api';
+import { TeamRow } from '@/features/teams/components/TeamBits';
 import { useResource } from '@/shared/hooks/useResource';
 import { useSubmit } from '@/shared/hooks/useSubmit';
 import { useTheme } from '@/shared/theme';
@@ -16,6 +18,7 @@ export default function PlayerProfileScreen() {
   const { colors } = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { data, setData, error, loading } = useResource(() => usersApi.get(id), [id]);
+  const teams = useResource(() => teamsApi.list({ userId: id }), [id]);
   const [more, setMore] = useState(false);
   const [copied, setCopied] = useState(false);
   const message = useSubmit();
@@ -144,6 +147,15 @@ export default function PlayerProfileScreen() {
               </T>
             </Row>
           ) : null}
+        </View>
+      ) : null}
+
+      {teams.data?.teams.length ? (
+        <View style={{ gap: 8 }}>
+          <Label>Teams</Label>
+          {teams.data.teams.map((t) => (
+            <TeamRow key={t.id} team={t} />
+          ))}
         </View>
       ) : null}
 

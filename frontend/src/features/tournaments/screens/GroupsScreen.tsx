@@ -131,7 +131,7 @@ export default function GroupsScreen() {
               ))}
             </Row>
             {rows.map((r) => {
-              const q = qualifiers > 0 && r.rank <= qualifiers;
+              const q = qualifiers > 0 && r.rank <= qualifiers && !r.withdrawn;
               return (
                 <Row key={r.entryId} style={{ paddingVertical: 12, paddingHorizontal: 4, borderTopWidth: 1, borderTopColor: colors.raised, backgroundColor: q ? 'rgba(74,222,128,0.07)' : 'transparent' }}>
                   {q ? <View style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, backgroundColor: READY }} /> : null}
@@ -140,6 +140,11 @@ export default function GroupsScreen() {
                     <T size={14} w={q ? 700 : 400} color={q ? colors.fg : colors.soft} numberOfLines={1} style={{ flexShrink: 1 }}>
                       {short(r.name)}
                     </T>
+                    {r.withdrawn ? (
+                      <T size={11} w={700} color={colors.muted}>
+                        WD
+                      </T>
+                    ) : null}
                     {q ? (
                       <View style={{ paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4, backgroundColor: READY }}>
                         <T size={10} w={800} color={colors.ink}>
@@ -161,7 +166,7 @@ export default function GroupsScreen() {
           <Row gap={10} style={{ alignItems: 'flex-start', paddingVertical: 12, paddingHorizontal: 14, borderRadius: 14, backgroundColor: colors.raised }}>
             <Icon name="info" size={18} color={colors.soft} />
             <T size={13} lh={19} color={colors.soft} flex>
-              {note ? `${note} ` : ''}Order of tiebreaks: {order}.
+              {note ? `${note} ` : ''}Order of tiebreaks: {order}.{rows.some((r) => r.withdrawn) ? ' WD = withdrawn: results stay, ranked last.' : ''}
             </T>
           </Row>
 

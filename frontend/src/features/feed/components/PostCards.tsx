@@ -7,14 +7,52 @@ import { ago, minutes, shortName } from '@/shared/utils/format';
 import { usePostLike } from '../hooks/usePostLike';
 import type { FeedPost } from '../types';
 
-/** "Kabir M won at badminton" / "lost" / "played". */
+/** True when the post's author scored or organised the match without playing in it. */
+export function authorIsScorer(post: FeedPost): boolean {
+  return post.match !== null && post.match.authorSideIndex === null;
+}
+
+/**
+ * "Kabir M won at badminton" / "lost" / "played" when the author played; otherwise the result
+ * itself ("Smashers beat Aces"), since the author only scored it.
+ */
 export function resultTitle(post: FeedPost): string {
   const m = post.match!;
   const who = shortName(post.author.fullName);
   const sport = m.sport.name.toLowerCase();
   const winner = m.result?.winnerSideIndex;
-  if (winner === null || winner === undefined || m.authorSideIndex === null) return `${who} played ${sport}`;
+  if (authorIsScorer(post)) {
+    const [a, b] = m.result?.sides ?? [];
+    if (!a || !b) return `${m.sport.name} match`;
+    if (winner === null || winner === undefined) return `${a.name} drew with ${b.name}`;
+    const won = winner === a.index ? a : b;
+    const lost = won === a ? b : a;
+    return `${won.name} beat ${lost.name}`;
+  }
+  if (winner === null || winner === undefined) return `${who} played ${sport}`;
   return `${who} ${winner === m.authorSideIndex ? 'won' : 'lost'} at ${sport}`;
+}
+
+/** "Summer Open · Men's Doubles · Quarter-final" for a tournament match; null for a friendly. */
+export function tournamentLine(post: FeedPost): string | null {
+  const t = post.match?.tournament;
+  if (!t) return null;
+  return [t.name, t.eventName, t.groupName ?? t.roundName].filter(Boolean).join(' · ');
+}
+
+/** Trophy + tournament, event and round, under a tournament match's title. */
+export function TournamentTag({ post }: { post: FeedPost }) {
+  const { colors } = useTheme();
+  const line = tournamentLine(post);
+  if (!line) return null;
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', maxWidth: '100%', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10, backgroundColor: colors.raised }}>
+      <Icon name="trophy" size={14} color={sportText(colors, post.match!.sport.slug)} />
+      <T size={12} w={600} numberOfLines={1} style={{ flexShrink: 1 }}>
+        {line}
+      </T>
+    </View>
+  );
 }
 
 function Counts({ post }: { post: FeedPost }) {
@@ -61,7 +99,10 @@ export function ResultPostCard({ post }: { post: FeedPost }) {
   const m = post.match!;
   const color = m.sport.accentColor;
   const delta = m.authorRatingChange;
-  const meta = [m.format, ago(post.createdAt), m.venue ?? minutes(m.durationSeconds)].filter(Boolean).join(' · ');
+  const scorer = authorIsScorer(post);
+  const meta = scorer
+    ? [`Scored by ${shortName(post.author.fullName)}`, m.sport.name, m.format, ago(post.createdAt)].filter(Boolean).join(' · ')
+    : [m.format, ago(post.createdAt), m.venue ?? minutes(m.durationSeconds)].filter(Boolean).join(' · ');
   return (
     <Tap
       label={resultTitle(post)}
@@ -86,6 +127,7 @@ export function ResultPostCard({ post }: { post: FeedPost }) {
           </View>
         ) : null}
       </View>
+      <TournamentTag post={post} />
       {post.content && !post.isResult ? (
         <T size={15} lh={22}>
           {post.content}

@@ -266,6 +266,10 @@ while focused, and opening the screen marks all read. No push notifications yet.
 Feed and post responses: `match` = `{id, sport, format, durationSeconds, result: {summary,
 winnerSide, sides: [{no, name, headline}], periodCount} | null}` (from `match_master`,
 `mst_sport_format` and `match_result`); the app builds the activity title and stats row from it.
+`match.tournament` = `{id, name, eventName, roundName, groupName} | null` (from `fixtures` ⋈ stage ⋈
+event ⋈ tournament; `groupName` only for round-robin groups). The result post's author is the match
+creator; when they aren't on a side (`authorSideIndex: null`, e.g. a tournament scorer) the card
+says "A beat B", "Scored by <author>" and shows a trophy tag with the tournament, event and round.
 
 `profile` = `{ user, bio, sports: [{id, code, name, isPrimary, rating, matchesPlayed, matchesWon,
 matchesLost, pointsScored, pointsConceded}], record: {played, won, lost}, followers, following }`.
@@ -353,9 +357,39 @@ took ~3 s. Decided: move Neon to Singapore (ap-southeast-1, ~70 ms) and add Redi
 | Players | `GET /players?q=`, `GET /players/me`, `GET/POST /players/guests`, `POST /players/claim` |
 | Matches | `POST /matches` (`{sport, format, rulesetId?, rulesOverride?, sides:[{name?, color?, players:[{userId}|{playerId}|{guest}, jerseyNumber?]}], manualScores?}`; `color` `#RRGGBB`, shirt numbers 0-99 unique per side), `GET /matches/live`, `GET /matches/pending-confirmations`, `GET /matches/:id`, `POST /matches/:id/events` (`{event, version, clientEventId?}`), `/undo`, `/complete`, `/retire`, `/walkover`, `/abandon`, `/confirm`, `/scorers` |
 | Tournaments | `GET/POST /tournaments`, `GET/PATCH /tournaments/:id`, `POST /tournaments/:id/{staff,courts,events}`, `DELETE /tournaments/:id/staff/:userId/:role`, `POST /courts/:id/scorers` |
-| Categories | `GET/PATCH /tournament-events/:id`, `POST /tournament-events/:id/entries`, `POST /tournament-events/:id/draw` (`{preview?, randomSeed?}`), `DELETE /tournament-events/:id/draw`, `PATCH /entries/:id` (approve, seed) |
+| Categories | `GET/PATCH /tournament-events/:id`, `POST /tournament-events/:id/entries`, `POST /tournament-events/:id/draw` (`{preview?, randomSeed?}`), `DELETE /tournament-events/:id/draw`, `PATCH /entries/:id` (approve, seed, withdraw, `name`, `players`), `DELETE /entries/:id` (entries that haven't played) |
 | Fixtures | `GET /fixtures/mine`, `GET/PATCH /fixtures/:id` (court, time), `POST /fixtures/:id/start`, `/walkover`, `/result` |
 | Public (no login) | `GET /public/matches/:shareToken`, `GET /public/tournaments/:slug`, `GET /public/tournament-events/:id`; pages `/s/:shareToken` (live scoreboard) and `/t/:slug` (brackets, fixtures, live scores, standings) |
+
+### Changing a running draw (since 2026-11-20)
+Organizers can add, remove, withdraw and edit entries after the draw, even while matches are being
+played. Code: `engine/tournament/edit.ts` (pure) + `TournamentsService.placeLateEntry` / `takeOut`.
+- **How it works:** a change edits the slot sources of unplayed fixtures, then `rebuild()` works the
+  knockout out again from the sources plus the results that stand. If a played or live match would
+  change, it's refused (409 `DRAW_LOCKED`), so history never moves.
+- **Late entry, knockout:** takes a free round-1 bye if one is left (the weakest bye-holder plays
+  it). Otherwise it gets a **play-in** (`round_name` "Play-in", round 0) against the weakest entry
+  (highest seed, unseeded last) whose first match hasn't started, and the winner takes that slot.
+  When every first-round match has started → 409 `DRAW_FULL`.
+- **Late entry, round robin / groups:** joins the smallest group still playing (or `groupId`), with
+  a match against every active member (per leg). Each match goes in the earliest round from the
+  first unfinished one where neither side plays; extra rounds are added at the end. A finished group
+  → 409 `GROUP_FINISHED`, group stage over → `GROUPS_FINISHED`.
+- Organizers aren't held to `max_entries` after the draw; it rises with the approved count.
+  Approving a pending sign-up after the draw places it the same way. Players can't sign up after the draw.
+- **Remove** (`DELETE /entries/:id`, only if the entry has no match): its group matches go; in a
+  knockout its line becomes a bye (the opponent moves on) and an unplayed play-in made for it
+  disappears (the other entry gets the slot back). Played → 409 `ENTRY_HAS_MATCHES`.
+- **Withdraw / disqualify** (`PATCH` status): results stay; unplayed group matches are `cancelled`;
+  standings put withdrawn entries last (`withdrawn: true`, "WD" in the app), so the next best
+  qualify; in a knockout it's a bye wherever it would go next. Its match live → 409 `MATCH_LIVE`.
+  A withdrawn entry that was in the draw can't be approved back (409 `ENTRY_WAS_IN_DRAW`).
+- **Edit** (`PATCH /entries/:id` `{players?, name?}`, organizers, any time): same player-count and
+  "not in another entry" checks as adding. Matches already created keep their players; later ones use
+  the new roster. `name: null` goes back to the players' names.
+- Late entries into a finished event → 409 `EVENT_FINISHED`. Seeds stay fixed after the draw.
+- App: Entries keeps the + button after the draw, a pencil on each entry (change players, remove or
+  withdraw), a Withdrawn list; Bracket shows a "Play-ins" row above the tree.
 
 ### Known gaps / follow-ups
 - Spectators poll (4 s app, 3-5 s public pages); WebSockets + Redis pub/sub are still to do.
@@ -366,6 +400,38 @@ took ~3 s. Decided: move Neon to Singapore (ap-southeast-1, ~70 ms) and add Redi
 - Basketball: the game and shot clocks run on the scorer's phone only (each play carries the
   reading); spectators see the clock at the last play. Only made baskets are recorded (no misses or
   rebounds), so the box score has no shooting percentages.
+
+## Teams
+
+Saved teams: a named group of players in **one sport** (a doubles pair, a basketball squad). A
+person can be in any number of teams, in any sports, and in several teams in the same sport.
+Tables `teams`, `team_members`, `team_stats` (since `1_core_schema`; no migration was needed).
+
+- **API** `/api/v1/teams` (`backend/src/modules/teams/`): `GET /` (my teams, or `?userId=`, plus
+  `&sport=<slug>`; sorted by name; nobody blocked either way sees the other's), `POST /`
+  `{ sport, name, members? }` (creator = captain; members are `ParticipantInput`s: player, user or new
+  guest), `GET /:id` (anyone signed in: members captains first, record, last 10 decided matches,
+  `myRole`, `canManage`), `PATCH /:id` `{ name }`, `DELETE /:id`, `POST /:id/members` `{ members }`,
+  `DELETE /:id/members/:playerId` (captain removes, or anyone leaves with their own player id;
+  `team: null` once you're out), `PATCH /:id/members/:playerId` `{ role: 'captain' | 'player' }`.
+- **Rules:** captains manage (403 `NOT_TEAM_CAPTAIN`); several captains allowed, never zero
+  (409 `LAST_CAPTAIN`); guests can't be captains. Up to 30 players. Players already in the team are
+  skipped; someone who left is re-added by reopening their row (`left_at` cleared, role player).
+  Leaving keeps the row (`left_at`). The last captain leaving hands over to the registered member who
+  joined first; with no registered member left the team is deleted. Deleting keeps matches: their
+  `match_sides.team_id` / `tournament_entries.team_id` become NULL and side names stay.
+- **Matches:** a side's `teamId` must exist and be the match's sport (400 `teamId`), same for
+  tournament entries. `team_stats` is rebuilt with the match (played/won/lost on the team page).
+- **App** (`frontend/src/features/teams/`): Profile has a Teams section (3 shown, See all →
+  `/teams`), other players' profiles list their teams. `/teams` (sport filter chips when there are
+  several sports), `/teams/new` (`?sport=` preselects), `/team/[id]` (record, players, recent
+  matches; captains add, rename, delete, change roles, remove; members leave; "Play a match as this
+  team" starts a draft with the team as side A in the smallest format that fits it).
+  Match setup (and basketball Teams) has "Saved team" per side: `draft.pickTeam` fills the side
+  (players a side, or 12 in basketball, skipping anyone on the other side; basketball also takes the
+  name) and the create calls send `teamId` (+ `name` outside basketball). `confirmAction`
+  (`shared/utils/confirm.ts`) uses `window.confirm` on the web, where `Alert.alert` does nothing.
+- Not yet: notifications when someone adds you, team photos/colours, picking an opponent's team.
 
 ## Auth module
 
@@ -507,6 +573,38 @@ Frontend (`frontend/.env`, template `frontend/.env.example`): `EXPO_PUBLIC_API_U
 
 ## Changelog
 
+### 2026-11-20: Tournament matches in the feed; Home tab scrolls to top (commit `371399d`, branch `feat/teams`)
+- Bug: a tournament match's result post read "<scorer> played pickleball", because the post is
+  written under the match creator (the scorer), who isn't on either side.
+- Backend: feed / post responses carry `match.tournament` (`feed.repository.ts` POST_COLUMNS).
+- App: `PostCards.tsx` shows "A beat B" (or "drew with") when the author didn't play, "Scored by
+  <author>" in the meta line and a trophy tag "Tournament · Event · Round/Group"; same on the post page.
+- App: tapping Home while on Home scrolls the feed to the top (`useScrollToTop` in HomeScreen).
+- Tests: `feed/__tests__/feed-tournament.api.test.ts` (3).
+
+### 2026-11-20: Change a tournament draw while it runs (commit `3c9aefe`, branch `feat/teams`)
+- Why: once a draw was made, an organizer couldn't add the 2 teams that turned up late, or remove
+  or edit an entry. See "Changing a running draw" above.
+- Backend: `engine/tournament/edit.ts` (`rebuild`, `addLateEntry`, `removeFromBracket`,
+  `groupFixturesFor`); `TournamentsService` adds late entries after the draw, `DELETE /entries/:id`,
+  `PATCH /entries/:id` takes `players` / `name` and changes the draw on approve / withdraw;
+  `onMatchDecided` shares the new `commitNodes` (fills groups, rebuilds the knockout when needed,
+  stage / event status); group standings put withdrawn entries last; event entries carry `hasMatches`.
+- App: EntriesScreen (late entries, pencil sheet: change players, remove / withdraw, Withdrawn list),
+  BracketScreen (Play-ins row), GroupsScreen (WD, no Q for withdrawn).
+- Tests: `engine/tournament/edit.test.ts` (16) and `tournaments/__tests__/draw-changes.api.test.ts` (10).
+
+### 2026-11-15: Teams in any sport (commit `1dbc0c1`, branch `feat/teams`, pushed; PR not opened yet)
+- See "Teams" above. Backend `modules/teams` (service, routes), `teamId` checked when creating
+  matches and tournament entries. App: Teams list, new team, team page, Teams on both profiles,
+  "Saved team" in match setup and basketball Teams.
+- Tests: `teams/__tests__/teams.api.test.ts` (14): create with members and guests, validation and
+  limits, 404s, one person in many teams across sports and several in one sport, sport filter,
+  someone else's teams with my role, captain-only actions, re-adding who left, the 30 cap, roles
+  (guest can't captain, last captain), removing, hand-over, deleting when no registered member
+  remains, deleting keeps matches, team in a match (sport check, record, recent matches), blocked
+  accounts. App: 4 draft-store tests (fill a side, replace, unlink, reset, basketball subs and name).
+
 ### 2026-11-14: Render keep-alive; Neon move to Singapore prepared
 - Why: Render's free plan sleeps after 15 min idle (~50 s cold start), and Neon is in us-west-2
   (Oregon) while the API is on Render Singapore, so every query is a trans-Pacific round trip.
@@ -525,7 +623,7 @@ Frontend (`frontend/.env`, template `frontend/.env.example`): `EXPO_PUBLIC_API_U
   default `psql`/`pg_dump` are 16 and refuse an 18 server. Locally, `sslmode=verify-full` needs
   `&sslrootcert=system` for psql.
 
-### 2026-11-10: Live is green; tab labels stay on one line (uncommitted)
+### 2026-11-10: Live is green; tab labels stay on one line (commit `815ab74`, PR #2)
 - `LIVE` (shared/theme/colors.ts) is now green `#22C55E`: LIVE badges, live dots and borders, the
   "Live now" dot on Home, "IN PROGRESS" chips and the court board's Live count. Unread counts,
   likes, disputes and the scoring-duties count keep the red, now named `ALERT`.

@@ -4,9 +4,10 @@ import { Pressable, View } from 'react-native';
 import { useAuthStore } from '@/features/auth/store/auth.store';
 import { sportText, useTheme } from '@/shared/theme';
 import { Avatar, Button, D, Dot, EmptyState, goBack, Header, Icon, IconButton, Label, RadioCard, Row, Screen, Segmented, T, TextButton } from '@/shared/ui';
+import { TeamPickerSheet } from '@/features/teams/components/TeamBits';
 import { AddPlayerSheet } from '../components/AddPlayerSheet';
 import { RulesSheet } from '../components/RulesSheet';
-import { lineupKeys, lineupProblem } from '../lineup';
+import { fromTeamMember, lineupKeys, lineupProblem } from '../lineup';
 import { EDITABLE_RULES, maxPlayersPerSide, rulesetDetail, rulesTitle } from '../rules';
 import { useMatchDraft } from '../store/draft.store';
 import { BasketballSetup } from './BasketballSetupScreen';
@@ -19,8 +20,9 @@ export default function NewMatchSetupScreen() {
   const { colors } = useTheme();
   const { mode } = useLocalSearchParams<{ mode?: string }>();
   const me = useAuthStore((s) => s.user);
-  const { sport, formatCode, rulesetId, override, lineup, setFormat, setRuleset, setRule, resetRules, add, remove } = useMatchDraft();
+  const { sport, formatCode, rulesetId, override, lineup, teams, setFormat, setRuleset, setRule, resetRules, add, remove, pickTeam, unlinkTeam } = useMatchDraft();
   const [adding, setAdding] = useState<number | null>(null);
+  const [pickingTeam, setPickingTeam] = useState<number | null>(null);
   const [editingRules, setEditingRules] = useState(false);
 
   if (!sport) {
@@ -117,6 +119,20 @@ export default function NewMatchSetupScreen() {
                 <T size={11} w={700} ls={0.06} color={side === 0 ? sportText(colors, sport.slug) : colors.muted}>
                   SIDE {side === 0 ? 'A' : 'B'}
                 </T>
+                {teams[side] ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Playing as ${teams[side].name}. Tap to unlink the team`}
+                    onPress={() => unlinkTeam(side)}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', maxWidth: '100%', paddingHorizontal: 8, height: 24, borderRadius: 8, backgroundColor: colors.raised }}
+                  >
+                    <Icon name="people" size={12} color={colors.soft} />
+                    <T size={12} w={700} numberOfLines={1} style={{ flexShrink: 1 }}>
+                      {teams[side].name}
+                    </T>
+                    <Icon name="close" size={11} color={colors.faint} />
+                  </Pressable>
+                ) : null}
                 {lineup[side]!.map((p) => (
                   <Pressable
                     key={p.key}
@@ -147,6 +163,21 @@ export default function NewMatchSetupScreen() {
                     </T>
                   </Pressable>
                 ) : null}
+                {format.maxPerSide > 1 ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Use a saved team for side ${side === 0 ? 'A' : 'B'}`}
+                    onPress={() => setPickingTeam(side)}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 8, height: 28 }}
+                  >
+                    <View style={{ width: 28, alignItems: 'center' }}>
+                      <Icon name="people" size={16} color={colors.muted} />
+                    </View>
+                    <T size={13} w={600} color={colors.muted}>
+                      Saved team
+                    </T>
+                  </Pressable>
+                ) : null}
               </View>
             </View>
           ))}
@@ -161,6 +192,15 @@ export default function NewMatchSetupScreen() {
         onChange={setRule}
         onReset={resetRules}
         note="The change is for this match only."
+      />
+
+      <TeamPickerSheet
+        visible={pickingTeam !== null}
+        sport={sport.slug}
+        sportName={sport.name}
+        side={pickingTeam ?? 0}
+        onPick={(team) => pickTeam(pickingTeam ?? 0, { id: team.id, name: team.name }, team.members.map(fromTeamMember))}
+        onClose={() => setPickingTeam(null)}
       />
 
       <AddPlayerSheet

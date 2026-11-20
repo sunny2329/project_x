@@ -196,7 +196,8 @@ export interface NewMatch {
   sport: string;
   format: string;
   rulesetId?: string;
-  sides: { name?: string; color?: string; players: MatchParticipantInput[] }[];
+  /** `teamId`: a saved team playing as this side (same sport). */
+  sides: { name?: string; color?: string; teamId?: string; players: MatchParticipantInput[] }[];
   /** Result entered afterwards: one [side 0, side 1] score per game/set. */
   manualScores?: number[][];
   /** Results afterwards: YYYY-MM-DD. */

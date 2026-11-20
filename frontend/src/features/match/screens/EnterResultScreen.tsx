@@ -12,13 +12,13 @@ import { checkResult, ResultGrid } from '../components/ResultGrid';
 import { BasketballResult } from './BasketballResultScreen';
 import { lineupProblem } from '../lineup';
 import { maxPlayersPerSide, rulesTitle } from '../rules';
-import { useMatchDraft } from '../store/draft.store';
+import { teamSide, useMatchDraft } from '../store/draft.store';
 
 /** "Already played?": type the score per game; the opponent confirms before ratings move. */
 export default function EnterResultScreen() {
   const { colors } = useTheme();
   const me = useAuthStore((s) => s.user);
-  const { sport, formatCode, rulesetId, override, lineup } = useMatchDraft();
+  const { sport, formatCode, rulesetId, override, lineup, teams } = useMatchDraft();
   const [cells, setCells] = useState<string[][]>([]);
   const [date, setDate] = useState(new Date());
   const [picking, setPicking] = useState(false);
@@ -56,7 +56,7 @@ export default function EnterResultScreen() {
         format: format.code,
         rulesetId: ruleset.id,
         ...(Object.keys(override).length ? { rulesOverride: override } : {}),
-        sides: lineup.map((players) => ({ players: players.map((p) => p.input) })),
+        sides: lineup.map((players, side) => ({ ...teamSide(teams, side), players: players.map((p) => p.input) })),
         manualScores: check.filled,
         playedOn: toDay(date),
         ...(venue.trim() ? { venueName: venue.trim() } : {}),

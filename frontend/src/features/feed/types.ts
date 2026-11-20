@@ -26,6 +26,8 @@ export interface FeedMatch {
   venue: string | null;
   authorSideIndex: number | null;
   authorRatingChange: number | null;
+  /** The tournament fixture this match was played for; null for friendlies. */
+  tournament: FeedTournament | null;
   result: {
     headline: string;
     winnerSideIndex: number | null;
@@ -36,6 +38,15 @@ export interface FeedMatch {
     /** [side0, side1] per game/set. */
     segments: number[][];
   } | null;
+}
+
+/** Mirrors FeedTournament in backend/src/modules/feed/feed.repository.ts. */
+export interface FeedTournament {
+  id: string;
+  name: string;
+  eventName: string;
+  roundName: string | null;
+  groupName: string | null;
 }
 
 export type PostVisibility = 'public' | 'followers';

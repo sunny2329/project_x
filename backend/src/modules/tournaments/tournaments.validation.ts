@@ -57,12 +57,19 @@ export const addEntrySchema = z.object({
   players: z.array(participantSchema).min(1).max(11),
   seed: z.number().int().min(1).max(512).optional(),
   teamId: z.uuid().optional(),
+  /** After the draw, round robin / groups: the group a late entry joins (default: the smallest unfinished one). */
+  groupId: z.uuid().optional(),
 });
 
-export const updateEntrySchema = z.object({
-  status: z.enum(['pending', 'approved', 'withdrawn', 'disqualified']).optional(),
-  seed: z.number().int().min(1).max(512).nullable().optional(),
-});
+export const updateEntrySchema = z
+  .object({
+    status: z.enum(['pending', 'approved', 'withdrawn', 'disqualified']).optional(),
+    seed: z.number().int().min(1).max(512).nullable().optional(),
+    /** Organizers, any time: rename (null = the players' names) or change the players. */
+    name: z.string().trim().min(1).max(120).nullable().optional(),
+    players: z.array(participantSchema).min(1).max(11).optional(),
+  })
+  .refine((v) => Object.values(v).some((x) => x !== undefined), { message: 'Nothing to change' });
 
 export const drawSchema = z.object({
   /** Reproducible draw: the same seed gives the same draw for the same entries. */

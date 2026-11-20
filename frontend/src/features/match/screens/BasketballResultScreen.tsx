@@ -68,7 +68,7 @@ function ScoreBox({ label, value, on, onChange }: { label: string; value: number
 /** "Enter a basketball result": the rules as set up, the final score with −/+, a live check, date and court. */
 export function BasketballResult({ sport }: { sport: SportSummary }) {
   const { colors } = useTheme();
-  const { rulesetId, lineup, hoops } = useMatchDraft();
+  const { rulesetId, lineup, hoops, teams } = useMatchDraft();
   const [a, setA] = useState(0);
   const [b, setB] = useState(0);
   const [date, setDate] = useState(new Date());
@@ -93,6 +93,7 @@ export function BasketballResult({ sport }: { sport: SportSummary }) {
         sides: lineup.map((players, side) => ({
           name: names[side],
           color: hoops.colors[side],
+          ...(teams[side] ? { teamId: teams[side].id } : {}),
           players: players.map((p) => {
             const n = hoops.jerseys[p.key];
             return typeof n === 'number' ? { ...p.input, jerseyNumber: n } : p.input;
