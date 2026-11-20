@@ -569,7 +569,7 @@ Frontend (`frontend/.env`, template `frontend/.env.example`): `EXPO_PUBLIC_API_U
 
 ## Changelog
 
-### 2026-11-20: Change a tournament draw while it runs (uncommitted)
+### 2026-11-20: Change a tournament draw while it runs (commit `3c9aefe`, branch `feat/teams`)
 - Why: once a draw was made, an organizer couldn't add the 2 teams that turned up late, or remove
   or edit an entry. See "Changing a running draw" above.
 - Backend: `engine/tournament/edit.ts` (`rebuild`, `addLateEntry`, `removeFromBracket`,
