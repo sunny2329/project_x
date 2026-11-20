@@ -51,7 +51,11 @@ export const tournamentsApi = {
     apiRequest<{ event: EventDetail }>(`/api/v1/tournament-events/${id}`, send('PATCH', body)),
   addEntry: (id: string, players: ParticipantInput[], seed?: number) =>
     apiRequest<{ event: EventDetail }>(`/api/v1/tournament-events/${id}/entries`, send('POST', { players, ...(seed ? { seed } : {}) })),
-  updateEntry: (entryId: string, body: { status?: string; seed?: number | null }) => apiRequest<{ event: EventDetail }>(`/api/v1/entries/${entryId}`, send('PATCH', body)),
+  /** Organizers can change the name or players at any time; approving / withdrawing after the draw changes the draw. */
+  updateEntry: (entryId: string, body: { status?: string; seed?: number | null; name?: string | null; players?: ParticipantInput[] }) =>
+    apiRequest<{ event: EventDetail }>(`/api/v1/entries/${entryId}`, send('PATCH', body)),
+  /** Entries that haven't played; in a running draw the opponent moves on. */
+  deleteEntry: (entryId: string) => apiRequest<{ event: EventDetail }>(`/api/v1/entries/${entryId}`, send('DELETE')),
   previewDraw: (id: string, randomSeed?: number) =>
     apiRequest<DrawPreview>(`/api/v1/tournament-events/${id}/draw`, send('POST', { preview: true, ...(randomSeed !== undefined ? { randomSeed } : {}) })),
   draw: (id: string, randomSeed: number) => apiRequest<{ event: EventDetail; randomSeed: number }>(`/api/v1/tournament-events/${id}/draw`, send('POST', { randomSeed })),

@@ -85,6 +85,7 @@ export function createTournamentRouters(service: TournamentsService, requireAuth
   entries.patch('/:id', validateBody(updateEntrySchema), async (req, res) => {
     sendSuccess(res, { event: await service.updateEntry(me(req), id(req.params.id, 'entry'), req.body) });
   });
+  entries.delete('/:id', async (req, res) => sendSuccess(res, { event: await service.deleteEntry(me(req), id(req.params.id, 'entry')) }));
 
   const fixtures = Router();
   fixtures.use(requireAuth);

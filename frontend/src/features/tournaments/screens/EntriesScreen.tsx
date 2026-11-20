@@ -7,7 +7,8 @@ import { useAuthStore } from '@/features/auth/store/auth.store';
 import { useResource } from '@/shared/hooks/useResource';
 import { useSubmit } from '@/shared/hooks/useSubmit';
 import { displayFont, READY, useTheme } from '@/shared/theme';
-import { Avatar, Button, Chip, EmptyState, Header, IconButton, Loading, Notice, Row, Screen, Segmented, T } from '@/shared/ui';
+import { Avatar, Button, Chip, EmptyState, Header, IconButton, Label, Loading, Notice, Row, Screen, Segmented, Sheet, T } from '@/shared/ui';
+import { confirmAction } from '@/shared/utils/confirm';
 import { ago, shortName } from '@/shared/utils/format';
 import { tournamentsApi } from '../api/tournaments.api';
 import { EventTabs } from '../components/TournamentBits';
@@ -19,7 +20,9 @@ const entryName = (e: EntryView) => e.players.map((p) => shortName(p.displayName
 
 /**
  * Entries for an event. Organizers approve or decline, set seeds, add entries themselves, then
- * close registration and preview the draw. Everyone else sees the approved list.
+ * close registration and preview the draw. After the draw they can still add late entries (they go
+ * straight into the draw), change an entry's players, and remove or withdraw entries. Everyone
+ * else sees the approved list.
  */
 export default function EntriesScreen() {
   const { colors } = useTheme();
@@ -30,6 +33,9 @@ export default function EntriesScreen() {
   const [tab, setTab] = useState<Tab | null>(null);
   const [seeds, setSeeds] = useState<Record<string, string>>({});
   const [adding, setAdding] = useState<LineupPlayer[] | null>(null);
+  /** The entry whose players are being replaced (null = adding a new entry). */
+  const [addingFor, setAddingFor] = useState<EntryView | null>(null);
+  const [managing, setManaging] = useState<EntryView | null>(null);
   const action = useSubmit();
 
   if (event.loading) return <Loading />;
@@ -49,8 +55,15 @@ export default function EntriesScreen() {
   const pending = e.entries.filter((x) => x.status === 'pending');
   const approved = e.entries.filter((x) => x.status === 'approved').sort((a, b) => (a.seed ?? 999) - (b.seed ?? 999) || b.rating - a.rating);
   const current: Tab = tab ?? (organizer && pending.length ? 'pending' : 'approved');
+  const out = e.entries.filter((x) => x.status === 'withdrawn' || x.status === 'disqualified');
   const drawn = e.stages.length > 0;
+  const finished = e.status === 'completed' || e.status === 'cancelled';
+  const canAdd = organizer && !finished;
   const perSide = e.format.playersPerSide;
+  const lateWhere =
+    e.drawFormat === 'knockout'
+      ? 'A new entry takes a free bye, or plays a play-in match against the lowest-ranked entry still waiting for a first match.'
+      : 'A new entry joins the smallest group still playing, with a match against everyone in it.';
 
   const apply = (run: () => Promise<{ event: EventDetail }>) =>
     void action.submit(async () => {
@@ -71,7 +84,35 @@ export default function EntriesScreen() {
     });
   };
 
-  const left = e.maxEntries === null ? null : e.maxEntries - approved.length;
+  // Once the draw is made the organizer can go over the limit; it rises with the entries.
+  const left = e.maxEntries === null || drawn ? null : e.maxEntries - approved.length;
+
+  const startAdding = (target: EntryView | null) => {
+    setManaging(null);
+    setAddingFor(target);
+    // Let the manage sheet close before the player picker opens.
+    setTimeout(() => setAdding([]), target ? 350 : 0);
+  };
+
+  const removeEntry = (x: EntryView) => {
+    setManaging(null);
+    const who = entryName(x);
+    if (x.hasMatches) {
+      confirmAction(
+        `Withdraw ${who}?`,
+        drawn ? 'Results so far stay. Their unplayed matches are cancelled, and in a knockout their next opponent goes through.' : undefined,
+        'Withdraw',
+        () => apply(() => tournamentsApi.updateEntry(x.id, { status: 'withdrawn' })),
+      );
+      return;
+    }
+    confirmAction(
+      `Remove ${who}?`,
+      drawn ? 'They leave the draw. Their opponent goes through, and any play-in made for them is removed.' : 'They leave the event.',
+      'Remove',
+      () => apply(() => tournamentsApi.deleteEntry(x.id)),
+    );
+  };
 
   return (
     <Screen
@@ -97,7 +138,7 @@ export default function EntriesScreen() {
         ) : undefined
       }
     >
-      <Header kicker={e.tournament.name} display={e.name} right={organizer && !drawn ? <IconButton icon="plus" label="Add an entry" onPress={() => setAdding([])} /> : undefined} />
+      <Header kicker={e.tournament.name} display={e.name} right={canAdd ? <IconButton icon="plus" label={drawn ? 'Add a late entry' : 'Add an entry'} onPress={() => startAdding(null)} /> : undefined} />
 
       {t && t.events.length > 1 && organizer ? (
         <Row gap={8} style={{ flexWrap: 'wrap' }}>
@@ -121,6 +162,7 @@ export default function EntriesScreen() {
       ) : null}
 
       {action.formError ? <Notice tone="error" icon="alert" text={action.formError} /> : null}
+      {organizer && drawn && !finished ? <Notice tone="info" icon="info" text={`The draw is made, but you can still change it. ${lateWhere} Tap the pencil next to an entry to change its players or remove it.`} /> : null}
 
       {current === 'pending' && organizer ? (
         <View style={{ gap: 10 }}>
@@ -193,6 +235,7 @@ export default function EntriesScreen() {
               <T color={colors.soft} right style={{ width: 64 }}>
                 {Math.round(x.rating)}
               </T>
+              {organizer ? <IconButton icon="pen" label={`Change ${entryName(x)}`} size={36} onPress={() => setManaging(x)} /> : null}
             </Row>
           ))}
           {approved.length ? (
@@ -202,16 +245,76 @@ export default function EntriesScreen() {
           ) : (
             <EmptyState title="No entries yet" />
           )}
+          {out.length ? (
+            <View style={{ gap: 6, paddingTop: 12 }}>
+              <Label>Withdrawn · {out.length}</Label>
+              {out.map((x) => (
+                <Row key={x.id} gap={8} style={{ paddingVertical: 6, paddingHorizontal: 4 }}>
+                  <T color={colors.muted} flex numberOfLines={1} style={{ textDecorationLine: 'line-through' }}>
+                    {entryName(x)}
+                  </T>
+                  {organizer && !x.hasMatches ? <IconButton icon="trash" label={`Remove ${entryName(x)} for good`} size={36} onPress={() => removeEntry(x)} /> : null}
+                </Row>
+              ))}
+            </View>
+          ) : null}
         </View>
       )}
+
+      <Sheet visible={managing !== null} onClose={() => setManaging(null)}>
+        {managing ? (
+          <View style={{ gap: 14 }}>
+            <View style={{ gap: 4 }}>
+              <T size={18} w={800} numberOfLines={1}>
+                {entryName(managing)}
+              </T>
+              <T size={13} color={colors.muted}>
+                {managing.seed ? `Seed ${managing.seed} · ` : ''}
+                {managing.hasMatches ? 'Has played in this event' : drawn ? 'Hasn’t played yet' : 'In the entry list'}
+              </T>
+            </View>
+            <View style={{ gap: 6 }}>
+              {managing.players.map((p) => (
+                <Row key={p.playerId} gap={10}>
+                  <Avatar name={p.displayName} id={p.playerId} size={32} />
+                  <T flex numberOfLines={1}>
+                    {p.displayName}
+                  </T>
+                  {p.isGuest ? (
+                    <T size={12} color={colors.muted}>
+                      Guest
+                    </T>
+                  ) : null}
+                </Row>
+              ))}
+            </View>
+            <Button label={perSide > 1 ? 'Change players' : 'Change player'} icon="people" variant="surface" height={48} radius={14} size={15} onPress={() => startAdding(managing)} />
+            <Button
+              label={managing.hasMatches ? 'Withdraw from the event' : 'Remove from the event'}
+              icon={managing.hasMatches ? 'ban' : 'trash'}
+              variant="outline"
+              textColor={colors.bad}
+              height={48}
+              radius={14}
+              size={15}
+              onPress={() => removeEntry(managing)}
+            />
+            {managing.hasMatches ? (
+              <T size={12} color={colors.muted} center>
+                Entries that have played can’t be deleted, so their results stay.
+              </T>
+            ) : null}
+          </View>
+        ) : null}
+      </Sheet>
 
       <AddPlayerSheet
         visible={adding !== null}
         side={0}
-        title={adding && adding.length ? `Partner for ${adding[0]!.displayName}` : 'Add an entry'}
+        title={adding && adding.length ? `Partner for ${adding[0]!.displayName}` : addingFor ? `New player${perSide > 1 ? ' 1' : ''} for ${entryName(addingFor)}` : drawn ? 'Add a late entry' : 'Add an entry'}
         sport={e.sport.slug}
         sportName={e.sport.name}
-        taken={(adding ?? []).map((p) => p.key)}
+        taken={[...(adding ?? []).map((p) => p.key), ...e.entries.filter((x) => x.id !== addingFor?.id && x.status !== 'withdrawn').flatMap((x) => x.players.map((p) => p.userId ?? p.playerId))]}
         onAdd={(p) => {
           const players = [...(adding ?? []), p];
           if (players.length < perSide) {
@@ -220,9 +323,14 @@ export default function EntriesScreen() {
             return;
           }
           setAdding(null);
-          apply(() => tournamentsApi.addEntry(e.id, players.map((x) => x.input)));
+          const target = addingFor;
+          setAddingFor(null);
+          apply(() => (target ? tournamentsApi.updateEntry(target.id, { players: players.map((x) => x.input) }) : tournamentsApi.addEntry(e.id, players.map((x) => x.input))));
         }}
-        onClose={() => setAdding((a) => (a && a.length && a.length < perSide ? a : null))}
+        onClose={() => {
+          setAdding((a) => (a && a.length && a.length < perSide ? a : null));
+          if (!adding?.length) setAddingFor(null);
+        }}
       />
     </Screen>
   );

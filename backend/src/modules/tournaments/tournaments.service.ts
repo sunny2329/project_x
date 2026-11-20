@@ -3,8 +3,15 @@ import type { Db, DbTx } from '../../database/prisma.js';
 import { Prisma } from '../../database/prisma.js';
 import { parseConfig, rulesName, scoringRegistry, type ScoreSummary } from '../../engine/scoring/index.js';
 import {
+  addLateEntry,
   DEFAULT_TIEBREAKERS,
   fillGroupQualifiers,
+  groupFixturesFor,
+  rebuild,
+  removeFromBracket,
+  type BracketFixture,
+  type Decided,
+  type RebuildOptions,
   getFormat,
   initialNodes,
   parseFormatConfig,
@@ -61,6 +68,7 @@ function slugify(name: string): string {
 function engineError(error: unknown): never {
   if (error instanceof TournamentError) {
     if (error.code === 'NOT_READY') throw AppError.conflict('FIXTURE_NOT_READY', error.message);
+    if (error.code === 'CONFLICT') throw AppError.conflict('DRAW_LOCKED', error.message);
     throw AppError.badRequest('VALIDATION_ERROR', error.message);
   }
   throw error;
@@ -113,7 +121,15 @@ export interface FixtureView {
 
 export interface StandingView extends StandingRow {
   name: string;
+  /** Withdrawn or disqualified: ranked last, can't qualify ahead of anyone still in. */
+  withdrawn: boolean;
 }
+
+/** A fixture as the edit engine sees it, plus where it sits in the event. */
+type EventNode = BracketFixture & { stageId: string; stageType: string; groupId: string | null; resultType: FixtureResultType | null };
+
+const DONE = ['completed', 'bye', 'cancelled'];
+const OUT: Array<'withdrawn' | 'disqualified'> = ['withdrawn', 'disqualified'];
 
 export class TournamentsService implements MatchDecidedHook {
   constructor(
@@ -475,36 +491,29 @@ export class TournamentsService implements MatchDecidedHook {
   }
 
   /**
-   * Organizers add entries directly (approved, guests allowed). Anyone else may register
-   * themselves (and a partner) while registration is open; that entry waits for approval.
+   * Organizers add entries directly (approved, guests allowed), also after the draw: a late entry
+   * goes straight into the draw (see placeLateEntry). Anyone else may register themselves (and a
+   * partner) while registration is open; that entry waits for approval.
    */
   async addEntry(userId: string, eventId: string, input: z.infer<typeof addEntrySchema>) {
     const event = await this.eventWithTournament(eventId);
-    const isOrganizer = await this.assertOrganizer(userId, event.tournamentId).then(
-      () => true,
-      () => false,
-    );
+    const isOrganizer = await this.isOrganizer(userId, event.tournamentId);
     if (!isOrganizer && event.status !== 'registration_open') throw AppError.conflict('REGISTRATION_CLOSED', 'Registration for this event is closed.');
-    if (await this.db.tournamentStage.count({ where: { eventId } })) throw AppError.conflict('ALREADY_DRAWN', 'The draw has been made.');
-    const f = event.sportFormat;
-    if (input.players.length < f.minPerSide || input.players.length > f.maxPerSide) {
-      throw invalid('players', `${event.name} entries need ${f.playersPerSide} player${f.playersPerSide > 1 ? 's' : ''}`);
-    }
-    const cap = playersCap(event);
-    if (cap !== null && input.players.length > cap) throw invalid('players', `${event.name} is ${cap} a side: list at most ${cap} player${cap > 1 ? 's' : ''}`);
-    if (event.maxEntries) {
+    const drawn = (await this.db.tournamentStage.count({ where: { eventId } })) > 0;
+    if (drawn && !isOrganizer) throw AppError.conflict('ALREADY_DRAWN', 'The draw has been made.');
+    if (drawn) assertNotFinished(event.status);
+    this.checkRosterSize(event, input.players.length);
+    // The limit is for sign-ups; an organizer adding to a running draw raises it.
+    if (event.maxEntries && !drawn) {
       const n = await this.db.tournamentEntry.count({ where: { eventId, status: { in: ['pending', 'approved'] } } });
       if (n >= event.maxEntries) throw AppError.conflict('EVENT_FULL', 'This event is full.');
     }
     await this.tx(async (tx) => {
-      const people = await this.players.resolve(userId, input.players as ParticipantInput[], tx);
+      const people = await this.resolveRoster(tx, userId, event, input.players as ParticipantInput[]);
       if (!isOrganizer) {
         const me = await this.players.ensureForUser(userId, tx);
-        if (!people.some((p) => p.playerId === me.playerId)) throw invalid('players', 'Register yourself as one of the players');
+        if (!people.some((p) => p === me.playerId)) throw invalid('players', 'Register yourself as one of the players');
       }
-      if (new Set(people.map((p) => p.playerId)).size !== people.length) throw invalid('players', 'A player can only be listed once');
-      const clash = await tx.tournamentEntryMember.findFirst({ where: { eventId, playerId: { in: people.map((p) => p.playerId) } }, include: { player: true } });
-      if (clash) throw invalid('players', `${clash.player.displayName} is already entered in this event`);
       await assertTeamsUsable(tx, [input.teamId], event.sportId);
       const entryId = randomUUID();
       await tx.tournamentEntry.create({
@@ -518,41 +527,245 @@ export class TournamentsService implements MatchDecidedHook {
           registeredByUserId: userId,
         },
       });
-      await tx.tournamentEntryMember.createMany({ data: people.map((p, sortOrder) => ({ entryId, eventId, playerId: p.playerId, sortOrder })) });
-    }).catch((error: unknown) => {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') throw invalid('seed', 'Another entry has this seed');
-      throw error;
-    });
+      await tx.tournamentEntryMember.createMany({ data: people.map((playerId, sortOrder) => ({ entryId, eventId, playerId, sortOrder })) });
+      if (drawn) await this.placeLateEntry(tx, event, entryId, input.groupId);
+    }).catch(seedClash);
     return this.eventDetail(userId, eventId);
   }
 
-  /** Organizers approve, decline (disqualified), seed or withdraw entries; a player may withdraw their own before the draw. */
+  /**
+   * Organizers approve, decline (disqualified), seed, withdraw, rename or change the players of an
+   * entry; a player may withdraw their own before the draw. After the draw, approving puts the
+   * entry into the draw and withdrawing takes it out (its results stay, its opponents move on).
+   */
   async updateEntry(userId: string, entryId: string, input: z.infer<typeof updateEntrySchema>) {
-    const entry = await this.db.tournamentEntry.findUnique({ where: { id: entryId }, include: { event: true, members: { include: { player: true } } } });
+    const entry = await this.db.tournamentEntry.findUnique({ where: { id: entryId }, include: { members: { include: { player: true } } } });
     if (!entry) throw notFound('entry');
-    const drawn = await this.db.tournamentStage.count({ where: { eventId: entry.eventId } });
-    const isOrganizer = await this.assertOrganizer(userId, entry.event.tournamentId).then(
-      () => true,
-      () => false,
-    );
+    const event = await this.eventWithTournament(entry.eventId);
+    const drawn = (await this.db.tournamentStage.count({ where: { eventId: entry.eventId } })) > 0;
+    const isOrganizer = await this.isOrganizer(userId, event.tournamentId);
     if (!isOrganizer) {
       const own = entry.registeredByUserId === userId || entry.members.some((m) => m.player.userId === userId);
-      if (!own || input.seed !== undefined || input.status !== 'withdrawn') {
+      if (!own || input.seed !== undefined || input.name !== undefined || input.players || input.status !== 'withdrawn') {
         throw AppError.forbidden('NOT_ORGANIZER', 'Only the organizers can change this tournament.');
       }
       if (drawn) throw AppError.conflict('ALREADY_DRAWN', 'The draw has been made; ask the organizer to withdraw you.');
     }
     if (drawn && input.seed !== undefined) throw AppError.conflict('ALREADY_DRAWN', 'Seeds are fixed once the draw is made.');
-    try {
-      await this.db.tournamentEntry.update({
-        where: { id: entryId },
-        data: { ...(input.status ? { status: input.status } : {}), ...(input.seed !== undefined ? { seed: input.seed } : {}) },
-      });
-    } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') throw invalid('seed', 'Another entry has this seed');
-      throw error;
+    if (input.players) this.checkRosterSize(event, input.players.length);
+    const from = entry.status;
+    const to = input.status ?? from;
+    if (drawn && from !== to) {
+      if (to === 'pending') throw invalid('status', 'An entry can’t go back to pending once the draw is made');
+      if (to === 'approved') {
+        assertNotFinished(event.status);
+        if (await this.wasInDraw(entryId)) throw AppError.conflict('ENTRY_WAS_IN_DRAW', 'This entry left the draw and can’t come back. Add it again as a new entry.');
+      }
     }
+    await this.tx(async (tx) => {
+      await tx.tournamentEntry.update({
+        where: { id: entryId },
+        data: {
+          ...(input.status ? { status: input.status } : {}),
+          ...(input.seed !== undefined ? { seed: input.seed } : {}),
+          ...(input.name !== undefined ? { name: input.name } : {}),
+        },
+      });
+      if (input.players) {
+        const people = await this.resolveRoster(tx, userId, event, input.players as ParticipantInput[], entryId);
+        await tx.tournamentEntryMember.deleteMany({ where: { entryId } });
+        await tx.tournamentEntryMember.createMany({ data: people.map((playerId, sortOrder) => ({ entryId, eventId: entry.eventId, playerId, sortOrder })) });
+      }
+      if (drawn && from !== to) {
+        if (to === 'approved') await this.placeLateEntry(tx, event, entryId);
+        else if (from === 'approved') await this.takeOut(tx, entry.eventId, entryId, 'withdraw');
+      }
+    }).catch(seedClash);
     return this.eventDetail(userId, entry.eventId);
+  }
+
+  /**
+   * Deletes an entry that has not played a match, before or after the draw. In a running draw its
+   * opponent moves on (a play-in made for it disappears). Entries with matches are withdrawn instead.
+   */
+  async deleteEntry(userId: string, entryId: string) {
+    const entry = await this.db.tournamentEntry.findUnique({ where: { id: entryId } });
+    if (!entry) throw notFound('entry');
+    const event = await this.eventWithTournament(entry.eventId);
+    await this.assertOrganizer(userId, event.tournamentId);
+    if (await this.db.matchSide.count({ where: { entryId } })) {
+      throw AppError.conflict('ENTRY_HAS_MATCHES', 'This entry has played, so it can’t be deleted. Withdraw it instead: its results stay and its opponents move on.');
+    }
+    const drawn = (await this.db.tournamentStage.count({ where: { eventId: entry.eventId } })) > 0;
+    await this.tx(async (tx) => {
+      if (drawn && entry.status !== 'pending') await this.takeOut(tx, entry.eventId, entryId, 'remove');
+      else await tx.tournamentEntry.delete({ where: { id: entryId } });
+    });
+    return this.eventDetail(userId, entry.eventId);
+  }
+
+  private isOrganizer(userId: string, tournamentId: string): Promise<boolean> {
+    return this.assertOrganizer(userId, tournamentId).then(
+      () => true,
+      () => false,
+    );
+  }
+
+  private checkRosterSize(event: Awaited<ReturnType<TournamentsService['eventWithTournament']>>, count: number): void {
+    const f = event.sportFormat;
+    if (count < f.minPerSide || count > f.maxPerSide) {
+      throw invalid('players', `${event.name} entries need ${f.playersPerSide} player${f.playersPerSide > 1 ? 's' : ''}`);
+    }
+    const cap = playersCap(event);
+    if (cap !== null && count > cap) throw invalid('players', `${event.name} is ${cap} a side: list at most ${cap} player${cap > 1 ? 's' : ''}`);
+  }
+
+  /** Player ids for an entry's players: each listed once, and in no other entry of the event. */
+  private async resolveRoster(tx: DbTx, userId: string, event: { id: string }, players: ParticipantInput[], exceptEntryId?: string): Promise<string[]> {
+    const people = (await this.players.resolve(userId, players, tx)).map((p) => p.playerId);
+    if (new Set(people).size !== people.length) throw invalid('players', 'A player can only be listed once');
+    const clash = await tx.tournamentEntryMember.findFirst({
+      where: { eventId: event.id, playerId: { in: people }, ...(exceptEntryId ? { entryId: { not: exceptEntryId } } : {}) },
+      include: { player: true },
+    });
+    if (clash) throw invalid('players', `${clash.player.displayName} is already entered in this event`);
+    return people;
+  }
+
+  private async wasInDraw(entryId: string): Promise<boolean> {
+    const [fixtures, groups] = await Promise.all([
+      this.db.fixture.count({ where: { OR: [{ entry1Id: entryId }, { entry2Id: entryId }, { winnerEntryId: entryId }] } }),
+      this.db.stageGroupEntry.count({ where: { entryId } }),
+    ]);
+    return fixtures + groups > 0;
+  }
+
+  /**
+   * Puts an entry into a draw that has been made. Round robin / groups: it joins the smallest group
+   * still playing (or `groupId`) with a match against everyone there. Knockout: it takes a free bye,
+   * or plays a play-in against the weakest entry still waiting for its first match.
+   */
+  private async placeLateEntry(tx: DbTx, event: { id: string; formatConfig: Prisma.JsonValue; maxEntries: number | null }, entryId: string, groupId?: string): Promise<void> {
+    const stages = await tx.tournamentStage.findMany({
+      where: { eventId: event.id },
+      orderBy: { sequence: 'asc' },
+      include: { groups: { orderBy: { sequence: 'asc' }, include: { entries: { include: { entry: { select: { status: true } } } } } } },
+    });
+    const first = stages[0];
+    if (!first) return;
+    const nodes = await this.loadNodes(tx, event.id);
+    const before = new Map<string, FixtureNode>(nodes.map((n) => [n.key, n]));
+    const active = (g: (typeof first.groups)[number]) => g.entries.filter((e) => !OUT.includes(e.entry.status as 'withdrawn'));
+    let approved: number | undefined;
+
+    if (first.type === 'round_robin') {
+      const open = first.groups.filter((g) => {
+        const fixtures = nodes.filter((n) => n.groupId === g.id);
+        return !fixtures.length || fixtures.some((n) => !DONE.includes(n.status));
+      });
+      let group = groupId ? first.groups.find((g) => g.id === groupId) : [...open].sort((a, b) => active(a).length - active(b).length || a.sequence - b.sequence)[0];
+      if (groupId && !group) throw invalid('groupId', 'Unknown group');
+      if (!group) throw AppError.conflict('GROUPS_FINISHED', 'The group stage is over, so a new entry can’t join any more.');
+      if (!open.includes(group)) throw AppError.conflict('GROUP_FINISHED', `${group.name} has finished; pick a group that is still playing.`);
+      group = group!;
+      const legs = (event.formatConfig as { legs?: number } | null)?.legs === 2 ? 2 : 1;
+      const existing = nodes.filter((n) => n.groupId === group.id).map((n) => ({ round: n.round, position: n.position, entries: n.entries, done: DONE.includes(n.status) }));
+      const added = groupFixturesFor(existing, active(group).map((e) => e.entryId), entryId, legs);
+      await tx.stageGroupEntry.create({ data: { groupId: group.id, entryId, position: Math.max(0, ...group.entries.map((e) => e.position)) + 1 } });
+      await tx.fixture.createMany({
+        data: added.map((f) => ({
+          stageId: first.id,
+          groupId: group.id,
+          round: f.round,
+          position: f.position,
+          roundName: `Round ${f.round}`,
+          status: 'ready' as const,
+          entry1Id: f.entries[0],
+          entry2Id: f.entries[1],
+          entry1Source: { kind: 'entry', entryId: f.entries[0] },
+          entry2Source: { kind: 'entry', entryId: f.entries[1] },
+        })),
+      });
+    } else {
+      const all = await tx.tournamentEntry.findMany({ where: { eventId: event.id }, select: { id: true, seed: true, status: true } });
+      approved = all.filter((e) => e.status === 'approved').length;
+      const seeds = new Map(all.map((e) => [e.id, e.seed]));
+      const out = all.filter((e) => OUT.includes(e.status as 'withdrawn')).map((e) => e.id);
+      const knockout = nodes.filter((n) => n.stageId === first.id);
+      const options = await this.rebuildOptions(tx, event.id, nodes, [], out);
+      let result: ReturnType<typeof addLateEntry>;
+      try {
+        result = addLateEntry(knockout, entryId, options, (id) => seeds.get(id) ?? 10_000, randomUUID());
+      } catch (error) {
+        if (error instanceof TournamentError && error.code === 'NOT_READY') throw AppError.conflict('DRAW_FULL', error.message);
+        engineError(error);
+      }
+      const bracket = first.groups[0]!;
+      await tx.stageGroupEntry.create({ data: { groupId: bracket.id, entryId, position: Math.max(0, ...bracket.entries.map((e) => e.position)) + 1 } });
+      const byKey = new Map(result.nodes.map((n) => [n.key, n]));
+      const next: EventNode[] = nodes.map((n) => ({ ...n, ...(byKey.get(n.key) ?? {}) }));
+      const c = result.created;
+      if (c) {
+        await tx.fixture.create({
+          data: {
+            id: c.key,
+            stageId: first.id,
+            groupId: bracket.id,
+            round: c.round,
+            position: c.position,
+            roundName: c.roundName,
+            entry1Source: c.slots[0] as Prisma.InputJsonValue,
+            entry2Source: c.slots[1] as Prisma.InputJsonValue,
+            nextFixtureId: c.next!.fixtureKey,
+            nextFixtureSlot: c.next!.slot,
+          },
+        });
+        next.push({ ...c, stageId: first.id, stageType: 'knockout', groupId: bracket.id, resultType: null });
+      }
+      await this.commitNodes(tx, event.id, next, before, { edit: true, out });
+    }
+    if (event.maxEntries === null) return;
+    const count = approved ?? (await tx.tournamentEntry.count({ where: { eventId: event.id, status: 'approved' } }));
+    if (count > event.maxEntries) await tx.tournamentEvent.update({ where: { id: event.id }, data: { maxEntries: count } });
+  }
+
+  /**
+   * Takes an entry out of a draw. `withdraw`: its results stay, its unplayed group matches are
+   * cancelled and it ranks last; in a knockout its next opponent moves on. `remove` (no matches
+   * played): its fixtures go and the entry is deleted.
+   */
+  private async takeOut(tx: DbTx, eventId: string, entryId: string, mode: 'withdraw' | 'remove'): Promise<void> {
+    const nodes = await this.loadNodes(tx, eventId);
+    if (nodes.some((n) => n.status === 'live' && n.entries.includes(entryId))) {
+      throw AppError.conflict('MATCH_LIVE', 'This entry is playing a match right now. Finish or retire that match first.');
+    }
+    const before = new Map<string, FixtureNode>(nodes.map((n) => [n.key, n]));
+    let next = nodes;
+
+    const inGroups = next.filter((n) => n.stageType === 'round_robin' && n.entries.includes(entryId) && (mode === 'remove' || !DONE.includes(n.status)));
+    if (mode === 'remove') {
+      await tx.fixture.deleteMany({ where: { id: { in: inGroups.map((n) => n.key) } } });
+      await tx.stageGroupEntry.deleteMany({ where: { entryId } });
+      next = next.filter((n) => !inGroups.includes(n));
+    } else {
+      next = next.map((n) => (inGroups.includes(n) ? { ...n, status: 'cancelled' as const } : n));
+    }
+
+    const knockout = next.filter((n) => n.stageType === 'knockout');
+    if (knockout.length) {
+      const options = await this.rebuildOptions(tx, eventId, next, [entryId]);
+      let result: ReturnType<typeof removeFromBracket>;
+      try {
+        result = removeFromBracket(knockout, entryId, options);
+      } catch (error) {
+        engineError(error);
+      }
+      if (result.removed.length) await tx.fixture.deleteMany({ where: { id: { in: result.removed } } });
+      const byKey = new Map(result.nodes.map((n) => [n.key, n]));
+      next = next.filter((n) => !result.removed.includes(n.key)).map((n) => ({ ...n, ...(byKey.get(n.key) ?? {}) }));
+    }
+    await this.commitNodes(tx, eventId, next, before, { extraOut: [entryId], edit: true });
+    if (mode === 'remove') await tx.tournamentEntry.delete({ where: { id: entryId } });
   }
 
   private async entryNames(eventId: string, db: DbTx = this.db): Promise<Map<string, string>> {
@@ -665,14 +878,30 @@ export class TournamentsService implements MatchDecidedHook {
   // Fixture state <-> engine nodes
   // ------------------------------------------------------------------------------------------
 
-  private async loadNodes(tx: DbTx, eventId: string): Promise<FixtureNode[]> {
-    const rows = await tx.fixture.findMany({ where: { stage: { eventId } } });
+  private async loadNodes(tx: DbTx, eventId: string): Promise<EventNode[]> {
+    const rows = await tx.fixture.findMany({
+      where: { stage: { eventId } },
+      include: { stage: { select: { type: true } }, match: { select: { resultType: true } } },
+      orderBy: [{ round: 'asc' }, { position: 'asc' }],
+    });
+    // `byeArrived` is storage only: the engine reads it from `byes`, and slots stay pure sources.
+    const clean = (s: StoredSource): SlotSource => {
+      const { byeArrived: _arrived, ...source } = s;
+      return source as SlotSource;
+    };
     return rows.map((f) => {
       const s1 = f.entry1Source as StoredSource;
       const s2 = f.entry2Source as StoredSource;
       return {
         key: f.id,
-        slots: [s1, s2],
+        stageId: f.stageId,
+        stageType: f.stage.type,
+        groupId: f.groupId,
+        round: f.round,
+        position: f.position,
+        roundName: f.roundName,
+        resultType: (f.match?.resultType ?? null) as FixtureResultType | null,
+        slots: [clean(s1), clean(s2)],
         entries: [f.entry1Id, f.entry2Id],
         byes: [s1.kind === 'bye' || !!s1.byeArrived, s2.kind === 'bye' || !!s2.byeArrived],
         status: f.status,
@@ -683,7 +912,7 @@ export class TournamentsService implements MatchDecidedHook {
     });
   }
 
-  /** Writes back only the fixtures whose state changed. */
+  /** Writes back only the fixtures whose state (or slot sources) changed. */
   private async saveNodes(tx: DbTx, _eventId: string, nodes: FixtureNode[], before: Map<string, FixtureNode>): Promise<void> {
     for (const node of nodes) {
       const old = before.get(node.key);
@@ -694,7 +923,8 @@ export class TournamentsService implements MatchDecidedHook {
         old.entries[0] === node.entries[0] &&
         old.entries[1] === node.entries[1] &&
         old.byes[0] === node.byes[0] &&
-        old.byes[1] === node.byes[1];
+        old.byes[1] === node.byes[1] &&
+        JSON.stringify(old.slots) === JSON.stringify(node.slots);
       if (same) continue;
       const source = (i: 0 | 1): StoredSource => {
         const s = node.slots[i] as StoredSource;
@@ -711,6 +941,83 @@ export class TournamentsService implements MatchDecidedHook {
           entry2Source: source(1) as Prisma.InputJsonValue,
         },
       });
+    }
+  }
+
+  /** Results that stand, live fixtures and entries that are out, for `rebuild`. */
+  private async rebuildOptions(tx: DbTx, eventId: string, nodes: EventNode[], extraOut: string[] = [], known?: string[]): Promise<RebuildOptions> {
+    const out = known ? known.map((id) => ({ id })) : await tx.tournamentEntry.findMany({ where: { eventId, status: { in: OUT } }, select: { id: true } });
+    const decided = new Map<string, Decided>();
+    for (const n of nodes) {
+      if (n.status === 'completed') decided.set(n.key, { winnerEntryId: n.winnerEntryId, type: n.resultType ?? 'played' });
+    }
+    return { decided, live: new Set(nodes.filter((n) => n.status === 'live').map((n) => n.key)), withdrawn: new Set([...out.map((e) => e.id), ...extraOut]) };
+  }
+
+  /**
+   * After a change to an event's fixtures: fills the knockout from every finished group (with the
+   * current ranking, withdrawn entries last), works the knockout out again, saves what changed and
+   * updates stage / event / tournament status.
+   */
+  private async commitNodes(
+    tx: DbTx,
+    eventId: string,
+    nodes: EventNode[],
+    before: Map<string, FixtureNode>,
+    options: { extraOut?: string[]; edit?: boolean; out?: string[] } = {},
+  ): Promise<EventNode[]> {
+    const { extraOut = [], edit = false } = options;
+    let next: EventNode[] = nodes;
+    const knockout = next.some((n) => n.stageType === 'knockout');
+    const groups = [...new Set(next.filter((n) => n.stageType === 'round_robin' && n.groupId).map((n) => n.groupId!))];
+    let filled = false;
+    for (const groupId of groups) {
+      const fixtures = next.filter((n) => n.groupId === groupId);
+      if (!knockout || !fixtures.every((n) => DONE.includes(n.status))) continue;
+      // A finished group fills the knockout when it has just finished, or when an edit may have
+      // changed its ranking (a withdrawal).
+      const changed = fixtures.some((n) => before.get(n.key)?.status !== n.status);
+      if (!changed && !edit) continue;
+      const ranking = await this.groupStandings(tx, groupId);
+      const refilled = fillGroupQualifiers(next, groupId, ranking.map((r) => r.entryId));
+      next = next.map((n) => ({ ...n, ...refilled.find((x) => x.key === n.key)! }));
+      filled = true;
+    }
+    // A plain result only moves its winner on; edits and freshly filled groups work the bracket out
+    // again so withdrawn entries become byes.
+    if (knockout && (edit || filled)) {
+      const rebuildWith = await this.rebuildOptions(tx, eventId, next, extraOut, options.out);
+      let rebuilt: EventNode[];
+      try {
+        rebuilt = rebuild(next.filter((n) => n.stageType === 'knockout'), rebuildWith);
+      } catch (error) {
+        engineError(error);
+      }
+      const byKey = new Map(rebuilt.map((n) => [n.key, n]));
+      next = next.map((n) => byKey.get(n.key) ?? n);
+    }
+    await this.saveNodes(tx, eventId, next, before);
+    await this.updateStatuses(tx, eventId, next);
+    return next;
+  }
+
+  private async updateStatuses(tx: DbTx, eventId: string, nodes: FixtureNode[]): Promise<void> {
+    const status = new Map(nodes.map((n) => [n.key, n.status]));
+    const isDone = (id: string) => DONE.includes(status.get(id) ?? 'completed');
+    const stages = await tx.tournamentStage.findMany({ where: { eventId }, include: { fixtures: { select: { id: true, matchId: true } } }, orderBy: { sequence: 'asc' } });
+    for (const stage of stages) {
+      const done = stage.fixtures.every((f) => isDone(f.id));
+      const started = stage.fixtures.some((f) => f.matchId);
+      const want = done && stage.fixtures.length ? 'completed' : started ? 'in_progress' : 'pending';
+      if (want !== stage.status) await tx.tournamentStage.update({ where: { id: stage.id }, data: { status: want } });
+    }
+    const finished = stages.length > 0 && stages.every((s) => s.fixtures.every((f) => isDone(f.id)));
+    if (!finished) return;
+    const event = await tx.tournamentEvent.findUniqueOrThrow({ where: { id: eventId } });
+    if (event.status !== 'completed') {
+      await tx.tournamentEvent.update({ where: { id: eventId }, data: { status: 'completed' } });
+      const open = await tx.tournamentEvent.count({ where: { tournamentId: event.tournamentId, status: { notIn: ['completed', 'cancelled'] } } });
+      if (!open) await tx.tournament.update({ where: { id: event.tournamentId }, data: { status: 'completed' } });
     }
   }
 
@@ -819,37 +1126,15 @@ export class TournamentsService implements MatchDecidedHook {
 
     const nodes = await this.loadNodes(tx, eventId);
     const before = new Map(nodes.map((n) => [n.key, n]));
-    let next: FixtureNode[];
+    let decided: FixtureNode[];
     try {
-      next = recordOutcome(nodes, fixture.id, { type, winnerEntryId: winner?.entryId ?? null });
+      decided = recordOutcome(nodes, fixture.id, { type, winnerEntryId: winner?.entryId ?? null });
     } catch (error) {
       engineError(error);
     }
-
-    if (fixture.groupId && fixture.stage.type === 'round_robin') {
-      const groupDone = (await tx.fixture.findMany({ where: { groupId: fixture.groupId }, select: { id: true } })).every((f) => {
-        const n = next.find((x) => x.key === f.id)!;
-        return n.status === 'completed' || n.status === 'bye' || n.status === 'cancelled';
-      });
-      if (groupDone) {
-        const ranking = await this.groupStandings(tx, fixture.groupId);
-        next = fillGroupQualifiers(next, fixture.groupId, ranking.map((r) => r.entryId));
-      }
-    }
-    await this.saveNodes(tx, eventId, next, before);
-
-    // Stage / event / tournament completion.
-    const stages = await tx.tournamentStage.findMany({ where: { eventId }, include: { fixtures: { select: { id: true } } }, orderBy: { sequence: 'asc' } });
-    for (const stage of stages) {
-      const done = stage.fixtures.every((f) => ['completed', 'bye', 'cancelled'].includes(next.find((n) => n.key === f.id)!.status));
-      if (done) await tx.tournamentStage.update({ where: { id: stage.id }, data: { status: 'completed' } });
-    }
-    if (stages.length && stages.every((s) => s.fixtures.every((f) => ['completed', 'bye', 'cancelled'].includes(next.find((n) => n.key === f.id)!.status)))) {
-      await tx.tournamentEvent.update({ where: { id: eventId }, data: { status: 'completed' } });
-      const event = await tx.tournamentEvent.findUniqueOrThrow({ where: { id: eventId } });
-      const open = await tx.tournamentEvent.count({ where: { tournamentId: event.tournamentId, status: { notIn: ['completed', 'cancelled'] } } });
-      if (!open) await tx.tournament.update({ where: { id: event.tournamentId }, data: { status: 'completed' } });
-    }
+    // recordOutcome keeps every node's fields; it only moves state.
+    const next = nodes.map((n) => ({ ...n, ...decided.find((x) => x.key === n.key)!, ...(n.key === fixture.id ? { resultType: type } : {}) }));
+    await this.commitNodes(tx, eventId, next, before);
   }
 
   // ------------------------------------------------------------------------------------------
@@ -878,8 +1163,11 @@ export class TournamentsService implements MatchDecidedHook {
     const ids = group.entries.sort((a, b) => a.position - b.position).map((e) => e.entryId);
     const seeds = new Map(group.entries.map((e) => [e.entryId, e.entry.seed]));
     const names = await this.entryNames(group.stage.eventId, db);
+    const out = new Set(group.entries.filter((e) => OUT.includes(e.entry.status as 'withdrawn')).map((e) => e.entryId));
     const table = rankGroup(ids, results, group.stage.event.tiebreakers as Tiebreaker[], seeds);
-    return table.map((row) => ({ ...row, name: names.get(row.entryId) ?? '' }));
+    // Withdrawn entries keep their results but go to the bottom, so the next best qualify.
+    const ordered = [...table.filter((r) => !out.has(r.entryId)), ...table.filter((r) => out.has(r.entryId))];
+    return ordered.map((row, i) => ({ ...row, rank: i + 1, name: names.get(row.entryId) ?? '', withdrawn: out.has(row.entryId) }));
   }
 
   /** Everything for an event screen or the public page: entries, stages, groups, standings, fixtures. */
@@ -901,6 +1189,9 @@ export class TournamentsService implements MatchDecidedHook {
       (await this.db.playerRating.findMany({ where: { sportId: event.sportId, playerId: { in: entries.flatMap((e) => e.members.map((m) => m.playerId)) } } })).map(
         (r) => [r.playerId, r.rating],
       ),
+    );
+    const played = new Set(
+      (await this.db.matchSide.findMany({ where: { entryId: { in: entries.map((e) => e.id) } }, select: { entryId: true }, distinct: ['entryId'] })).map((r) => r.entryId),
     );
     const standings: Record<string, StandingView[]> = {};
     for (const stage of stages) {
@@ -928,6 +1219,8 @@ export class TournamentsService implements MatchDecidedHook {
           status: e.status,
           rating: Math.round(values.reduce((a, b) => a + b, 0) / Math.max(values.length, 1)),
           createdAt: e.createdAt.toISOString(),
+          /** Has played (or is playing) a match: it can be withdrawn but not deleted. */
+          hasMatches: played.has(e.id),
           players: e.members.map((m) => ({ playerId: m.player.id, userId: m.player.userId, displayName: m.player.displayName, isGuest: m.player.userId === null })),
         };
       }),
@@ -1125,6 +1418,15 @@ export class TournamentsService implements MatchDecidedHook {
       ],
     });
   }
+}
+
+function assertNotFinished(status: string): void {
+  if (status === 'completed' || status === 'cancelled') throw AppError.conflict('EVENT_FINISHED', 'This event has finished.');
+}
+
+function seedClash(error: unknown): never {
+  if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') throw invalid('seed', 'Another entry has this seed');
+  throw error;
 }
 
 function ordinal(n: number): string {

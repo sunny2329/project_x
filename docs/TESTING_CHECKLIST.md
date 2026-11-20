@@ -481,6 +481,18 @@ Writes made when the match ended:
 | `draw` | Make the draw | `POST …/draw` `{preview: false, randomSeed}` | **+ tournament_stages** · **+ stage_groups** · **+ stage_group_entries** · **+ fixtures**, then **~ fixtures** (next / loser-next links, entries, status ready/bye/pending) · **~ tournament_events.status = drawn** |
 | `draw` | Reset | `DELETE …/draw` | **− tournament_stages**, which cascades to **− stage_groups, stage_group_entries, fixtures** · **~ tournament_events.status = registration_closed** |
 | `bracket` / `groups` / `podium` | View | `GET /tournament-events/:id` | — · 📱 share on the podium |
+| `entries` | Late entry after the draw (organizer, + button) | `POST /tournament-events/:id/entries` | as §28 (approved) · knockout: **~ fixtures** (a free bye filled) or **+ fixtures** (play-in, round 0) and **~ fixtures** (the slot it feeds) · groups: **+ stage_group_entries** · **+ fixtures** (one per member, per leg) · **~ tournament_events.max_entries** when it goes over |
+| `entries` | Approve a pending sign-up after the draw | `PATCH /entries/:id` `{status: approved}` | as a late entry |
+| `entries` | Change an entry's players / name (pencil) | `PATCH /entries/:id` `{players?, name?}` | **− / + tournament_entry_members** · **~ tournament_entries.name** |
+| `entries` | Remove an entry that hasn't played (pencil → Remove) | `DELETE /entries/:id` | **− tournament_entries** (cascades members, group rows) · after the draw: **− fixtures** (its group matches / its play-in) · **~ fixtures** (its line becomes a bye, the opponent moves on) |
+| `entries` | Withdraw an entry that has played (pencil → Withdraw) | `PATCH /entries/:id` `{status: withdrawn}` | **~ tournament_entries.status** · **~ fixtures** (unplayed group matches → cancelled; knockout: next opponent moves on by bye) · stage / event status if that finished it |
+- [ ] Knockout full (8 of 8) and started: two late entries get play-ins against the lowest seeds still waiting; the play-in winner appears in round 1; the bracket shows a "Play-ins" row
+- [ ] Knockout with byes: a late entry takes the weakest bye-holder's bye (no play-in)
+- [ ] Round robin / groups: a late entry joins the smallest unfinished group with a match against everyone; finished groups refuse (`GROUP_FINISHED` / `GROUPS_FINISHED`)
+- [ ] Remove an unplayed entry → opponent shows ADV; remove a late play-in entry → the play-in disappears
+- [ ] Entry that has played: Delete → `ENTRY_HAS_MATCHES`; Withdraw → results stay, "WD" ranked last in groups, can't qualify; next knockout opponent goes through
+- [ ] Withdraw while its match is live → `MATCH_LIVE`; approve a withdrawn entry again → `ENTRY_WAS_IN_DRAW`; late entry to a finished event → `EVENT_FINISHED`
+- [ ] Change players: someone already in another entry → validation error; wrong number of players → validation error; non-organizer → 403
 - [ ] The same seed gives the same draw; byes advance automatically
 - [ ] Reset after a fixture has started → error
 

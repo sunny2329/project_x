@@ -353,9 +353,39 @@ took ~3 s. Decided: move Neon to Singapore (ap-southeast-1, ~70 ms) and add Redi
 | Players | `GET /players?q=`, `GET /players/me`, `GET/POST /players/guests`, `POST /players/claim` |
 | Matches | `POST /matches` (`{sport, format, rulesetId?, rulesOverride?, sides:[{name?, color?, players:[{userId}|{playerId}|{guest}, jerseyNumber?]}], manualScores?}`; `color` `#RRGGBB`, shirt numbers 0-99 unique per side), `GET /matches/live`, `GET /matches/pending-confirmations`, `GET /matches/:id`, `POST /matches/:id/events` (`{event, version, clientEventId?}`), `/undo`, `/complete`, `/retire`, `/walkover`, `/abandon`, `/confirm`, `/scorers` |
 | Tournaments | `GET/POST /tournaments`, `GET/PATCH /tournaments/:id`, `POST /tournaments/:id/{staff,courts,events}`, `DELETE /tournaments/:id/staff/:userId/:role`, `POST /courts/:id/scorers` |
-| Categories | `GET/PATCH /tournament-events/:id`, `POST /tournament-events/:id/entries`, `POST /tournament-events/:id/draw` (`{preview?, randomSeed?}`), `DELETE /tournament-events/:id/draw`, `PATCH /entries/:id` (approve, seed) |
+| Categories | `GET/PATCH /tournament-events/:id`, `POST /tournament-events/:id/entries`, `POST /tournament-events/:id/draw` (`{preview?, randomSeed?}`), `DELETE /tournament-events/:id/draw`, `PATCH /entries/:id` (approve, seed, withdraw, `name`, `players`), `DELETE /entries/:id` (entries that haven't played) |
 | Fixtures | `GET /fixtures/mine`, `GET/PATCH /fixtures/:id` (court, time), `POST /fixtures/:id/start`, `/walkover`, `/result` |
 | Public (no login) | `GET /public/matches/:shareToken`, `GET /public/tournaments/:slug`, `GET /public/tournament-events/:id`; pages `/s/:shareToken` (live scoreboard) and `/t/:slug` (brackets, fixtures, live scores, standings) |
+
+### Changing a running draw (since 2026-11-20)
+Organizers can add, remove, withdraw and edit entries after the draw, even while matches are being
+played. Code: `engine/tournament/edit.ts` (pure) + `TournamentsService.placeLateEntry` / `takeOut`.
+- **How it works:** a change edits the slot sources of unplayed fixtures, then `rebuild()` works the
+  knockout out again from the sources plus the results that stand. If a played or live match would
+  change, it's refused (409 `DRAW_LOCKED`), so history never moves.
+- **Late entry, knockout:** takes a free round-1 bye if one is left (the weakest bye-holder plays
+  it). Otherwise it gets a **play-in** (`round_name` "Play-in", round 0) against the weakest entry
+  (highest seed, unseeded last) whose first match hasn't started, and the winner takes that slot.
+  When every first-round match has started → 409 `DRAW_FULL`.
+- **Late entry, round robin / groups:** joins the smallest group still playing (or `groupId`), with
+  a match against every active member (per leg). Each match goes in the earliest round from the
+  first unfinished one where neither side plays; extra rounds are added at the end. A finished group
+  → 409 `GROUP_FINISHED`, group stage over → `GROUPS_FINISHED`.
+- Organizers aren't held to `max_entries` after the draw; it rises with the approved count.
+  Approving a pending sign-up after the draw places it the same way. Players can't sign up after the draw.
+- **Remove** (`DELETE /entries/:id`, only if the entry has no match): its group matches go; in a
+  knockout its line becomes a bye (the opponent moves on) and an unplayed play-in made for it
+  disappears (the other entry gets the slot back). Played → 409 `ENTRY_HAS_MATCHES`.
+- **Withdraw / disqualify** (`PATCH` status): results stay; unplayed group matches are `cancelled`;
+  standings put withdrawn entries last (`withdrawn: true`, "WD" in the app), so the next best
+  qualify; in a knockout it's a bye wherever it would go next. Its match live → 409 `MATCH_LIVE`.
+  A withdrawn entry that was in the draw can't be approved back (409 `ENTRY_WAS_IN_DRAW`).
+- **Edit** (`PATCH /entries/:id` `{players?, name?}`, organizers, any time): same player-count and
+  "not in another entry" checks as adding. Matches already created keep their players; later ones use
+  the new roster. `name: null` goes back to the players' names.
+- Late entries into a finished event → 409 `EVENT_FINISHED`. Seeds stay fixed after the draw.
+- App: Entries keeps the + button after the draw, a pencil on each entry (change players, remove or
+  withdraw), a Withdrawn list; Bracket shows a "Play-ins" row above the tree.
 
 ### Known gaps / follow-ups
 - Spectators poll (4 s app, 3-5 s public pages); WebSockets + Redis pub/sub are still to do.
@@ -538,6 +568,18 @@ Frontend (`frontend/.env`, template `frontend/.env.example`): `EXPO_PUBLIC_API_U
   the test harness must be rewritten to build an isolated copy of the `project_x` tables.
 
 ## Changelog
+
+### 2026-11-20: Change a tournament draw while it runs (uncommitted)
+- Why: once a draw was made, an organizer couldn't add the 2 teams that turned up late, or remove
+  or edit an entry. See "Changing a running draw" above.
+- Backend: `engine/tournament/edit.ts` (`rebuild`, `addLateEntry`, `removeFromBracket`,
+  `groupFixturesFor`); `TournamentsService` adds late entries after the draw, `DELETE /entries/:id`,
+  `PATCH /entries/:id` takes `players` / `name` and changes the draw on approve / withdraw;
+  `onMatchDecided` shares the new `commitNodes` (fills groups, rebuilds the knockout when needed,
+  stage / event status); group standings put withdrawn entries last; event entries carry `hasMatches`.
+- App: EntriesScreen (late entries, pencil sheet: change players, remove / withdraw, Withdrawn list),
+  BracketScreen (Play-ins row), GroupsScreen (WD, no Q for withdrawn).
+- Tests: `engine/tournament/edit.test.ts` (16) and `tournaments/__tests__/draw-changes.api.test.ts` (10).
 
 ### 2026-11-15: Teams in any sport (commit `1dbc0c1`, branch `feat/teams`, pushed; PR not opened yet)
 - See "Teams" above. Backend `modules/teams` (service, routes), `teamId` checked when creating
