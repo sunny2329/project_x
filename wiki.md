@@ -646,7 +646,17 @@ Frontend (`frontend/.env`, template `frontend/.env.example`): `EXPO_PUBLIC_API_U
   abandoned, or a guest played), an "Invite <guest> to claim this match" card per guest (share
   sheet with the match link), Rematch and Share result card. **Rule kept:** a match with any guest
   still rates nobody (the design shows the others rated); changing that is a product decision.
-- Not yet: live scoring, scoreboard and tournament screens.
+- Live scoring for racket sports (`components/ScoringV2.tsx`, wording in `match/scoring-v2.ts`):
+  header (‹, "Badminton · Singles", rules, LIVE · rallies so far, share-link button), game chips
+  ("G1 21-17", "G2 now"; side-out adds "Point Team A"), side-out "CALL THE SCORE" orange block with
+  the server line, tennis/padel sets table with orange point boxes, a lavender banner for match / set
+  / game point, deuce, "Advantage X", "20-all" and "Tiebreak · first to 7, win by 2", then two side
+  cards (serving side tinted with an orange border; pill "SERVE · RIGHT", "SERVE · 1 OF 2",
+  "SERVING · 2", "RECEIVING", tennis "Serving/Receiving"; the line at the bottom says what a tap does:
+  "Tap to add a point", "Rally won → side out", or the engine's preview). Footer: Undo · Swap ends
+  (flips the cards, local only) · ⋯ (match menu: scorer, retire, walkover, abandon). Cricket and
+  basketball keep their boards. Old `SideButton`/`SegmentChips`/`servePill` removed.
+- Not yet: live scoreboard (spectator) and tournament screens.
 
 
 ### 2026-11-20: PWA merged to `main` and web app redeployed (merge `e70aec8`)

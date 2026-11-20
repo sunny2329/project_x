@@ -2,21 +2,23 @@ import * as Haptics from 'expo-haptics';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import {View} from 'react-native';
+import { Share, View } from 'react-native';
 import { createScorer, scoringRegistry } from '@/engine/scoring';
 import { useScoringPrefs } from '@/shared/prefs/scoring-prefs.store';
-import { sportText, useTheme } from '@/shared/theme';
-import { Button, EmptyState, goBack, Header, IconButton, Loading, Notice, Row, Screen, showAlert, T } from '@/shared/ui';
+import { useTheme } from '@/shared/theme';
+import { Button, EmptyState, goBack, Header, IconButton, Loading, Notice, Row, Screen, showAlert, sportIcon } from '@/shared/ui';
 import { firstName } from '@/shared/utils/format';
 import { BasketballBoard } from '../components/basketball/Board';
 import { QuarterBreakView } from '../components/basketball/QuarterBreak';
 import { CricketActions, CricketPad, CricketScoreboard, ThisOver } from '../components/CricketBoard';
 import { AddScorerSheet, EndEarlySheet, ScorerMenu } from '../components/MatchSheets';
-import { Callout, HintInfo, previewHint, ScoreHeader, SegmentChips, servePill, SetsTable, SideButton, TotalInfo } from '../components/Scoreboard';
+import { Callout, previewHint, ScoreHeader, SetsTable } from '../components/Scoreboard';
+import { CallBlock, GameChips, InfoBanner, ScoringFooter, ScoringHeader, SideCard } from '../components/ScoringV2';
+import { shareUrl } from '../api/match.api';
+import { banner, ralliesPlayed, serverLine, sidePill, tapHint } from '../scoring-v2';
 import { hoopsRules } from '../basketball';
 import { useLiveScoring } from '../hooks/useLiveScoring';
 import { useGameClock } from '../store/clock.store';
-import { rulesFooter, serveTurn } from '../rules';
 import type { MatchView, PluginEvent, ScoreSummary, ScoringAction } from '../types';
 import { SpectatorView } from './SpectatorScreen';
 
@@ -48,6 +50,8 @@ function Scoring({ id }: { id: string }) {
   const [notice, setNotice] = useState<string | null>(null);
   /** Basketball: the period whose break is showing (set when a timed period ends). */
   const [breakFor, setBreakFor] = useState<number | null>(null);
+  /** "Swap ends": the scorer turned round; side B's card goes on top. */
+  const [flipped, setFlipped] = useState(false);
   const { match, display: score } = live;
 
   const scorer = useMemo(() => {
@@ -69,16 +73,21 @@ function Scoring({ id }: { id: string }) {
   if (decided) return <Loading />;
 
   const color = match.sport.accentColor;
-  const tint = sportText(colors, match.sport.slug);
   const model = score.scoringModel;
   const tennis = model === 'tennis';
   const sideOut = model === 'side_out';
   const overs = model === 'overs';
   const basketball = model === 'baskets';
-  const doubles = match.sides.some((s) => s.players.length > 1);
   const names = [0, 1].map((i) => sideLabel(match, i));
   const events = match.events; // preview hints only need the server's events + this tap
-  const footer = score.complete ? null : (rulesFooter(model, match.rulesetConfig, doubles) ?? (tennis ? `${score.headline}` : score.headline));
+  const order = flipped ? [1, 0] : [0, 1];
+  const bannerText = banner(score, names, match.rulesetConfig);
+  const lastEvent = events.filter((e) => e.type === 'rally_won').at(-1);
+  const lastRally = lastEvent ? `Point ${match.sides[lastEvent.sideIndex as number]?.players.length === 1 ? firstName(names[lastEvent.sideIndex as number] ?? '') : `Team ${lastEvent.sideIndex === 0 ? 'A' : 'B'}`}` : null;
+  const shareLink = () => {
+    const url = shareUrl(match);
+    void Share.share({ message: `Follow ${names.join(' vs ')} live: ${url}`, url }).catch(() => undefined);
+  };
 
   const tap = (sideIndex: number) => {
     const action = score.actions.find((a) => a.sideIndex === sideIndex);
@@ -100,21 +109,6 @@ function Scoring({ id }: { id: string }) {
       { text: 'End innings', style: 'destructive', onPress: () => live.tap(action.event) },
     ]);
   };
-
-  const info = (i: number) => {
-    const fg = i === 0 ? colors.ink : colors.onPrimary;
-    const soft = i === 0 ? colors.ink : colors.onBrightMuted;
-    if (score.complete || model === 'rally') return <TotalInfo label={score.totals.majorLabel} value={score.sides[i]!.primary} color={fg} />;
-    if (sideOut) {
-      return <HintInfo text={score.sides[i]!.serving ? 'Serving side can score' : 'Receiving. Winning this rally gets you the serve.'} color={score.sides[i]!.serving ? fg : soft} />;
-    }
-    const hint = previewHint(scorer, events, score.actions.find((a) => a.sideIndex === i), score);
-    return <HintInfo text={hint ?? (i === 0 ? null : null)} color={i === 0 ? fg : soft} />;
-  };
-
-  // Table tennis: "Serves next after 1 more" under the receiver's name.
-  const turn = serveTurn(match.rulesetConfig, score.segments.at(-1)?.scores ?? [0, 0]);
-  const footNote = (i: number) => (turn && turn.of > 1 && !score.sides[i]!.serving && !score.complete ? `Serves next after ${turn.left} more` : null);
 
   const finish = async () => {
     if (await live.complete()) router.replace({ pathname: '/match/[id]/result', params: { id } });
@@ -159,44 +153,63 @@ function Scoring({ id }: { id: string }) {
           onFinish={() => void finish()}
           onBreak={() => setBreakFor((score.game?.period ?? 0) + 1)}
         />
-      ) : (
+      ) : overs ? (
         <>
           <ScoreHeader match={match} live={!score.complete} onClose={score.complete ? undefined : () => goBack('/')} onMenu={() => setMenu(true)} />
-
-          {overs ? (
-            <CricketScoreboard score={score} names={names} slug={match.sport.slug} />
-          ) : tennis ? (
-            <SetsTable score={score} names={names.map((n) => n.replace(/ & /g, ' / '))} slug={match.sport.slug} color={color} />
+          <CricketScoreboard score={score} names={names} slug={match.sport.slug} />
+          <Callout score={score} slug={match.sport.slug} color={color} names={names} sideOut={false} />
+          {!score.complete ? <ThisOver marks={score.ticker ?? []} /> : null}
+          {!score.complete ? <CricketPad actions={score.actions} color={color} onBall={ball} /> : <View style={{ flex: 1 }} />}
+          {live.error || notice ? <Notice tone={live.error ? 'error' : 'info'} icon={live.error ? 'alert' : 'check'} text={(live.error ?? notice)!} /> : null}
+          {live.offline ? <Notice tone="warn" icon="alert" text="No connection. Your taps are saved and will be sent." /> : null}
+          {score.complete ? (
+            <Row gap={10}>
+              <IconButton icon="undo" label="Undo last ball" size={56} radius={16} style={{ borderWidth: 1, borderColor: colors.line2 }} onPress={live.undo} />
+              <Button label={live.syncing && !live.busy ? 'Finish match · saving' : 'Finish match'} weight={800} style={{ flex: 1 }} loading={live.busy} onPress={() => void finish()} />
+            </Row>
           ) : (
-            <SegmentChips score={score} slug={match.sport.slug} />
+            <Row gap={10}>
+              <Button label="Undo" icon="undo" variant="surface" inline px={20} style={{ borderWidth: 1, borderColor: colors.line2 }} disabled={!live.eventCount} onPress={live.undo} />
+              <CricketActions actions={score.actions} onAction={inningsAction} />
+            </Row>
+          )}
+        </>
+      ) : (
+        <>
+          <ScoringHeader match={match} rallies={ralliesPlayed(match.events)} live={!score.complete} onBack={score.complete ? undefined : () => goBack('/')} onShare={shareLink} />
+
+          {score.complete ? (
+            <CallBlock title="MATCH OVER" detail="Finish to save the result and update ratings" value={score.headline.split(', ').length <= 3 ? score.headline : null} />
+          ) : sideOut && score.callout ? (
+            <CallBlock title="CALL THE SCORE" detail={serverLine(match, score)} value={score.callout.split('-').join(' - ')} />
+          ) : null}
+
+          {tennis ? (
+            <SetsTable score={score} names={names.map((n) => n.replace(/ & /g, ' / '))} slug={match.sport.slug} color={colors.primary} />
+          ) : (
+            <GameChips score={score} note={sideOut && !score.complete ? lastRally : null} />
           )}
 
-          <Callout score={score} slug={match.sport.slug} color={color} names={names} sideOut={sideOut} />
+          {bannerText ? <InfoBanner text={bannerText} /> : null}
 
-          {overs && !score.complete ? <ThisOver marks={score.ticker ?? []} /> : null}
-          {overs && !score.complete ? <CricketPad actions={score.actions} color={color} onBall={ball} /> : null}
-          {overs && score.complete ? <View style={{ flex: 1 }} /> : null}
-
-          {(overs ? [] : [0, 1]).map((i) => {
+          {order.map((i) => {
             const action = score.actions.find((a) => a.sideIndex === i);
             const side = score.sides[i]!;
-            const big = score.complete ? (score.segments.filter((s) => s.complete).at(-1)?.display[i] ?? side.primary) : (side.current ?? side.primary);
+            const big = score.complete ? (tennis ? side.primary : (score.segments.filter((s) => s.complete).at(-1)?.display[i] ?? side.primary)) : (side.current ?? side.primary);
+            const preview = sideOut ? null : previewHint(scorer, events, action, score);
             return (
-              <SideButton
+              <SideCard
                 key={i}
-                index={i}
                 name={names[i]!}
-                score={tennis && score.complete ? side.primary : big}
-                action={score.complete ? undefined : action}
-                color={color}
-                tint={tint}
-                pill={score.complete ? null : servePill(match, score, i)}
-                info={info(i)}
-                footNote={footNote(i)}
-                dim={score.complete && score.winnerSideIndex !== i}
+                sub={tennis ? null : `${score.totals.majorLabel.toLowerCase()} ${side.primary}`}
+                value={big}
+                icon={sportIcon(match.sport.slug)}
+                pill={sidePill(match, score, i)}
+                hint={tapHint(score, action, preview)}
+                active={score.complete ? score.winnerSideIndex === i : side.serving}
                 winner={score.complete && score.winnerSideIndex === i}
-                big={tennis ? 104 : 132}
-                sideOutStyle={sideOut}
+                dim={score.complete && score.winnerSideIndex !== i}
+                label={action && !score.complete ? `${action.label} to ${names[i]}, ${big}` : `${names[i]}, ${big}`}
                 onPress={score.complete ? undefined : () => tap(i)}
               />
             );
@@ -207,20 +220,11 @@ function Scoring({ id }: { id: string }) {
 
           {score.complete ? (
             <Row gap={10}>
-              <IconButton icon="undo" label="Undo last point" size={56} radius={16} style={{ borderWidth: 1, borderColor: colors.line2 }} onPress={live.undo} />
+              <IconButton icon="undo" label="Undo last point" size={56} radius={16} style={{ borderWidth: 1, borderColor: colors.line, backgroundColor: colors.card }} onPress={live.undo} />
               <Button label={live.syncing && !live.busy ? 'Finish match · saving points' : 'Finish match'} weight={800} style={{ flex: 1 }} loading={live.busy} onPress={() => void finish()} />
             </Row>
           ) : (
-            <Row gap={10}>
-              <Button label="Undo" icon="undo" variant="surface" inline px={20} style={{ borderWidth: 1, borderColor: colors.line2 }} disabled={!live.eventCount} onPress={live.undo} />
-              {overs ? (
-                <CricketActions actions={score.actions} onAction={inningsAction} />
-              ) : (
-                <T size={13} lh={18} color={colors.muted} right flex numberOfLines={2}>
-                  {footer}
-                </T>
-              )}
-            </Row>
+            <ScoringFooter canUndo={!!live.eventCount} onUndo={live.undo} middle={{ label: 'Swap ends', icon: 'swap', onPress: () => setFlipped((f) => !f) }} onMenu={() => setMenu(true)} />
           )}
         </>
       )}
