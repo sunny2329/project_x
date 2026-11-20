@@ -4,6 +4,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import * as SystemUI from 'expo-system-ui';
 import { useEffect } from 'react';
+import { ActivityIndicator, Platform, Text, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/features/auth/store/auth.store';
 import { clearSportsCache } from '@/features/match/hooks/useSports';
@@ -28,7 +29,10 @@ export default function RootLayout() {
 
   useEffect(() => {
     // Keep the splash screen up until the session is restored and the fonts are in.
-    if (ready) void SplashScreen.hideAsync();
+    if (!ready) return;
+    void SplashScreen.hideAsync();
+    // Web: from here on the app shows its own errors; public/index.html's startup-error screen stands down.
+    if (Platform.OS === 'web') (globalThis as { __appStarted?: boolean }).__appStarted = true;
   }, [ready]);
 
   useEffect(() => {
@@ -43,7 +47,16 @@ export default function RootLayout() {
     void SystemUI.setBackgroundColorAsync(colors.bg);
   }, [colors.bg]);
 
-  if (!ready) return null;
+  if (!ready) {
+    // Phones keep the native splash screen up; the browser has none, so show the same loading
+    // screen as public/index.html instead of an empty black page.
+    return Platform.OS === 'web' ? (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14, backgroundColor: '#0B0B0B' }}>
+        <ActivityIndicator color="#8A847D" />
+        <Text style={{ color: '#8A847D', fontSize: 14, fontWeight: '600' }}>Loading ProjectX…</Text>
+      </View>
+    ) : null;
+  }
   const signedIn = status === 'authenticated';
 
   return (

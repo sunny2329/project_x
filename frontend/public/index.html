@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="%LANG_ISO_CODE%">
+  <head>
+    <meta charset="utf-8" />
+    <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
+    <!-- viewport-fit=cover: draw under the notch; the app adds the safe-area padding itself. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+    <title>%WEB_TITLE%</title>
+    <meta name="description" content="Score matches live, run tournaments and follow your friends' games." />
+    <meta name="theme-color" content="#0B0B0B" />
+
+    <!-- Installable app (Android / desktop Chrome) -->
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
+
+    <!-- iPhone / iPad: Share → Add to Home Screen opens full screen, with this icon and name -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="ProjectX" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
+    <!-- The `react-native-web` recommended style reset: https://necolas.github.io/react-native-web/docs/setup/#root-element -->
+    <style id="expo-reset">
+      html,
+      body {
+        height: 100%;
+        background-color: #0b0b0b;
+      }
+      body {
+        overflow: hidden;
+        /* No pull-to-refresh / rubber-banding of the whole page, no grey tap flash. */
+        overscroll-behavior: none;
+        -webkit-tap-highlight-color: transparent;
+      }
+      #root {
+        display: flex;
+        height: 100%;
+        flex: 1;
+      }
+      /* On a tablet or computer, keep the phone layout: a centred column, not stretched edge to edge. */
+      @media (min-width: 600px) {
+        #root {
+          max-width: 480px;
+          margin: 0 auto;
+          box-shadow: 0 0 0 1px #1f1d1b;
+        }
+      }
+    </style>
+    <script>
+      // Browser features the app (and expo-router) use that older iPhone Safari lacks. Added before
+      // the app's code runs; each one only if missing.
+      (function () {
+        var w = window, A = Array.prototype;
+        if (!w.requestIdleCallback) {
+          w.requestIdleCallback = function (cb) {
+            var start = Date.now();
+            return setTimeout(function () {
+              cb({ didTimeout: false, timeRemaining: function () { return Math.max(0, 50 - (Date.now() - start)); } });
+            }, 1);
+          };
+          w.cancelIdleCallback = function (id) { clearTimeout(id); };
+        }
+        function def(obj, name, fn) {
+          if (!obj[name]) Object.defineProperty(obj, name, { value: fn, writable: true, configurable: true });
+        }
+        def(A, 'at', function (i) { i = Math.trunc(i) || 0; if (i < 0) i += this.length; return i < 0 || i >= this.length ? undefined : this[i]; });
+        def(String.prototype, 'at', function (i) { i = Math.trunc(i) || 0; if (i < 0) i += this.length; return i < 0 || i >= this.length ? undefined : this.charAt(i); });
+        def(A, 'findLast', function (f, t) { for (var i = this.length - 1; i >= 0; i--) if (f.call(t, this[i], i, this)) return this[i]; return undefined; });
+        def(A, 'findLastIndex', function (f, t) { for (var i = this.length - 1; i >= 0; i--) if (f.call(t, this[i], i, this)) return i; return -1; });
+        def(A, 'toSpliced', function () { var c = A.slice.call(this); A.splice.apply(c, arguments); return c; });
+        def(A, 'toSorted', function (f) { return A.slice.call(this).sort(f); });
+        def(A, 'toReversed', function () { return A.slice.call(this).reverse(); });
+        def(Object, 'hasOwn', function (o, k) { return Object.prototype.hasOwnProperty.call(o, k); });
+      })();
+
+      // If the app crashes while starting, show what happened instead of a black screen.
+      (function () {
+        function show(msg) {
+          if (window.__appStarted) return;
+          var box = document.getElementById('boot-error');
+          if (!box) {
+            box = document.createElement('div');
+            box.id = 'boot-error';
+            box.style.cssText = 'position:fixed;inset:0;z-index:99;background:#0b0b0b;color:#f5f2ee;font:15px/1.5 -apple-system,system-ui,sans-serif;padding:max(24px,env(safe-area-inset-top)) 20px 24px;overflow:auto';
+            box.innerHTML = '<b style="font-size:18px">ProjectX couldn\'t start</b><p>Please send a screenshot of this screen.</p><pre style="white-space:pre-wrap;font-size:12px;color:#ff8a8a"></pre><button onclick="location.reload()" style="margin-top:12px;height:44px;padding:0 18px;border:0;border-radius:12px;background:#ff6a00;color:#0b0b0b;font-weight:700">Try again</button>';
+            (document.body || document.documentElement).appendChild(box);
+          }
+          box.querySelector('pre').textContent += msg + '\n' + navigator.userAgent + '\n';
+        }
+        window.addEventListener('error', function (e) { show((e.error && e.error.stack) || e.message || String(e)); });
+        window.addEventListener('unhandledrejection', function (e) { var r = e.reason; show('Unhandled: ' + ((r && r.stack) || r)); });
+      })();
+    </script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function () {
+          navigator.serviceWorker.register('/sw.js').catch(function () {});
+        });
+      }
+    </script>
+  </head>
+
+  <body>
+    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <div id="root">
+      <div id="boot" style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; color: #8a847d; font: 600 14px -apple-system, system-ui, sans-serif">
+        <img src="/icon-192.png" width="72" height="72" alt="" style="border-radius: 18px" />
+        <span>Loading ProjectX…</span>
+      </div>
+    </div>
+  </body>
+</html>

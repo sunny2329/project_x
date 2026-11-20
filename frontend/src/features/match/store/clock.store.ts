@@ -1,4 +1,4 @@
-import * as SecureStore from 'expo-secure-store';
+import { kv } from '@/shared/storage/kv';
 import { create } from 'zustand';
 import { clockNow, pauseClock, resetShot, startClock, type ClockState } from '../basketball';
 
@@ -20,7 +20,7 @@ interface ClockStore {
 const keyOf = (matchId: string) => `projectx.clock.${matchId}`;
 
 function save(matchId: string, clock: ClockState) {
-  void SecureStore.setItemAsync(keyOf(matchId), JSON.stringify(clock)).catch(() => undefined);
+  void kv.set(keyOf(matchId), JSON.stringify(clock)).catch(() => undefined);
 }
 
 export const useGameClock = create<ClockStore>((set, get) => {
@@ -49,7 +49,7 @@ export const useGameClock = create<ClockStore>((set, get) => {
     },
     async restore(matchId) {
       if (get().clocks[matchId]) return;
-      const saved = await SecureStore.getItemAsync(keyOf(matchId)).catch(() => null);
+      const saved = await kv.get(keyOf(matchId)).catch(() => null);
       if (!saved) return;
       try {
         const clock = JSON.parse(saved) as ClockState;

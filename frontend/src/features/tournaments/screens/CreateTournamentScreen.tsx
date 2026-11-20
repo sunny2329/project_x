@@ -1,10 +1,9 @@
-import DateTimePicker from '@react-native-community/datetimepicker';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { Platform, View } from 'react-native';
 import { useSubmit } from '@/shared/hooks/useSubmit';
 import { useTheme } from '@/shared/theme';
-import { Button, D, Field, Header, Label, Notice, RadioCard, Row, Screen, T, Tap } from '@/shared/ui';
+import { Button, D, DatePicker, Field, Header, Label, Notice, RadioCard, Row, Screen, T, Tap } from '@/shared/ui';
 import { toDay, weekdayDayMonth } from '@/shared/utils/format';
 import { tournamentsApi } from '../api/tournaments.api';
 import type { Visibility } from '../types';
@@ -35,7 +34,7 @@ function DateField({ label, value, onChange, minimum }: { label: string; value: 
         </T>
       </Tap>
       {open ? (
-        <DateTimePicker
+        <DatePicker
           value={value}
           mode="date"
           minimumDate={minimum ?? new Date()}

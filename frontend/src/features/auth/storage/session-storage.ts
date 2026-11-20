@@ -1,13 +1,11 @@
-import * as SecureStore from 'expo-secure-store';
+import { kv, KV_AFTER_FIRST_UNLOCK } from '@/shared/storage/kv';
 import type { AuthResult, User } from '../types';
 
 const SESSION_KEY = 'projectx.auth.session';
 
 // Readable after the first unlock (so background refresh works) and never synced or
-// restored to another device.
-const OPTIONS: SecureStore.SecureStoreOptions = {
-  keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY,
-};
+// restored to another device. On the web the option is ignored (localStorage).
+const OPTIONS = KV_AFTER_FIRST_UNLOCK === undefined ? undefined : { keychainAccessible: KV_AFTER_FIRST_UNLOCK };
 
 export interface StoredSession {
   accessToken: string;
@@ -26,24 +24,24 @@ export function toStoredSession({ user, tokens }: AuthResult): StoredSession {
   };
 }
 
-/** Tokens live only in the OS keychain/keystore, never in AsyncStorage. */
+/** Tokens live only in the OS keychain/keystore (the browser's localStorage on the web), never in AsyncStorage. */
 export const sessionStorage = {
   async load(): Promise<StoredSession | null> {
-    const raw = await SecureStore.getItemAsync(SESSION_KEY, OPTIONS);
+    const raw = await kv.get(SESSION_KEY, OPTIONS);
     if (!raw) return null;
     try {
       return JSON.parse(raw) as StoredSession;
     } catch {
-      await SecureStore.deleteItemAsync(SESSION_KEY, OPTIONS);
+      await kv.remove(SESSION_KEY, OPTIONS);
       return null;
     }
   },
 
   save(session: StoredSession): Promise<void> {
-    return SecureStore.setItemAsync(SESSION_KEY, JSON.stringify(session), OPTIONS);
+    return kv.set(SESSION_KEY, JSON.stringify(session), OPTIONS);
   },
 
   clear(): Promise<void> {
-    return SecureStore.deleteItemAsync(SESSION_KEY, OPTIONS);
+    return kv.remove(SESSION_KEY, OPTIONS);
   },
 };

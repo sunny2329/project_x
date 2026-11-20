@@ -1,11 +1,11 @@
 import * as Haptics from 'expo-haptics';
 import { useEffect, useState } from 'react';
-import { Alert, Pressable, View } from 'react-native';
+import {Pressable, View} from 'react-native';
 import Svg, { Path, Rect } from 'react-native-svg';
 import { rulesName, scoringRegistry } from '@/engine/scoring';
 import { useNow } from '@/shared/hooks/useNow';
 import { useTheme } from '@/shared/theme';
-import { Badge, Button, D, IconButton, Notice, Row, T } from '@/shared/ui';
+import { Badge, Button, D, IconButton, Notice, Row, showAlert, T } from '@/shared/ui';
 import { clockNow, formatClock, hoopsRules, inkOn, playClock, playText, roster, shortTeam, type Roster } from '../../basketball';
 import type { useLiveScoring } from '../../hooks/useLiveScoring';
 import { useGameClock } from '../../store/clock.store';
@@ -168,7 +168,7 @@ export function BasketballBoard({
     if (rules.timed && !last) onBreak();
   };
   const endPeriodNow = () =>
-    Alert.alert(rules.timed ? `End ${g.periodLabel} now?` : 'Call time now?', rules.timed ? `With ${formatClock(left, true)} on the clock. Undo brings it back.` : 'The team ahead wins; if tied, the next basket wins. Undo brings it back.', [
+    showAlert(rules.timed ? `End ${g.periodLabel} now?` : 'Call time now?', rules.timed ? `With ${formatClock(left, true)} on the clock. Undo brings it back.` : 'The team ahead wins; if tied, the next basket wins. Undo brings it back.', [
       { text: 'Keep playing', style: 'cancel' },
       { text: rules.timed ? `End ${g.periodLabel}` : 'Call time', style: 'destructive', onPress: endPeriod },
     ]);

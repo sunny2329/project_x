@@ -9,8 +9,13 @@ import type { SportSummary } from '../types';
 
 const BLUE = '#3B82F6';
 
-/** A segmented button (the design's `seg`): primary fill when on. */
-function Seg({ on, label, onPress, width, display = false, size = 14, height = 40 }: { on: boolean; label: string; onPress: () => void; width?: number; display?: boolean; size?: number; height?: number }) {
+/**
+ * A segmented button (the design's `seg`): primary fill when on. `grow` shares out a full-width bar
+ * ("Players a side", "Court"); without it the button is as wide as its label. Never grow inside a
+ * row that sizes to its content: Android then measures the button at zero width and the row's text
+ * vanishes into a tall empty card.
+ */
+function Seg({ on, label, onPress, width, grow = false, display = false, size = 14, height = 40 }: { on: boolean; label: string; onPress: () => void; width?: number; grow?: boolean; display?: boolean; size?: number; height?: number }) {
   const { colors } = useTheme();
   return (
     <Pressable
@@ -18,7 +23,7 @@ function Seg({ on, label, onPress, width, display = false, size = 14, height = 4
       accessibilityState={{ selected: on }}
       accessibilityLabel={label}
       onPress={onPress}
-      style={{ height, borderRadius: display ? 10 : 9, paddingHorizontal: width ? 0 : 10, width, flex: width ? undefined : 1, alignItems: 'center', justifyContent: 'center', backgroundColor: on ? colors.primary : 'transparent' }}
+      style={{ height, borderRadius: display ? 10 : 9, paddingHorizontal: width ? 0 : 10, width, ...(grow && !width ? { flex: 1 } : {}), alignItems: 'center', justifyContent: 'center', backgroundColor: on ? colors.primary : 'transparent' }}
     >
       {display ? (
         <D size={20} color={on ? colors.onPrimary : colors.muted}>
@@ -138,7 +143,7 @@ export function BasketballSetup({ sport, forResult }: { sport: SportSummary; for
           </T>
           <View style={{ flexDirection: 'row', padding: 4, borderRadius: 12, backgroundColor: colors.surface, gap: 4 }}>
             {([3, 4, 5] as HoopsSize[]).map((n) => (
-              <Seg key={n} on={s.size === n} label={String(n)} size={15} onPress={() => set(pickSize(s, n))} />
+              <Seg key={n} grow on={s.size === n} label={String(n)} size={15} onPress={() => set(pickSize(s, n))} />
             ))}
           </View>
         </View>
@@ -147,8 +152,8 @@ export function BasketballSetup({ sport, forResult }: { sport: SportSummary; for
             Court
           </T>
           <View style={{ flexDirection: 'row', padding: 4, borderRadius: 12, backgroundColor: colors.surface, gap: 4 }}>
-            <Seg on={s.court === 'half'} label="Half" onPress={() => set({ ...s, court: 'half' })} />
-            <Seg on={s.court === 'full'} label="Full" onPress={() => set({ ...s, court: 'full' })} />
+            <Seg grow on={s.court === 'half'} label="Half" onPress={() => set({ ...s, court: 'half' })} />
+            <Seg grow on={s.court === 'full'} label="Full" onPress={() => set({ ...s, court: 'full' })} />
           </View>
         </View>
       </View>

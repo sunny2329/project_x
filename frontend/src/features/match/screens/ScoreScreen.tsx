@@ -2,11 +2,11 @@ import * as Haptics from 'expo-haptics';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, View } from 'react-native';
+import {View} from 'react-native';
 import { createScorer, scoringRegistry } from '@/engine/scoring';
 import { useScoringPrefs } from '@/shared/prefs/scoring-prefs.store';
 import { sportText, useTheme } from '@/shared/theme';
-import { Button, EmptyState, goBack, Header, IconButton, Loading, Notice, Row, Screen, T } from '@/shared/ui';
+import { Button, EmptyState, goBack, Header, IconButton, Loading, Notice, Row, Screen, showAlert, T } from '@/shared/ui';
 import { firstName } from '@/shared/utils/format';
 import { BasketballBoard } from '../components/basketball/Board';
 import { QuarterBreakView } from '../components/basketball/QuarterBreak';
@@ -95,7 +95,7 @@ function Scoring({ id }: { id: string }) {
   // Ends an innings or swaps the batting order; ending can't be told apart from a stray tap, so ask.
   const inningsAction = (action: ScoringAction) => {
     if (action.event.type !== 'innings_end') return live.tap(action.event);
-    Alert.alert('End this innings?', 'The other side starts batting. Undo brings it back.', [
+    showAlert('End this innings?', 'The other side starts batting. Undo brings it back.', [
       { text: 'Keep batting', style: 'cancel' },
       { text: 'End innings', style: 'destructive', onPress: () => live.tap(action.event) },
     ]);
@@ -121,7 +121,7 @@ function Scoring({ id }: { id: string }) {
   };
 
   const abandon = () =>
-    Alert.alert('Abandon this match?', 'Nobody wins and it isn’t counted in records.', [
+    showAlert('Abandon this match?', 'Nobody wins and it isn’t counted in records.', [
       { text: 'Keep scoring', style: 'cancel' },
       {
         text: 'Abandon',
