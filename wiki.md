@@ -638,7 +638,15 @@ Frontend (`frontend/.env`, template `frontend/.env.example`): `EXPO_PUBLIC_API_U
   "Share live scoreboard link" (on: the share sheet opens with the `/s/<token>` link once the match
   starts), Start scoring creates the match. Cricket still goes on to "Who bats first?", basketball to
   its own setup; Rematch still opens the serve screen. Pieces in `match/components/SetupBits.tsx`.
-- Not yet: live scoring, result card, scoreboard and tournament screens.
+- Match result (`components/ResultCard.tsx`, wording in `match/result.ts`; basketball keeps its box
+  score): "Match complete · 42 min", orange card (sport · format · friendly/tournament, "Won/Lost
+  2 – 1" from my side or "X & Y won" for a spectator, games per side, best point run from the
+  `rally_won` events, points won, my rating change), Rating changes for every player (winners first;
+  guests "Unrated until claimed"; a line says why nothing moved: awaiting confirmation, walkover,
+  abandoned, or a guest played), an "Invite <guest> to claim this match" card per guest (share
+  sheet with the match link), Rematch and Share result card. **Rule kept:** a match with any guest
+  still rates nobody (the design shows the others rated); changing that is a product decision.
+- Not yet: live scoring, scoreboard and tournament screens.
 
 
 ### 2026-11-20: PWA merged to `main` and web app redeployed (merge `e70aec8`)

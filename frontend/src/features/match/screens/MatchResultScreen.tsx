@@ -14,6 +14,7 @@ import { inkOn, setupFromConfig } from '../basketball';
 import { teamColor } from '../components/basketball/Board';
 import { PlayerOfTheGame, PlayerTable } from '../components/basketball/BoxScore';
 import { PeriodTable } from '../components/basketball/QuarterBreak';
+import { ResultCardScreen } from '../components/ResultCard';
 import { segmentShort } from '../components/Scoreboard';
 import type { LineupPlayer } from '../lineup';
 import { overrideFrom } from '../rules';
@@ -115,6 +116,12 @@ export default function MatchResultScreen() {
     useMatchDraft.getState().restore({ sport, formatCode: m.format.code, rulesetId: m.ruleset.id, override, lineup, firstServer: 0 });
     router.push('/match/serve');
   };
+
+  // Design v2 result card for everything but basketball (which keeps its box score).
+  if (!hoops) {
+    const mins = m.startedAt && m.completedAt ? Math.max(1, Math.round((Date.parse(m.completedAt) - Date.parse(m.startedAt)) / 60_000)) : null;
+    return <ResultCardScreen match={m} myUserId={me?.id} durationMin={mins} badge={badge} onRematch={rematch} />;
+  }
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
