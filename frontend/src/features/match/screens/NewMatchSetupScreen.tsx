@@ -1,29 +1,45 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { Pressable, Share, View } from 'react-native';
 import { useAuthStore } from '@/features/auth/store/auth.store';
-import { sportText, useTheme } from '@/shared/theme';
-import { Avatar, Button, D, Dot, EmptyState, goBack, Header, Icon, IconButton, Label, RadioCard, Row, Screen, Segmented, T, TextButton } from '@/shared/ui';
+import { profileApi } from '@/features/profile/api/profile.api';
 import { TeamPickerSheet } from '@/features/teams/components/TeamBits';
+import { useResource } from '@/shared/hooks/useResource';
+import { useSubmit } from '@/shared/hooks/useSubmit';
+import { useTheme } from '@/shared/theme';
+import { Avatar, Button, D, EmptyState, Header, Icon, Notice, Screen, Segmented, T, Tap, TextButton } from '@/shared/ui';
+import { firstName } from '@/shared/utils/format';
+import { matchApi, shareUrl } from '../api/match.api';
 import { AddPlayerSheet } from '../components/AddPlayerSheet';
-import { RulesSheet } from '../components/RulesSheet';
-import { fromTeamMember, lineupKeys, lineupProblem } from '../lineup';
-import { EDITABLE_RULES, maxPlayersPerSide, rulesetDetail, rulesTitle } from '../rules';
-import { useMatchDraft } from '../store/draft.store';
+import { CoinToss } from '../components/CoinToss';
+import { StepHeader, ToggleRow } from '../components/SetupBits';
+import { fromTeamMember, lineupKeys, lineupProblem, maskPhone, type LineupPlayer } from '../lineup';
+import { maxPlayersPerSide, rulesTitle } from '../rules';
+import { teamSide, useMatchDraft } from '../store/draft.store';
 import { BasketballSetup } from './BasketballSetupScreen';
 
+type Serve = 'A' | 'B' | 'toss';
+
 /**
- * Rules, singles or doubles, and players on each side. `mode=result` is the same screen opened
- * from "Enter a result" (Change): it returns there instead of going on to the serve.
+ * Friendly match · step 2 of 2 (design v2): Team A / Team B, add players or guests, who serves
+ * first (or a coin toss), share the live scoreboard link, Start scoring. Cricket goes on to "Who
+ * bats first?"; basketball has its own setup. `mode=result` is the same screen opened from "Enter
+ * a result" (Change): it returns there instead.
  */
 export default function NewMatchSetupScreen() {
   const { colors } = useTheme();
   const { mode } = useLocalSearchParams<{ mode?: string }>();
   const me = useAuthStore((s) => s.user);
-  const { sport, formatCode, rulesetId, override, lineup, teams, setFormat, setRuleset, setRule, resetRules, add, remove, pickTeam, unlinkTeam } = useMatchDraft();
+  const { sport, formatCode, rulesetId, override, lineup, teams, firstServer, add, remove, pickTeam, unlinkTeam, serveFirst } = useMatchDraft();
   const [adding, setAdding] = useState<number | null>(null);
   const [pickingTeam, setPickingTeam] = useState<number | null>(null);
-  const [editingRules, setEditingRules] = useState(false);
+  const [serve, setServe] = useState<Serve>(firstServer === 1 ? 'B' : 'A');
+  const [tossing, setTossing] = useState(false);
+  const [share, setShare] = useState(true);
+  const { submit, submitting, formError } = useSubmit();
+  // My own rating line ("Pickleball 1588") and recent guests for the quick-add chips.
+  const profile = useResource(() => profileApi.me(), []);
+  const guests = useResource(() => matchApi.recentGuests(), []);
 
   if (!sport) {
     return (
@@ -34,164 +50,224 @@ export default function NewMatchSetupScreen() {
     );
   }
 
-  // Basketball has its own setup (quick starts, court, how the game ends), then teams and shirts.
   if (sport.rulesets.some((r) => r.scoringModel === 'baskets')) return <BasketballSetup sport={sport} forResult={mode === 'result'} />;
 
   const format = sport.formats.find((f) => f.code === formatCode) ?? sport.formats[0]!;
-  const color = sport.accentColor;
   const ruleset = sport.rulesets.find((r) => r.id === rulesetId) ?? null;
-  const changed = Object.keys(override).length > 0;
+  const overs = ruleset?.scoringModel === 'overs';
+  const forResult = mode === 'result';
   const maxPerSide = maxPlayersPerSide(format.maxPerSide, { ...(ruleset?.config ?? {}), ...override });
   const problem = lineupProblem(lineup, { minPerSide: format.minPerSide, maxPerSide });
-  const forResult = mode === 'result';
-  const editable = ruleset ? (EDITABLE_RULES[ruleset.scoringModel] ?? []) : [];
+  const openSide = lineup.findIndex((side) => side.length < maxPerSide);
+  const myRating = profile.data?.profile.sports.find((s) => s.slug === sport.slug)?.rating ?? null;
+  const taken = new Set(lineupKeys(lineup));
+  const quick = (guests.data?.players ?? []).filter((g) => !taken.has(g.userId ?? g.playerId) && !taken.has(g.playerId)).slice(0, 3);
+  const summary = [sport.name, format.name, ruleset ? (Object.keys(override).length ? rulesTitle(ruleset, override) : ruleset.name) : null].filter(Boolean).join(' · ');
+  const nameOf = (p: LineupPlayer) => (p.userId && p.userId === me?.id ? 'You' : p.displayName);
+  const sideName = (i: number) => lineup[i]!.map((p) => firstName(nameOf(p))).join(' & ') || `Team ${i === 0 ? 'A' : 'B'}`;
+
+  const pickServe = (v: Serve) => {
+    if (v === 'toss') {
+      setTossing(true);
+      return;
+    }
+    setServe(v);
+    const side = v === 'A' ? 0 : 1;
+    const first = lineup[side]![0];
+    if (first) serveFirst(side, first.key);
+    else useMatchDraft.setState({ firstServer: side });
+  };
+
+  const servingSide = lineup[firstServer]!;
+  const server = servingSide[0];
+  const otherPartner = servingSide[1];
+
+  const start = () =>
+    void submit(async () => {
+      const { match } = await matchApi.create({
+        sport: sport.slug,
+        format: format.code,
+        ...(rulesetId ? { rulesetId } : {}),
+        sides: lineup.map((players, side) => ({ ...teamSide(teams, side), players: players.map((p) => p.input) })),
+        rulesOverride: { ...override, firstServerSideIndex: firstServer },
+      });
+      useMatchDraft.getState().reset();
+      router.dismissAll();
+      router.push({ pathname: '/match/[id]', params: { id: match.id } });
+      if (share) {
+        const url = shareUrl(match);
+        // The scorer is already on the scoring screen; the share sheet opens over it.
+        Share.share({ message: `Follow our ${sport.name.toLowerCase()} match live: ${url}`, url }).catch(() => undefined);
+      }
+    });
+
+  const sub = (p: LineupPlayer): string => {
+    if (p.isGuest) return ['Guest', p.phone ? maskPhone(p.phone) : null, 'can claim later'].filter(Boolean).join(' · ');
+    const rating = p.userId && p.userId === me?.id ? myRating : (p.rating ?? null);
+    return rating !== null ? `${sport.name} ${Math.round(rating)}` : `${sport.name} · new to the sport`;
+  };
+
+  const playerRow = (p: LineupPlayer) => (
+    <Pressable
+      key={p.key}
+      accessibilityRole="button"
+      accessibilityLabel={`${nameOf(p)}. Remove from the match`}
+      onPress={() => remove(p.key)}
+      style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 12, borderRadius: 14, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.card }}
+    >
+      <Avatar name={p.displayName} id={p.userId ?? p.key} size={40} />
+      <View style={{ flex: 1, gap: 2 }}>
+        <T size={15} w={700} numberOfLines={1}>
+          {p.userId && p.userId === me?.id ? `${p.displayName} (you)` : p.displayName}
+        </T>
+        <T size={12} color={colors.muted} numberOfLines={2}>
+          {sub(p)}
+        </T>
+      </View>
+      {p.isGuest ? (
+        <View style={{ paddingVertical: 3, paddingHorizontal: 6, borderRadius: 6, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface }}>
+          <T size={10} w={700} ls={0.06} color={colors.muted}>
+            GUEST
+          </T>
+        </View>
+      ) : null}
+      <Icon name="close" size={16} color={colors.muted} />
+    </Pressable>
+  );
+
+  const sideBlock = (side: number) => (
+    <View key={side} style={{ gap: 8 }}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+        <T size={12} w={700} ls={0.08} color={colors.muted}>
+          TEAM {side === 0 ? 'A' : 'B'}
+          {maxPerSide > 1 ? ` · ${lineup[side]!.length}/${maxPerSide}` : ''}
+        </T>
+        {teams[side] ? (
+          <TextButton label={`${teams[side].name} ✕`} size={12} color={colors.accentText} onPress={() => unlinkTeam(side)} />
+        ) : format.maxPerSide > 1 ? (
+          <TextButton label="Saved team" size={12} color={colors.accentText} onPress={() => setPickingTeam(side)} />
+        ) : null}
+      </View>
+      {lineup[side]!.map(playerRow)}
+      {!lineup[side]!.length ? (
+        <Tap label={`Add a player to team ${side === 0 ? 'A' : 'B'}`} onPress={() => setAdding(side)} style={{ padding: 14, borderRadius: 14, borderWidth: 1, borderStyle: 'dashed', borderColor: colors.line, alignItems: 'center' }}>
+          <T size={13} color={colors.muted}>
+            No one yet. Tap to add
+          </T>
+        </Tap>
+      ) : null}
+    </View>
+  );
 
   return (
     <Screen
-      gap={18}
+      gap={16}
       footer={
         <View style={{ gap: 10 }}>
+          {formError ? <Notice tone="error" icon="alert" text={formError} /> : null}
           {problem ? (
             <T size={13} color={colors.muted} center>
               {problem}
             </T>
           ) : null}
-          <Button
-            label={forResult ? 'Done' : ruleset?.scoringModel === 'overs' ? 'Next: who bats first' : 'Next: who serves first'}
-            weight={700}
-            disabled={!!problem}
-            onPress={() => (forResult ? router.back() : router.push('/match/serve'))}
-          />
+          {forResult ? (
+            <Button label="Done" weight={700} disabled={!!problem} onPress={() => router.back()} />
+          ) : overs ? (
+            <Button label="Next: who bats first" weight={700} disabled={!!problem} onPress={() => router.push('/match/serve')} />
+          ) : (
+            <Button label="Start scoring" weight={700} disabled={!!problem} loading={submitting} onPress={start} />
+          )}
         </View>
       }
     >
-      <Row gap={12}>
-        <IconButton icon="back" label="Back" onPress={() => goBack('/match/new')} />
-        <Dot color={color} size={10} />
-        <D size={28} upper flex numberOfLines={1}>
-          {sport.name}
+      <StepHeader step={2} fallback="/match/new" />
+      <View style={{ gap: 4 }}>
+        <D size={34} lh={36} accessibilityRole="header">
+          Who&apos;s playing?
         </D>
-      </Row>
+        <T size={13} color={colors.muted}>
+          {summary}
+        </T>
+      </View>
 
-      {sport.formats.length > 1 ? (
-        <Segmented
-          options={sport.formats.map((f) => ({ value: f.code, label: f.name }))}
-          value={format.code}
-          onChange={setFormat}
-          activeColor={color}
-          height={42}
-        />
+      {sideBlock(0)}
+      {sideBlock(1)}
+
+      {openSide >= 0 ? (
+        <View style={{ gap: 10 }}>
+          <Tap
+            label={`Search players or add a guest, team ${openSide === 0 ? 'A' : 'B'}`}
+            onPress={() => setAdding(openSide)}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 52, paddingHorizontal: 14, borderRadius: 14, borderWidth: 1, borderStyle: 'dashed', borderColor: colors.muted }}
+          >
+            <Icon name="search" size={18} color={colors.muted} />
+            <T size={14} color={colors.muted} flex numberOfLines={1}>
+              Search players or add a guest by name
+            </T>
+          </Tap>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+            {quick.map((g) => (
+              <Tap
+                key={g.playerId}
+                label={`Add ${g.displayName} to team ${openSide === 0 ? 'A' : 'B'}`}
+                onPress={() => add(openSide, { key: g.userId ?? g.playerId, displayName: g.displayName, isGuest: g.isGuest, userId: g.userId, input: { playerId: g.playerId } })}
+                style={{ paddingVertical: 8, paddingHorizontal: 12, borderRadius: 99, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.card }}
+              >
+                <T size={13}>+ {g.displayName}</T>
+              </Tap>
+            ))}
+            <Tap label="New guest" onPress={() => setAdding(openSide)} style={{ paddingVertical: 8, paddingHorizontal: 12, borderRadius: 99, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.card }}>
+              <T size={13}>+ New guest</T>
+            </Tap>
+          </View>
+        </View>
       ) : null}
 
-      <View style={{ gap: 8 }}>
-        <Label>Rules</Label>
-        {sport.rulesets.map((r) => (
-          <RadioCard
-            key={r.id}
-            title={r.id === rulesetId && changed ? rulesTitle(r, override) : r.name}
-            subtitle={rulesetDetail(r.id === rulesetId ? { ...r, config: { ...r.config, ...override } } : r)}
-            selected={r.id === rulesetId}
-            color={color}
-            onPress={() => setRuleset(r.id)}
-          />
-        ))}
-        {editable.length ? (
-          <TextButton
-            label={ruleset?.scoringModel === 'overs' ? 'Change a rule (players, overs, wickets…)' : 'Change a rule (points to win, cap…)'}
-            size={13}
-            color={colors.soft}
-            onPress={() => setEditingRules(true)}
-          />
-        ) : null}
-      </View>
-
-      <View style={{ gap: 8 }}>
-        <Label>{maxPerSide < format.maxPerSide ? `Players · ${maxPerSide} a side` : 'Players'}</Label>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          {[0, 1].map((side) => (
-            <View key={side} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              {side === 1 ? (
-                <D size={18} color={colors.muted} style={{ width: 28, textAlign: 'center' }}>
-                  VS
-                </D>
-              ) : null}
-              <View style={{ flex: 1, gap: 6, padding: 10, borderRadius: 14, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, minHeight: 104 }}>
-                <T size={11} w={700} ls={0.06} color={side === 0 ? sportText(colors, sport.slug) : colors.muted}>
-                  SIDE {side === 0 ? 'A' : 'B'}
+      {!forResult && !overs ? (
+        <>
+          <View style={{ gap: 8 }}>
+            <T size={14} w={700}>
+              First serve
+            </T>
+            <Segmented
+              options={[
+                { value: 'A', label: 'Team A' },
+                { value: 'B', label: 'Team B' },
+                { value: 'toss', label: 'Coin toss' },
+              ]}
+              value={serve}
+              onChange={pickServe}
+              height={48}
+              activeColor={colors.card}
+              activeText={colors.fg}
+            />
+            {server ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                <T size={12} color={colors.muted} flex>
+                  {serve === 'toss' ? `${sideName(firstServer)} won the toss. ` : ''}
+                  {nameOf(server) === 'You' ? 'You serve' : `${firstName(server.displayName)} serves`} first.
                 </T>
-                {teams[side] ? (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={`Playing as ${teams[side].name}. Tap to unlink the team`}
-                    onPress={() => unlinkTeam(side)}
-                    style={{ flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', maxWidth: '100%', paddingHorizontal: 8, height: 24, borderRadius: 8, backgroundColor: colors.raised }}
-                  >
-                    <Icon name="people" size={12} color={colors.soft} />
-                    <T size={12} w={700} numberOfLines={1} style={{ flexShrink: 1 }}>
-                      {teams[side].name}
-                    </T>
-                    <Icon name="close" size={11} color={colors.faint} />
-                  </Pressable>
-                ) : null}
-                {lineup[side]!.map((p) => (
-                  <Pressable
-                    key={p.key}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Remove ${p.displayName}`}
-                    onPress={() => remove(p.key)}
-                    style={{ flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 28 }}
-                  >
-                    <Avatar name={p.displayName} id={p.userId ?? p.key} size={28} />
-                    <T size={14} w={600} flex numberOfLines={1}>
-                      {p.userId && p.userId === me?.id ? 'You' : p.displayName}
-                    </T>
-                    <Icon name="close" size={14} color={colors.faint} />
-                  </Pressable>
-                ))}
-                {lineup[side]!.length < maxPerSide ? (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={`Add player to side ${side === 0 ? 'A' : 'B'}`}
-                    onPress={() => setAdding(side)}
-                    style={{ flexDirection: 'row', alignItems: 'center', gap: 8, height: 28 }}
-                  >
-                    <View style={{ width: 28, height: 28, borderRadius: 14, borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.faint, alignItems: 'center', justifyContent: 'center' }}>
-                      <Icon name="plus" size={14} color={colors.fg} />
-                    </View>
-                    <T size={14} w={700}>
-                      Add player
-                    </T>
-                  </Pressable>
-                ) : null}
-                {format.maxPerSide > 1 ? (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={`Use a saved team for side ${side === 0 ? 'A' : 'B'}`}
-                    onPress={() => setPickingTeam(side)}
-                    style={{ flexDirection: 'row', alignItems: 'center', gap: 8, height: 28 }}
-                  >
-                    <View style={{ width: 28, alignItems: 'center' }}>
-                      <Icon name="people" size={16} color={colors.muted} />
-                    </View>
-                    <T size={13} w={600} color={colors.muted}>
-                      Saved team
-                    </T>
-                  </Pressable>
+                {otherPartner ? (
+                  <TextButton label={`${firstName(nameOf(otherPartner))} serves instead`} size={12} color={colors.accentText} onPress={() => serveFirst(firstServer, otherPartner.key)} />
                 ) : null}
               </View>
-            </View>
-          ))}
-        </View>
-      </View>
+            ) : null}
+          </View>
 
-      <RulesSheet
-        visible={editingRules}
-        onClose={() => setEditingRules(false)}
-        ruleset={ruleset}
-        override={override}
-        onChange={setRule}
-        onReset={resetRules}
-        note="The change is for this match only."
+          <ToggleRow title="Share live scoreboard link" detail="Friends follow point by point, no login needed" value={share} onChange={setShare} />
+        </>
+      ) : null}
+
+      <CoinToss
+        visible={tossing}
+        sides={[sideName(0), sideName(1)]}
+        onResult={(side) => {
+          const first = lineup[side]![0];
+          if (first) serveFirst(side, first.key);
+          else useMatchDraft.setState({ firstServer: side });
+          setServe('toss');
+        }}
+        onClose={() => setTossing(false)}
       />
 
       <TeamPickerSheet
@@ -206,6 +282,7 @@ export default function NewMatchSetupScreen() {
       <AddPlayerSheet
         visible={adding !== null}
         side={adding ?? 1}
+        title={`Add to team ${(adding ?? 1) === 0 ? 'A' : 'B'}`}
         sport={sport.slug}
         sportName={sport.name}
         taken={lineupKeys(lineup)}

@@ -9,19 +9,23 @@ export interface LineupPlayer {
   /** Registered players only. */
   userId: string | null;
   input: ParticipantInput;
+  /** Rating in the match's sport, when known (search results). */
+  rating?: number | null;
+  /** Guests: the phone given, shown masked. */
+  phone?: string | null;
 }
 
 export type Lineup = LineupPlayer[][];
 
 export function fromOption(option: PlayerOption): LineupPlayer {
   const input: ParticipantInput = option.playerId ? { playerId: option.playerId } : { userId: option.userId! };
-  return { key: option.userId ?? option.playerId!, displayName: option.displayName, isGuest: option.isGuest, userId: option.userId, input };
+  return { key: option.userId ?? option.playerId!, displayName: option.displayName, isGuest: option.isGuest, userId: option.userId, input, rating: option.rating };
 }
 
 let guestSeq = 0;
 export function newGuest(displayName: string, phone?: string | null): LineupPlayer {
   guestSeq += 1;
-  return { key: `guest-${guestSeq}-${displayName}`, displayName, isGuest: true, userId: null, input: { guest: { displayName, ...(phone ? { phone } : {}) } } };
+  return { key: `guest-${guestSeq}-${displayName}`, displayName, isGuest: true, userId: null, phone: phone ?? null, input: { guest: { displayName, ...(phone ? { phone } : {}) } } };
 }
 
 export function lineupKeys(lineup: Lineup): string[] {
@@ -71,4 +75,16 @@ export function withTeam(lineup: Lineup, side: number, members: LineupPlayer[], 
   const elsewhere = new Set(lineup.flatMap((players, i) => (i === side ? [] : players.map((p) => p.key))));
   const players = members.filter((p) => !elsewhere.has(p.key)).slice(0, maxPerSide);
   return lineup.map((current, i) => (i === side ? players : current));
+}
+
+/** "+91 98••• ••210": country code, first two and last three digits. */
+export function maskPhone(phone: string): string {
+  const compact = phone.replace(/[\s-]/g, '');
+  if (!/^\+\d+$/.test(compact)) return phone.length > 5 ? `${phone.slice(0, 2)}•••${phone.slice(-3)}` : phone;
+  const digits = compact.slice(1);
+  // Only for display: most numbers are 10 digits after the country code (India, US); else assume 2.
+  const ccLen = digits.length - 10 >= 1 && digits.length - 10 <= 3 ? digits.length - 10 : 2;
+  const [cc, rest] = [digits.slice(0, ccLen), digits.slice(ccLen)];
+  if (rest.length < 6) return `+${cc} ${rest}`;
+  return `+${cc} ${rest.slice(0, 2)}••• ••${rest.slice(-3)}`;
 }

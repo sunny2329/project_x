@@ -30,14 +30,17 @@ export function rulesetDetail(ruleset: Pick<RulesetOption, 'scoringModel' | 'con
   return parts.join(' · ');
 }
 
-/** NewMatchSport's line under each sport: the default rules, shortened ("Best of 3 · 21 points · cap 30"). */
-export function sportTagline(sport: SportSummary): string {
+/** Sport card line in setup (design v2): "Rally to 21", "Side-out or rally", "Doubles · golden point", "15 · 30 · 40 · game". */
+export function sportCardLine(sport: SportSummary): string {
   const r = sport.rulesets.find((x) => x.isDefault) ?? sport.rulesets[0];
   if (!r) return sport.formats.map((f) => f.name).join(' · ');
-  if (r.scoringModel === 'baskets') return `${sport.formats.map((f) => f.name).join(' · ')} · half or full court`;
-  const cap = num(r.config, 'cap');
+  const models = new Set(sport.rulesets.map((x) => x.scoringModel));
   const onlyDoubles = sport.formats.length === 1 && sport.formats[0]!.code === 'doubles';
-  return [onlyDoubles ? 'Doubles' : null, r.name, cap ? `cap ${cap}` : null].filter(Boolean).join(' · ');
+  if (r.scoringModel === 'baskets') return `${sport.formats.map((f) => f.name).join(' · ')} · half or full court`;
+  if (r.scoringModel === 'overs') return `${num(r.config, 'overs') ?? 'Short'} overs a side`;
+  if (r.scoringModel === 'side_out') return models.has('rally') ? 'Side-out or rally' : `Side-out to ${num(r.config, 'pointsToWin') ?? 11}`;
+  if (r.scoringModel === 'tennis') return onlyDoubles ? `Doubles · ${r.config.deuce === 'golden_point' ? 'golden point' : 'advantage'}` : '15 · 30 · 40 · game';
+  return `${onlyDoubles ? 'Doubles · ' : ''}Rally to ${num(r.config, 'pointsToWin') ?? 21}`;
 }
 
 /** The small grey line next to Undo, from the rules. */

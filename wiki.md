@@ -628,7 +628,17 @@ Frontend (`frontend/.env`, template `frontend/.env.example`): `EXPO_PUBLIC_API_U
   tournaments (`tournaments?filter=mine` not finished, with my next fixture from
   `tournaments/me/matches`: "You play QF at 7:30 PM"), Recent results (+/− rating pill), then Feed
   (search and new post) and the posts. Chats screen has a back button to Home.
-- Not yet: friendly match flow, live scoring, result card, scoreboard and tournament screens.
+- Friendly match in two steps. Step 1 (`/match/new`, `NewMatchSportScreen`): sport cards (2 a row,
+  short line from `sportCardLine`), Singles / Doubles (Padel doubles only), scoring rules as radio
+  rows + "Change a rule", "Already played? Enter a result"; `?sport=` preselects (Home chips, profile
+  CTA), `?with=` still puts a player on side B. Step 2 (`/match/setup`): Team A / Team B player rows
+  (rating in the sport from search results, mine from the profile; guests show a masked phone and
+  "can claim later"), one search box for the next open side, quick-add chips for recent guests,
+  saved team per side, First serve Team A / Team B / Coin toss (plus "X serves instead" in doubles),
+  "Share live scoreboard link" (on: the share sheet opens with the `/s/<token>` link once the match
+  starts), Start scoring creates the match. Cricket still goes on to "Who bats first?", basketball to
+  its own setup; Rematch still opens the serve screen. Pieces in `match/components/SetupBits.tsx`.
+- Not yet: live scoring, result card, scoreboard and tournament screens.
 
 
 ### 2026-11-20: PWA merged to `main` and web app redeployed (merge `e70aec8`)
