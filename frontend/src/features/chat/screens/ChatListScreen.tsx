@@ -58,9 +58,13 @@ export default function ChatListScreen() {
   return (
     <Screen gap={16} refreshing={refreshing} onRefresh={refresh}>
       <Row between>
-        <D size={40} upper accessibilityRole="header">
-          Chats
-        </D>
+        <Row gap={10}>
+          {/* Chats has no tab since design v2; it opens from Home's header. */}
+          <IconButton icon="back" label="Back to Home" onPress={() => router.navigate('/')} />
+          <D size={34} accessibilityRole="header">
+            Chats
+          </D>
+        </Row>
         <IconButton icon="pen" label="New chat" tone="primary" onPress={() => router.push('/search')} />
       </Row>
 

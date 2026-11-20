@@ -622,7 +622,13 @@ Frontend (`frontend/.env`, template `frontend/.env.example`): `EXPO_PUBLIC_API_U
   `profile/__tests__/insights.api.test.ts` (HTTP, 6), app `features/profile/insights.test.ts` (11).
 - Test harness: the throwaway pools now ignore idle-connection errors (Neon resets idle clients;
   it surfaced as an unhandled ECONNRESET in long files).
-- Not yet: Home, friendly match flow, live scoring, result card, scoreboard and tournament screens.
+- Home (`feed/screens/HomeScreen.tsx`, `components/HomeBits.tsx`, wording in `feed/home.ts`):
+  greeting + name, Chats and bell (with badge) buttons, "Start a friendly match" hero with a chip per
+  active sport (opens setup on it), confirm-a-result card, Live now (up to 3 full-width cards), Your
+  tournaments (`tournaments?filter=mine` not finished, with my next fixture from
+  `tournaments/me/matches`: "You play QF at 7:30 PM"), Recent results (+/− rating pill), then Feed
+  (search and new post) and the posts. Chats screen has a back button to Home.
+- Not yet: friendly match flow, live scoring, result card, scoreboard and tournament screens.
 
 
 ### 2026-11-20: PWA merged to `main` and web app redeployed (merge `e70aec8`)
