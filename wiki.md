@@ -266,6 +266,10 @@ while focused, and opening the screen marks all read. No push notifications yet.
 Feed and post responses: `match` = `{id, sport, format, durationSeconds, result: {summary,
 winnerSide, sides: [{no, name, headline}], periodCount} | null}` (from `match_master`,
 `mst_sport_format` and `match_result`); the app builds the activity title and stats row from it.
+`match.tournament` = `{id, name, eventName, roundName, groupName} | null` (from `fixtures` ⋈ stage ⋈
+event ⋈ tournament; `groupName` only for round-robin groups). The result post's author is the match
+creator; when they aren't on a side (`authorSideIndex: null`, e.g. a tournament scorer) the card
+says "A beat B", "Scored by <author>" and shows a trophy tag with the tournament, event and round.
 
 `profile` = `{ user, bio, sports: [{id, code, name, isPrimary, rating, matchesPlayed, matchesWon,
 matchesLost, pointsScored, pointsConceded}], record: {played, won, lost}, followers, following }`.
@@ -568,6 +572,15 @@ Frontend (`frontend/.env`, template `frontend/.env.example`): `EXPO_PUBLIC_API_U
   the test harness must be rewritten to build an isolated copy of the `project_x` tables.
 
 ## Changelog
+
+### 2026-11-20: Tournament matches in the feed; Home tab scrolls to top
+- Bug: a tournament match's result post read "<scorer> played pickleball", because the post is
+  written under the match creator (the scorer), who isn't on either side.
+- Backend: feed / post responses carry `match.tournament` (`feed.repository.ts` POST_COLUMNS).
+- App: `PostCards.tsx` shows "A beat B" (or "drew with") when the author didn't play, "Scored by
+  <author>" in the meta line and a trophy tag "Tournament · Event · Round/Group"; same on the post page.
+- App: tapping Home while on Home scrolls the feed to the top (`useScrollToTop` in HomeScreen).
+- Tests: `feed/__tests__/feed-tournament.api.test.ts` (3).
 
 ### 2026-11-20: Change a tournament draw while it runs (commit `3c9aefe`, branch `feat/teams`)
 - Why: once a draw was made, an organizer couldn't add the 2 teams that turned up late, or remove

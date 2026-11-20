@@ -32,6 +32,8 @@ export interface FeedMatch {
   /** The post author's side and rating change in this match, when they played in it. */
   authorSideIndex: number | null;
   authorRatingChange: number | null;
+  /** The tournament fixture this match was played for; null for friendlies. */
+  tournament: FeedTournament | null;
   /** From the match's ScoreSummary; null while it is not decided. */
   result: {
     headline: string;
@@ -44,6 +46,17 @@ export interface FeedMatch {
     /** Top-level game/set scores, one array per segment ([side0, side1]). */
     segments: number[][];
   } | null;
+}
+
+export interface FeedTournament {
+  id: string;
+  name: string;
+  /** "Men's Doubles". */
+  eventName: string;
+  /** "Quarter-final", "Round 2"; null when the fixture has no round name. */
+  roundName: string | null;
+  /** "Group A" for group-stage fixtures; null in a knockout bracket. */
+  groupName: string | null;
 }
 
 export type FeedRow = Omit<FeedPost, 'createdAt'> & { createdAt: Date };
@@ -70,6 +83,12 @@ export const POST_COLUMNS = `
                                JOIN match_sides ams ON ams.id = amp.side_id WHERE amp.match_id = m.id AND apl.user_id = u.id LIMIT 1),
          'authorRatingChange', (SELECT round(h.rating_after - h.rating_before)::int FROM player_rating_history h JOIN players hp ON hp.id = h.player_id
                                   WHERE h.match_id = m.id AND hp.user_id = u.id),
+         'tournament', (SELECT json_build_object('id', t.id, 'name', t.name, 'eventName', te.name, 'roundName', fx.round_name,
+                                           'groupName', CASE WHEN g.type = 'group' THEN g.name END)
+                          FROM fixtures fx JOIN tournament_stages st ON st.id = fx.stage_id
+                          JOIN tournament_events te ON te.id = st.event_id JOIN tournaments t ON t.id = te.tournament_id
+                          LEFT JOIN stage_groups g ON g.id = fx.group_id
+                         WHERE fx.match_id = m.id LIMIT 1),
          'result', CASE WHEN m.status NOT IN ('completed', 'retired', 'walkover') THEN NULL ELSE json_build_object(
            'headline', m.summary->>'headline',
            'winnerSideIndex', m.summary->'winnerSideIndex',

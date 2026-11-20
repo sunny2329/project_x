@@ -221,6 +221,9 @@ Setup: A plays and completes a match with a guest who has B's phone, then B sign
 - [ ] Pull to refresh on Home also refreshes the badge
 - [ ] Live now shows matches you play in, created, can score, or that people you follow are playing (follow status 1)
 - [ ] The live card score changes while someone scores on another device (comes from Redis)
+- [ ] Tapping Home while already on Home scrolls the feed back to the top
+- [ ] A tournament match in the feed says "A beat B", "Scored by <scorer>" and shows a trophy tag with the tournament, event and round (group name in a round robin)
+- [ ] A friendly you played still reads "<you> won/lost at <sport>", with no trophy tag
 - [ ] Feed posts from blocked users are hidden (needs a manual `usr_user_block` row, see Part D)
 
 #### 11b. `notifications` (NotificationsScreen), opened from the bell on Home

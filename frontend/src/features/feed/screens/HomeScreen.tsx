@@ -1,5 +1,5 @@
-import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { router, useFocusEffect, useScrollToTop } from 'expo-router';
+import { useCallback, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, RefreshControl, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/features/auth/store/auth.store';
@@ -13,6 +13,7 @@ import { Button, EmptyState, Icon, IconButton, Notice, T, Tap, Wordmark } from '
 import { firstName, plural } from '@/shared/utils/format';
 import { PostCard } from '../components/PostCards';
 import { useFeed } from '../hooks/useFeed';
+import type { FeedPost } from '../types';
 
 /** "Arjun says you lost 9-11 at pickleball" for the first result waiting on me. */
 function confirmLine(match: MatchView, myId: string | undefined): string {
@@ -32,6 +33,9 @@ export default function HomeScreen() {
   const [live, setLive] = useState<MatchCard[]>([]);
   const [pending, setPending] = useState<{ count: number; first: MatchView } | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  // Tapping Home while already on Home scrolls the feed back to the top.
+  const listRef = useRef<FlatList<FeedPost>>(null);
+  useScrollToTop(listRef);
   // The bell's badge: checked on focus and every 30 s while Home is on screen.
   const unread = useResource(() => notificationsApi.unread(), [], { poll: 30_000 });
   const unreadCount = unread.data?.count ?? 0;
@@ -156,6 +160,7 @@ export default function HomeScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg, paddingTop: insets.top + 10 }}>
       <FlatList
+        ref={listRef}
         data={feed.posts}
         keyExtractor={(p) => p.id}
         ListHeaderComponent={header}

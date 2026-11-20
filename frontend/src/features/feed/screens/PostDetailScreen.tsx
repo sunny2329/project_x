@@ -8,7 +8,7 @@ import { bodyFont, useTheme } from '@/shared/theme';
 import { Avatar, Button, Header, Icon, IconButton, Loading, Notice, Row, Screen, T, Tap } from '@/shared/ui';
 import { ago, agoShort, shortName } from '@/shared/utils/format';
 import { feedApi } from '../api/feed.api';
-import { PostPhotos, resultTitle } from '../components/PostCards';
+import { authorIsScorer, PostPhotos, resultTitle, TournamentTag } from '../components/PostCards';
 import { usePostLike } from '../hooks/usePostLike';
 import type { FeedPost } from '../types';
 
@@ -124,7 +124,9 @@ export default function PostDetailScreen() {
                 <T size={12} color={colors.muted}>
                   {p.match.sport.name}
                   {p.match.format ? ` · ${p.match.format}` : ''}
+                  {authorIsScorer(p) ? ` · Scored by ${shortName(p.author.fullName)}` : ''}
                 </T>
+                <TournamentTag post={p} />
                 <ScoreLines sides={p.match.result.sides} segments={p.match.result.segments} winnerSideIndex={p.match.result.winnerSideIndex} color={p.match.sport.accentColor} />
               </Tap>
             ) : null}
