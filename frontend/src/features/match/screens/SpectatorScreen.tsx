@@ -4,12 +4,13 @@ import { Share, View } from 'react-native';
 import { useNow } from '@/shared/hooks/useNow';
 import { useResource } from '@/shared/hooks/useResource';
 import { sportText, useTheme, withAlpha } from '@/shared/theme';
-import { Badge, Button, D, Dot, EmptyState, Header, IconButton, Loading, Row, Screen, T } from '@/shared/ui';
+import { Button, D, Dot, EmptyState, Header, IconButton, Loading, Row, Screen, T } from '@/shared/ui';
 import { clockLower, minutes, shortName } from '@/shared/utils/format';
 import { matchApi, shareUrl } from '../api/match.api';
+import { LivePill } from '@/features/feed/components/HomeBits';
 import { HoopsSpectator } from '../components/basketball/Spectator';
 import { ThisOver } from '../components/CricketBoard';
-import { segmentShort, unitLabel } from '../components/Scoreboard';
+import { segmentShort } from '../components/Scoreboard';
 import type { MatchView } from '../types';
 
 const POLL_MS = 4_000;
@@ -56,7 +57,7 @@ export function SpectatorView({ match, reload }: { match: MatchView; reload: () 
       <Row between>
         <IconButton icon="back" label="Back" onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))} />
         <Row gap={8}>
-          <Badge label="LIVE" tone="live" />
+          <LivePill />
           <T size={12} color={colors.muted}>
             Updated {ago < 2 ? 'just now' : `${ago}s ago`}
           </T>
@@ -80,60 +81,43 @@ export function SpectatorView({ match, reload }: { match: MatchView; reload: () 
         <HoopsSpectator match={match} />
       ) : (
         <>
-          <View style={{ borderRadius: 24, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, overflow: 'hidden' }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', paddingTop: 12, paddingHorizontal: 16, paddingBottom: 6 }}>
-              <View style={{ flex: 1 }} />
-              {columns.map((c) => (
-                <T key={c.key} size={11} w={700} ls={0.08} color={colors.muted} center style={{ width: overs ? 56 : 40 }}>
-                  {c.label}
-                </T>
-              ))}
-              <T size={11} w={700} ls={0.08} color={colors.muted} right style={{ width: overs ? 96 : 86 }}>
-                {overs ? 'SCORE' : 'POINTS'}
-              </T>
-            </View>
+          <View style={{ borderRadius: 24, backgroundColor: colors.hero, paddingHorizontal: 18, paddingVertical: 4 }}>
             {[0, 1].map((i) => {
               const side = score.sides[i]!;
+              const prev = overs ? '' : columns.filter((c) => c.seg.complete).map((c) => c.seg.display[i]).join(' ');
+              const sub = [side.serving ? `● ${overs ? 'Batting' : 'Serving'}${side.serveNote ? ` · ${side.serveNote}` : ''}` : null].filter(Boolean).join('');
+              const name = match.sides[i]?.players.length === 1 ? match.sides[i]!.players[0]!.displayName : (match.sides[i]?.players.map((p) => shortName(p.displayName)).join(' & ') || match.sides[i]?.name) ?? '';
               return (
-                <View key={i}>
-                  {i === 1 ? <View style={{ height: 1, backgroundColor: colors.raised, marginHorizontal: 16 }} /> : null}
-                  <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 10, paddingBottom: i === 1 ? 16 : 10 }}>
-                    <View style={{ flex: 1, gap: 4 }}>
-                      {(match.sides[i]?.players.length ? match.sides[i]!.players.map((p) => shortName(p.displayName)) : [match.sides[i]?.name ?? '']).map((n) => (
-                        <T key={n} size={16} w={700} numberOfLines={1}>
-                          {n}
-                        </T>
-                      ))}
-                      {side.serving ? (
-                        <Row gap={6}>
-                          <Dot color={tint} />
-                          <T size={12} w={700} color={tint}>
-                            {overs ? 'Batting' : 'Serving'}{side.serveNote ? ` · ${side.serveNote}` : ''}
-                          </T>
-                        </Row>
-                      ) : null}
-                    </View>
-                    {columns.map((c) => (
-                      <D key={c.key} size={22} w={c.seg.complete && c.seg.winnerSideIndex === i ? 900 : 800} color={!c.seg.complete ? colors.faint : c.seg.winnerSideIndex === i ? colors.fg : colors.muted} style={{ width: overs ? 56 : 40, textAlign: 'center' }}>
-                        {c.seg.complete ? c.seg.display[i] : '·'}
-                      </D>
-                    ))}
-                    <D size={overs ? 38 : 72} lh={overs ? 38 : 70} color={side.serving ? tint : colors.fg} numberOfLines={1} style={{ width: overs ? 96 : 86, textAlign: 'right' }}>
-                      {side.current ?? side.primary}
-                    </D>
+                <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, borderTopWidth: i ? 1 : 0, borderTopColor: withAlpha(colors.onHero, 0.35) }}>
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <T size={17} w={700} color={colors.onHero} numberOfLines={2}>
+                      {name}
+                    </T>
+                    {sub ? (
+                      <T size={12} color={colors.heroMuted}>
+                        {sub}
+                      </T>
+                    ) : null}
                   </View>
+                  {prev ? (
+                    <D size={20} w={500} color={colors.heroMuted}>
+                      {prev}
+                    </D>
+                  ) : null}
+                  <D size={overs ? 38 : 56} lh={overs ? 40 : 52} color={colors.onHero} right style={{ minWidth: 64 }} numberOfLines={1}>
+                    {side.current ?? side.primary}
+                  </D>
                 </View>
               );
             })}
-            <View style={{ paddingVertical: 12, paddingHorizontal: 16, backgroundColor: score.callout ? withAlpha(match.sport.accentColor, 0.14) : colors.raised2, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-              <D size={26} ls={0.06} color={score.callout ? tint : colors.muted}>
-                {(score.callout ?? unitLabel(score)).toUpperCase()}
-              </D>
-              <T size={13} color={colors.soft}>
-                {unitLabel(score)}
+          </View>
+          {score.callout && score.scoringModel !== 'side_out' ? (
+            <View style={{ alignSelf: 'flex-start', paddingVertical: 6, paddingHorizontal: 12, borderRadius: 99, backgroundColor: colors.accentSoft }}>
+              <T size={13} w={700} color={colors.accentText}>
+                {score.callout}
               </T>
             </View>
-          </View>
+          ) : null}
 
           {overs ? <ThisOver marks={score.ticker ?? []} /> : null}
         </>

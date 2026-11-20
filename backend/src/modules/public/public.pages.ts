@@ -4,6 +4,8 @@
  * generic ScoreSummary and fixture views, so there is no per-sport code here either.
  */
 
+import { SCORE_HELPERS_JS } from './public.score.js';
+
 const escapeHtml = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
 /** Opens the installed app (expo-router path) — the stores aren't live yet. */
@@ -17,20 +19,47 @@ export function publicPage(title: string, kind: 'match' | 'tournament' | 'missin
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escapeHtml(title)} · ProjectX</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800;900&family=Instrument+Sans:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap">
 <style>
-  :root { --bg:#0A0A0A; --fg:#F6F2EE; --muted:#ABA39B; --primary:#E85D04; --onPrimary:#0A0A0A; --accent:#FF8A3D;
-          --page:#F2F4F8; --ink:#0A0A0A; --card:#FFFFFF; --line:#DDE2EC; --hair:#EEF1F6; --sub:#4B5570; --dim:#8A93A8; --live:#FF5468; --good:#15803D; }
+  :root { --page:#FFFFFF; --surface:#F7F4F1; --card:#FFFFFF; --line:#EAE3DC; --hair:#F1E8E0; --ink:#17120E; --sub:#6B6158; --dim:#9A8F85;
+          --primary:#C2410C; --onPrimary:#FFFFFF; --accent:#C2410C; --accentSoft:#FDEBDF; --accentText:#9A3412;
+          --hero:#C2410C; --onHero:#FFFFFF; --heroMuted:#FFE1CF; --heroLine:rgba(255,255,255,.35);
+          --live:#DC2626; --liveBg:#FDE4E4; --liveText:#991B1B; --good:#2E6418; --goodBg:#E6F4E1; --bad:#8A2A12;
+          --bg:#17120E; --fg:#F5EFE9; --muted:#A69B91; color-scheme: light dark; }
+  @media (prefers-color-scheme: dark) {
+    :root { --page:#0A0908; --surface:#151210; --card:#1B1714; --line:#2E2722; --hair:#2A231E; --ink:#F5EFE9; --sub:#A69B91; --dim:#7D736A;
+            --primary:#EA580C; --onPrimary:#0A0908; --accent:#EA580C; --accentSoft:#3A1C0C; --accentText:#FDBA8C;
+            --hero:#1D1814; --onHero:#F5EFE9; --heroMuted:#A69B91; --heroLine:#2E2722;
+            --live:#F87171; --liveBg:#3A1414; --liveText:#FCA5A5; --good:#9BD88A; --goodBg:#17301A; --bad:#FFB49E;
+            --bg:#1B1714; --fg:#F5EFE9; --muted:#A69B91; }
+  }
   * { box-sizing: border-box; }
-  body { margin:0; background:var(--page); color:var(--ink); font:15px/1.45 'Instrument Sans', system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+  body { margin:0; background:var(--page); color:var(--ink); font:15px/1.45 'DM Sans', system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
   a { color: inherit; text-decoration: none; }
-  .d { font-family: 'Big Shoulders Display', 'Arial Narrow', Impact, sans-serif; }
-  header { display:flex; align-items:center; gap:12px; padding:18px 20px 14px; background:var(--bg); color:var(--fg); }
-  header .brand { font-size:22px; font-weight:900; letter-spacing:.04em; } header .brand span { color:var(--accent); }
-  header .url { flex:1; font-size:12px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .d { font-family: 'Barlow Condensed', 'Arial Narrow', Impact, sans-serif; font-weight:700; }
+  header { display:flex; align-items:center; gap:12px; max-width:560px; margin:0 auto; padding:18px 20px 4px; }
+  header .brand { font-size:24px; letter-spacing:.02em; color:var(--accent); }
+  header .url { flex:1; }
+  .pill { display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:99px; font-size:12px; font-weight:700; }
+  .pill.live { background:var(--liveBg); color:var(--liveText); } .pill.live i { width:6px; height:6px; border-radius:3px; background:var(--live); }
+  .pill.done { background:var(--surface); color:var(--sub); }
+  .hero { border-radius:24px; background:var(--hero); color:var(--onHero); padding:6px 18px; }
+  .hero .row { display:grid; grid-template-columns:minmax(0,1fr) auto 64px; align-items:center; gap:12px; padding:14px 0; }
+  .hero .row + .row { border-top:1px solid var(--heroLine); }
+  .hero .nm { font-size:17px; font-weight:700; } .hero .nm.lose { font-weight:500; }
+  .hero .meta { font-size:12px; color:var(--heroMuted); margin-top:2px; }
+  .hero .prev { font-size:20px; font-weight:500; color:var(--heroMuted); letter-spacing:.02em; }
+  .hero .now { font-size:52px; line-height:48px; text-align:right; }
+  .panel { border-radius:20px; border:1px solid var(--line); background:var(--card); padding:16px; display:flex; flex-direction:column; gap:12px; }
+  .panel .top { display:flex; justify-content:space-between; gap:8px; font-size:12px; color:var(--sub); } .panel .top b { color:var(--ink); font-size:14px; }
+  .stats { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; } .stats .v { font-size:22px; } .stats .k { font-size:12px; color:var(--sub); }
+  .points .p { display:flex; justify-content:space-between; padding:12px 0; border-top:1px solid var(--line); } .points .p.l { color:var(--sub); }
+  .points .p .d { font-size:18px; }
+  .go { display:flex; align-items:center; justify-content:center; height:56px; border-radius:16px; background:var(--primary); color:var(--onPrimary); font-weight:700; font-size:15px; }
+  .foot { text-align:center; font-size:12px; color:var(--sub); }
   .btn { display:inline-flex; align-items:center; justify-content:center; gap:8px; border:0; cursor:pointer; font:inherit; font-weight:700; }
   header .btn { height:36px; padding:0 14px; border-radius:10px; background:var(--primary); color:var(--onPrimary); font-size:13px; }
-  main { max-width: 560px; margin: 0 auto; padding: 22px 20px 28px; display:flex; flex-direction:column; gap:16px; min-height: calc(100vh - 68px); }
+  main { max-width: 560px; margin: 0 auto; padding: 14px 20px 28px; display:flex; flex-direction:column; gap:16px; min-height: calc(100vh - 68px); }
   .kicker { display:flex; align-items:center; gap:8px; font-size:13px; font-weight:700; letter-spacing:.04em; }
   .dot { width:8px; height:8px; border-radius:4px; display:inline-block; }
   h1 { margin:0; font-size:40px; line-height:40px; font-weight:900; text-transform:uppercase; }
@@ -69,9 +98,10 @@ export function publicPage(title: string, kind: 'match' | 'tournament' | 'missin
 </head>
 <body>
 <header>
-  <span class="d brand">PROJECT<span>X</span></span>
-  <span class="url" id="url"></span>
-  <a class="btn" id="open" href="${APP_LINK}">Open app</a>
+  <span class="d brand">PROJECT X</span>
+  <span class="url"></span>
+  <span id="status"></span>
+  <a id="open" href="${APP_LINK}" hidden></a>
 </header>
 <main id="app" data-kind="${kind}" data-key="${escapeHtml(key)}"><p class="muted">Loading…</p></main>
 <div class="toast" id="toast"></div>
@@ -81,11 +111,12 @@ export function publicPage(title: string, kind: 'match' | 'tournament' | 'missin
 }
 
 export const PUBLIC_PAGE_SCRIPT = String.raw`(() => {
+${SCORE_HELPERS_JS}
   const app = document.getElementById('app');
   const kind = app.dataset.kind;
   const key = app.dataset.key;
   const APP = 'projectx://';
-  document.getElementById('url').textContent = location.host + location.pathname;
+  const statusEl = document.getElementById('status');
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const get = async (path) => {
     const res = await fetch('/api/v1/public' + path, { headers: { accept: 'application/json' } });
@@ -113,47 +144,74 @@ export const PUBLIC_PAGE_SCRIPT = String.raw`(() => {
   function whatsapp(text) { window.open('https://wa.me/?text=' + encodeURIComponent(text + ' ' + location.href), '_blank'); }
 
   // -------------------------------------------------------------------------- match
+  const first = (n) => String(n || '').trim().split(/\s+/)[0];
+  const clock = (iso) => new Date(iso).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
   async function showMatch() {
     try {
       const { match: m } = await get('/matches/' + key);
       const s = m.score;
       const names = m.sides.map((x) => x.name);
+      const short = m.sides.map((x) => x.players.length === 1 ? x.players[0].displayName : x.players.length ? x.players.map((p) => first(p.displayName)).join(' & ') : x.name);
       const w = s.winnerSideIndex;
       const live = m.status === 'live';
       const title = live ? names.join(' v ') : w !== null && w !== undefined ? names[w] + ' beat ' + names[1 - w] : names.join(' v ');
       document.title = title + ' · ProjectX';
       document.getElementById('open').href = APP + 'match/' + m.id;
-      const round = m.tournament && m.tournament.roundName ? ' · ' + m.tournament.roundName : live ? '' : ' · FINAL';
-      const mins = m.startedAt && m.completedAt ? Math.max(1, Math.round((new Date(m.completedAt) - new Date(m.startedAt)) / 60000)) : null;
-      const meta = [day(m.completedAt || m.startedAt), m.venue && m.venue.name, mins && mins < 600 ? mins + ' min' : null].filter(Boolean).map(esc).join(' · ');
+      statusEl.innerHTML = live ? '<span class="pill live"><i></i>LIVE</span>' : '<span class="pill done">' + (m.status === 'completed' ? 'FINAL' : esc(String(m.status).toUpperCase())) + '</span>';
       const overs = s.scoringModel === 'overs';
-      // Basketball: a column per quarter (none for a first-to game), then the total.
       const hoops = s.scoringModel === 'baskets';
-      const segs = hoops ? s.segments.filter((g) => g.type !== 'game') : s.segments.filter((g) => g.complete || (!overs && g.scores.some((n) => n > 0)));
-      const cols = segs.length;
-      const label = s.totals.majorLabel === 'Sets' ? 'S' : 'G';
-      const colName = (g, i) => (hoops ? esc(g.label) : overs ? (g.type === 'super_over' ? 'SO' + i : 'INN') : label + (i + 1));
-      const colWidth = overs ? 64 : hoops ? 40 : 44;
-      const last = live || hoops;
-      const tpl = 'minmax(0,1fr) ' + (cols ? 'repeat(' + cols + ', ' + colWidth + 'px)' : '') + (last ? (overs ? ' 88px' : ' 64px') : '');
-      const head = '<div class="grid" style="grid-template-columns:' + tpl + ';padding-bottom:4px"><span></span>' +
-        segs.map((g, i) => '<span class="h">' + colName(g, i) + '</span>').join('') + (last ? '<span class="h">' + (hoops ? 'T' : 'NOW') + '</span>' : '') + '</div>';
-      const row = (i) => '<div class="grid" style="grid-template-columns:' + tpl + '"><span class="side" style="' + (w === i ? 'font-weight:700' : 'color:var(--sub)') + '">' +
-        '<span class="bar" style="background:' + (w === i || (live && i === 0) ? m.sport.accentColor : 'transparent') + '"></span>' + esc(names[i]) + '</span>' +
-        segs.map((g) => '<span class="d n' + (hoops || g.winnerSideIndex === i ? '' : ' lose') + '">' + esc(g.display ? g.display[i] : g.scores[i]) + '</span>').join('') +
-        (last ? '<span class="d n" style="color:' + m.sport.accentColor + '">' + esc(s.sides[i].current ?? (overs || hoops ? s.sides[i].primary : '')) + '</span>' : '') + '</div>';
+      const t = m.tournament;
+      const kicker = t ? [t.name, t.eventName, t.roundName || t.groupName] : [m.sport.name, m.format.name, 'Friendly'];
+      const unit = s.totals.majorLabel === 'Sets' ? 'Set' : 'Game';
+      const inPlay = s.segments.filter((g) => g.complete).length + 1;
+      const mins = m.startedAt ? Math.max(1, Math.round(((m.completedAt ? new Date(m.completedAt) : new Date()) - new Date(m.startedAt)) / 60000)) : null;
+      const meta = [m.court && m.court.name, m.venue && m.venue.name, m.startedAt ? 'Started ' + clock(m.startedAt) : null, live && !overs && !hoops ? unit + ' ' + inPlay : null, !live && mins && mins < 600 ? mins + ' min' : null].filter(Boolean).map(esc).join(' · ');
+      // Finished games/sets as small numbers, the one in play (or the total) big.
+      const doneSegs = s.segments.filter((g) => g.complete);
+      const big = (i) => live ? (s.sides[i].current ?? s.sides[i].primary) : (overs || hoops ? s.sides[i].primary : String(s.totals.major[i] ?? s.sides[i].primary));
+      const prev = (i) => (overs ? '' : doneSegs.map((g) => (g.display ? g.display[i] : g.scores[i])).join(' '));
+      const row = (i) => {
+        const side = s.sides[i];
+        const sub = [live && side.serving ? '● ' + (overs ? 'Batting' : 'Serving') + (side.serveNote ? ' · ' + side.serveNote : '') : null, !live && w === i ? 'Winner' : null].filter(Boolean).join(' · ');
+        return '<div class="row"><div><div class="nm' + (w !== null && w !== undefined && w !== i ? ' lose' : '') + '">' + esc(short[i]) + '</div>' + (sub ? '<div class="meta">' + esc(sub) + '</div>' : '') + '</div>' +
+          '<span class="d prev">' + esc(prev(i)) + '</span><span class="d now">' + esc(big(i)) + '</span></div>';
+      };
+      const rally = (m.events || []).some((e) => e.type === 'rally_won');
+      let panel = '';
+      if (rally) {
+        // Rally scoring: every rally is a point, so the game in play is its last (a + b) rallies.
+        const curScores = s.segments.length ? s.segments[s.segments.length - 1].scores : null;
+        const gameOnly = live && s.scoringModel === 'rally' && curScores && curScores[0] + curScores[1] >= 2;
+        const series = momentum(m.events, gameOnly ? curScores[0] + curScores[1] : 40);
+        const runs = bestRuns(m.events);
+        const top = runs[0] >= runs[1] ? 0 : 1;
+        const rallies = m.events.filter((e) => e.type === 'rally_won').length;
+        const line = sparkPoints(series, 300, 64);
+        const lastPt = line.split(' ').pop().split(',');
+        panel = '<div class="panel"><div class="top"><b>' + (live ? esc(unit + ' ' + inPlay) + ' momentum' : 'Momentum') + '</b><span>Up = ' + esc(first(short[0])) + ' · Down = ' + esc(first(short[1])) + '</span></div>' +
+          '<svg viewBox="0 0 300 64" width="100%" height="64" preserveAspectRatio="none" aria-hidden="true"><line x1="0" y1="32" x2="300" y2="32" stroke="var(--line)"/>' +
+          '<polyline fill="none" stroke="var(--primary)" stroke-width="2.5" stroke-linejoin="round" points="' + line + '"/><circle cx="' + lastPt[0] + '" cy="' + lastPt[1] + '" r="4" fill="var(--primary)"/></svg>' +
+          '<div class="stats"><div><div class="d v">' + runs[top] + '</div><div class="k">Best run (' + esc(first(short[top])) + ')</div></div>' +
+          '<div><div class="d v">' + rallies + '</div><div class="k">Rallies played</div></div>' +
+          '<div><div class="d v">' + (mins ? mins + 'm' : '–') + '</div><div class="k">Duration</div></div></div></div>';
+        if (live) {
+          const cur = s.segments.length ? s.segments[s.segments.length - 1].scores : null;
+          const pts = latestPoints(m.events, s.scoringModel, cur, 3);
+          panel += '<div class="points"><div class="d" style="font-size:18px;padding-bottom:8px">Latest points</div>' +
+            pts.map((p, i) => '<div class="p' + (i === pts.length - 1 && pts.length > 1 ? ' l' : '') + '"><span>Point ' + esc(first(short[p.side])) + '</span><span class="d">' + (p.score ? esc(p.score.replace('-', '–')) : '') + '</span></div>').join('') + '</div>';
+        }
+      }
+      const callout = live && s.callout && s.scoringModel !== 'side_out' ? '<div class="pill" style="align-self:flex-start;background:var(--accentSoft);color:var(--accentText)">' + esc(s.callout) + '</div>' : '';
       app.innerHTML =
-        '<div style="display:flex;flex-direction:column;gap:4px">' +
-          '<span class="kicker" style="color:' + m.sport.accentColor + '"><span class="dot" style="background:' + m.sport.accentColor + '"></span>' +
-            esc((m.sport.name + ' · ' + m.format.name + round).toUpperCase()) + '</span>' +
-          (live ? '<span class="badge live">LIVE</span>' : '') +
-          '<h1 class="d">' + esc(title) + '</h1>' +
+        '<div style="display:flex;flex-direction:column;gap:6px">' +
+          '<span style="font-size:12px;font-weight:700;letter-spacing:.06em;color:var(--sub)">' + esc(kicker.filter(Boolean).join(' · ').toUpperCase()) + '</span>' +
           '<span class="sub">' + meta + '</span>' +
         '</div>' +
-        '<div class="card">' + head + row(0) + '<div class="hair"></div>' + row(1) +
-          (live && s.callout ? '<div style="padding:12px 16px;font-weight:800" class="d">' + esc(s.callout.toUpperCase()) + '</div>' : '') + '</div>' +
-        '<div class="row2"><button class="btn" id="copy">Copy link</button><button class="btn" id="wa">WhatsApp</button></div>' +
-        cta('Score your own matches', 'One tap per point. Rules for seven sports built in. Free.');
+        '<div class="hero">' + row(0) + row(1) + '</div>' + callout + panel +
+        '<div style="margin-top:auto;display:flex;flex-direction:column;gap:10px">' +
+          (t && t.slug ? '<a class="go" href="/t/' + esc(t.slug) + '">See the full draw</a>' : '<a class="go" href="' + APP + 'match/' + esc(m.id) + '">Open in Project X</a>') +
+          '<div class="row2"><button class="btn" id="copy">Copy link</button><button class="btn" id="wa">WhatsApp</button></div>' +
+          '<span class="foot">Score your own matches free with Project X</span></div>';
       document.getElementById('copy').onclick = copyLink;
       document.getElementById('wa').onclick = () => whatsapp(title + ' ' + s.headline);
       if (live) poll(showMatch, 3000);

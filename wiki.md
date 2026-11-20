@@ -656,7 +656,16 @@ Frontend (`frontend/.env`, template `frontend/.env.example`): `EXPO_PUBLIC_API_U
   "Tap to add a point", "Rally won → side out", or the engine's preview). Footer: Undo · Swap ends
   (flips the cards, local only) · ⋯ (match menu: scorer, retire, walkover, abandon). Cricket and
   basketball keep their boards. Old `SideButton`/`SegmentChips`/`servePill` removed.
-- Not yet: live scoreboard (spectator) and tournament screens.
+- Live scoreboard. Share page `/s/<token>` (`public/public.pages.ts`, v2 tokens with a dark-mode
+  media query, Barlow Condensed + DM Sans): PROJECT X + LIVE/FINAL pill, kicker (tournament · event ·
+  round, or sport · format · Friendly), "Court 2 · Started 7:32 PM · Game 2", orange card per side
+  (serving dot, finished games small, current score big), a momentum line (rally scoring: the game
+  in play, else the last 40 rallies) with best run, rallies played and duration, "Latest points"
+  (last 3 rallies; rally scoring shows the score after each), "See the full draw" for tournament
+  matches, Copy link / WhatsApp. The helpers live in `public/public.score.ts` (unit-tested) and are
+  inlined into page.js with `Function.toString()`, so they must stay self-contained. No viewer count
+  (not tracked). In the app, the watch screen's score card uses the same orange layout.
+- Not yet: tournament screens.
 
 
 ### 2026-11-20: PWA merged to `main` and web app redeployed (merge `e70aec8`)
