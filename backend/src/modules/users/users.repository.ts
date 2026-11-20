@@ -88,14 +88,14 @@ export const usersRepository = {
     return rows[0] ?? null;
   },
 
-  async findExtras(db: Queryable, userId: string): Promise<{ bio: string | null; displayName: string | null }> {
-    const { rows } = await db.query<{ bio: string | null; displayName: string | null }>(
-      `SELECT pr.bio, pl.display_name AS "displayName"
+  async findExtras(db: Queryable, userId: string): Promise<{ bio: string | null; displayName: string | null; handedness: 'left' | 'right' | null }> {
+    const { rows } = await db.query<{ bio: string | null; displayName: string | null; handedness: 'left' | 'right' | null }>(
+      `SELECT pr.bio, pl.display_name AS "displayName", pr.handedness
          FROM usr_user u LEFT JOIN usr_user_profile pr ON pr.user_id = u.id LEFT JOIN players pl ON pl.user_id = u.id
         WHERE u.id = $1`,
       [userId],
     );
-    return rows[0] ?? { bio: null, displayName: null };
+    return rows[0] ?? { bio: null, displayName: null, handedness: null };
   },
 
   async follow(db: Queryable, followerId: string, followingId: string): Promise<void> {

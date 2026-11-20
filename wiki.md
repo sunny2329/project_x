@@ -140,9 +140,26 @@ with the handoff's token names (`bg`, `surface`, `raised`, `line`, `fg`, `soft`,
 background, `#E85D04` primary; light: white background, `#C2410C` primary. `LIVE` `#FF5468`,
 `READY` `#4ADE80` and `GOLD` are the same in both themes. Each sport has its own colour (from
 `backend/src/catalog/sports.ts`); text on sport fills is dark.
-Fonts (`shared/theme/fonts.ts`, loaded in the root layout before the splash screen hides): **Big
-Shoulders Display** 700/800/900 for titles and every score number, **Instrument Sans** 400–700 for
-everything else.
+Fonts (`shared/theme/fonts.ts`, loaded in the root layout before the splash screen hides): since
+design v2 (2026-11-20) **Barlow Condensed** 500/600/700 for titles, headings and every score / rating
+number (`D`; old weights 800/900 render as 700) and **DM Sans** 400–700 for everything else (`T`).
+
+**Design v2** (`Project X App Design.html`, 19 screens, branch `feat/design-v2`): light-first orange.
+Its CSS variables are extra tokens in `colors.ts`: `card`, `track`, `accentSoft`, `hero` / `onHero` /
+`heroMuted` / `heroChip` (the orange header block), `goodBg`, `badBg`, `live` / `liveBg` / `liveText`,
+`info` / `infoBg`, `nav`; existing names (`bg`, `surface`, `line`, `fg`, `muted`, `primary`,
+`accentText`, `good`, `bad`) took the v2 values. Tab bar: Home · Play (opens a new match) · Events
+(tournaments) · Profile; Chats stays a tab route, opened from Home. **Rating component**
+(`shared/rating/`): `RatingRing` (L, profile), `RatingBar` (M, cards), `RatingPill` (S: rising ▲,
+falling ▼, placement "◇ Prov. n/3" dashed, "— Unrated"), `TierChip`, `ConfidenceBars`, `TierLadder`.
+Tiers (same every sport): Rookie <1200, Bronze 1200–1399, Silver 1400–1549, Gold 1550–1699,
+Platinum 1700–1849, Elite 1850+; everyone starts at 1500; under 3 rated matches = placement;
+confidence low 3–4, medium 5–14, high 15+ rated. The rules live in `backend/src/engine/rating`
+(`tierOf`, `confidenceOf`); `frontend/src/shared/rating/index.ts` mirrors them for screens that only
+have a number.
+
+To unpack the design: it is a bundle (`__bundler/manifest`, base64 + gzip); each page is itself a
+bundle whose `__bundler/template` holds the markup and a `DCLogic` class with the sample data.
 
 ## App navigation (Home, Tournaments, +, Chats, Profile)
 
@@ -255,6 +272,7 @@ while focused, and opening the screen marks all read. No push notifications yet.
 ### Profile, sports & feed API (all require `Authorization: Bearer`)
 | Method & path | Body / query | Success |
 | --- | --- | --- |
+| GET `/api/v1/profile/me/sports/:sport/insights` (and `/api/v1/users/:id/sports/:sport/insights`) | sport slug | 200 `{insights}` (null before the user has a player row); 404 SPORT_NOT_FOUND (unknown / inactive), USER_NOT_FOUND |
 | GET `/api/v1/sports` | – | 200 `{sports: [{id, code, name}]}` |
 | GET `/api/v1/profile/me` | – | 200 `{profile}` |
 | PATCH `/api/v1/profile/me` | `fullName?`, `bio?` (`""` clears) | 200 `{profile}` |
@@ -270,6 +288,19 @@ winnerSide, sides: [{no, name, headline}], periodCount} | null}` (from `match_ma
 event ⋈ tournament; `groupName` only for round-robin groups). The result post's author is the match
 creator; when they aren't on a side (`authorSideIndex: null`, e.g. a tournament scorer) the card
 says "A beat B", "Scored by <author>" and shows a trophy tag with the tournament, event and round.
+
+Profile v2 adds `handedness` ("left" / "right" / null; PATCH takes it, null clears), `streak`
+(`{kind: W|L, count}` across every sport, null after a draw), `titles` (knockout finals won) and per
+sport `delta30` (change over 30 days); `GET /users/:id` returns the same three. `insights`
+(`profile/profile.insights.ts`, pure `computeInsights` + `loadInsights`) = rating, ratedMatches,
+provisional, placementsLeft, confidence, tier `{key, name, progress, next}`, delta30, peak,
+percentile `{topPercent, city}` (placed players with active accounts, in the user's city when it has
+≥ 5 of them, else everyone with ≥ 5, else null), trend per range `1M/3M/1Y` (rating at the range
+start, then after each rated match; ≤ 30 points), record, stats (minor won %, avg minor margin,
+deciding games/sets, comebacks, avg minutes, best streak, unit labels from the match summary),
+vsStrength (opponents' average rating at match time ±50), singles / doubles split, last-10 form,
+activity (finish times in the last 84 days; the app buckets them by local day), partner and rival
+(most frequent, ties to the most recent). From the last 500 completed matches in that sport.
 
 `profile` = `{ user, bio, sports: [{id, code, name, isPrimary, rating, matchesPlayed, matchesWon,
 matchesLost, pointsScored, pointsConceded}], record: {played, won, lost}, followers, following }`.
@@ -572,6 +603,27 @@ Frontend (`frontend/.env`, template `frontend/.env.example`): `EXPO_PUBLIC_API_U
   the test harness must be rewritten to build an isolated copy of the `project_x` tables.
 
 ## Changelog
+
+### 2026-11-20: Design v2 started; rating scale 1500; profile v2 (branch `feat/design-v2`)
+- Why: new design (`Project X App Design.html`, 19 screens) with a per-sport rating system and an
+  enhanced profile. User decisions: tabs as designed (Chats from Home, feed under Recent results on
+  Home), ratings move +500 to the 1500 scale, theme keeps following the phone.
+- Design system: Barlow Condensed + DM Sans (`@expo-google-fonts/barlow-condensed`, `dm-sans`), v2
+  colour tokens, tab bar Home / Play / Events / Profile, new icons (`play`, `gear`, `upload`, `swap`).
+- Ratings: migration `6_rating_scale_1500` adds 500 to every `player_ratings.rating` and
+  `player_rating_history` row and sets the default to 1500; `DEFAULT_RATING` = 1500, `PLACEMENT_MATCHES`
+  = 3, `TIERS`, `tierOf`, `confidenceOf` in `engine/rating`; tournament seeding and the legacy backfill
+  use the new scale. **Run `npm run db:deploy` on the hosted database before deploying this backend.**
+- Profile: migration `7_profile_handedness` (`usr_user_profile.handedness`); insights endpoint (see
+  "Profile, sports & feed API"); app profile tab and player page rebuilt (`components/ProfileV2.tsx`:
+  hero, ratings by sport, rating card with trend, performance, opponent strength, singles/doubles,
+  form, 12-week activity, partner & rival); Edit profile has "Playing hand".
+- Tests: `engine/rating` scale/tier/confidence, `profile.insights.test.ts` (pure, 17),
+  `profile/__tests__/insights.api.test.ts` (HTTP, 6), app `features/profile/insights.test.ts` (11).
+- Test harness: the throwaway pools now ignore idle-connection errors (Neon resets idle clients;
+  it surfaced as an unhandled ECONNRESET in long files).
+- Not yet: Home, friendly match flow, live scoring, result card, scoreboard and tournament screens.
+
 
 ### 2026-11-20: PWA merged to `main` and web app redeployed (merge `e70aec8`)
 - `feat/pwa-web-app` merged into `main` (branch `chore/merge-pwa`, fast-forwarded and pushed).

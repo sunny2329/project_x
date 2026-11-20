@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Platform, Pressable, TextInput, View } from 'react-native';
 import { createScorer, manualResultEvents, ScoringError, scoringRegistry } from '@/engine/scoring';
 import { useSubmit } from '@/shared/hooks/useSubmit';
-import { useTheme } from '@/shared/theme';
+import { displayFont, useTheme } from '@/shared/theme';
 import { Button, DatePicker, Dot, Field, Header, Icon, Notice, Row, Screen, T, Tap, TextButton } from '@/shared/ui';
 import { firstName, toDay, weekdayComma } from '@/shared/utils/format';
 import { matchApi } from '../api/match.api';
@@ -44,7 +44,7 @@ function ScoreBox({ label, value, on, onChange }: { label: string; value: number
         value={String(value)}
         onChangeText={(t) => onChange(Math.min(MAX, Number(t.replace(/\D/g, '')) || 0))}
         selectTextOnFocus
-        style={{ height: 96, borderRadius: 18, backgroundColor: on ? colors.bbTint : colors.surface, borderWidth: on ? 2 : 1, borderColor: on ? BLUE : colors.line2, textAlign: 'center', fontFamily: 'BigShouldersDisplay_900Black', fontSize: 56, color: colors.fg }}
+        style={{ height: 96, borderRadius: 18, backgroundColor: on ? colors.bbTint : colors.surface, borderWidth: on ? 2 : 1, borderColor: on ? BLUE : colors.line2, textAlign: 'center', fontFamily: displayFont(700), fontSize: 56, color: colors.fg }}
       />
       <Row gap={6}>
         {(

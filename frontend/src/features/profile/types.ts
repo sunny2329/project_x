@@ -14,6 +14,8 @@ export interface PlayerSport extends Sport {
   isPrimary: boolean;
   rating: number;
   ratedMatches: number;
+  /** Rating change over the last 30 days. */
+  delta30: number;
   matchesPlayed: number;
   matchesWon: number;
   matchesLost: number;
@@ -25,7 +27,7 @@ export interface PlayerSport extends Sport {
 
 export interface RatingTrend {
   sportId: string;
-  /** 1000, then the rating after each recent rated match. */
+  /** 1500, then the rating after each recent rated match. */
   points: number[];
 }
 
@@ -36,11 +38,68 @@ export interface Profile {
   displayName: string;
   city: string | null;
   photoUrl: string | null;
+  handedness: Handedness | null;
+  /** Current run across every sport ("W4"). */
+  streak: Streak | null;
+  /** Knockout finals won. */
+  titles: number;
   ratingTrends: RatingTrend[];
   sports: PlayerSport[];
   record: { played: number; won: number; lost: number };
   followers: number;
   following: number;
+}
+
+export type Handedness = 'left' | 'right';
+export interface Streak {
+  kind: 'W' | 'L';
+  count: number;
+}
+
+export type TierKey = 'rookie' | 'bronze' | 'silver' | 'gold' | 'platinum' | 'elite';
+export type Confidence = 'placement' | 'low' | 'medium' | 'high';
+export type TrendRange = '1M' | '3M' | '1Y';
+
+export interface InsightPerson {
+  playerId: string;
+  userId: string | null;
+  name: string;
+  rating: number | null;
+  matches: number;
+  won: number;
+  lost: number;
+}
+
+/** Mirrors SportInsights in backend/src/modules/profile/profile.insights.ts. */
+export interface SportInsights {
+  rating: number;
+  ratedMatches: number;
+  provisional: boolean;
+  placementsLeft: number;
+  confidence: Confidence;
+  tier: { key: TierKey; name: string; progress: number; next: { key: TierKey; name: string; pointsToGo: number } | null } | null;
+  delta30: number;
+  peak: number;
+  percentile: { topPercent: number; city: string | null } | null;
+  trend: Record<TrendRange, number[]>;
+  record: { played: number; won: number; lost: number; drawn: number; winRate: number | null };
+  stats: {
+    minorWonPct: number | null;
+    avgMinorMargin: number | null;
+    deciding: { won: number; lost: number };
+    comebacks: number;
+    avgMinutes: number | null;
+    bestStreak: number;
+    minorLabel: string;
+    majorLabel: string;
+  };
+  vsStrength: { band: 'higher' | 'similar' | 'lower'; won: number; lost: number }[];
+  split: { singles: { won: number; lost: number }; doubles: { won: number; lost: number } };
+  form: ('W' | 'L' | 'D')[];
+  /** ISO times of matches finished in the last 84 days. */
+  activity: string[];
+  partner: InsightPerson | null;
+  rival: InsightPerson | null;
 }
 
 export type MatchOutcome = 'won' | 'lost' | 'draw' | 'in_progress' | 'disputed';
@@ -71,6 +130,8 @@ export interface ProfileChanges {
   displayName?: string;
   username?: string;
   city?: string;
+  /** null clears it. */
+  handedness?: Handedness | null;
   /** Empty string clears the bio. */
   bio?: string;
   /** From /api/v1/media; null removes the photo. */
@@ -103,6 +164,9 @@ export interface FollowListPage {
 export interface PublicProfile extends UserSummary {
   bio: string | null;
   displayName: string | null;
+  handedness: Handedness | null;
+  streak: Streak | null;
+  titles: number;
   followers: number;
   following: number;
   isMe: boolean;

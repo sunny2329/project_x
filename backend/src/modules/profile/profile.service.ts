@@ -7,6 +7,7 @@ import type { ProfileRepository } from './profile.repository.js';
 import type { PlayersService } from '../players/players.service.js';
 import { mediaUrl, ownedMediaIds } from '../media/media.routes.js';
 import type { MatchHistoryItem, Profile } from './profile.types.js';
+import { insightsFor, type SportInsights } from './profile.insights.js';
 import type { UpdateProfileInput, UpdateSportsInput } from './profile.validation.js';
 
 export interface ProfileServiceDeps {
@@ -21,7 +22,7 @@ export class ProfileService {
 
   async getProfile(userId: string): Promise<Profile> {
     const { repository, pool, users } = this.deps;
-    const [user, bio, extras, sports, record, follows, ratingTrends] = await Promise.all([
+    const [user, bio, extras, sports, record, follows, ratingTrends, headline] = await Promise.all([
       users.findUserById(pool, userId),
       repository.findBio(pool, userId),
       repository.findExtras(pool, userId),
@@ -29,6 +30,7 @@ export class ProfileService {
       repository.findRecord(pool, userId),
       repository.countFollows(pool, userId),
       repository.findRatingTrends(pool, userId),
+      repository.findHeadline(pool, userId),
     ]);
     if (!user) throw AppError.unauthorized('SESSION_REVOKED', 'Your session has ended. Please sign in again.');
     const publicUser = toPublicUser(user);
@@ -38,6 +40,8 @@ export class ProfileService {
       displayName: extras.displayName ?? publicUser.fullName,
       city: extras.city,
       photoUrl: extras.photoUrl,
+      handedness: extras.handedness,
+      ...headline,
       ratingTrends,
       sports,
       record,
@@ -66,6 +70,7 @@ export class ProfileService {
         fullName: input.fullName,
         bio: input.bio,
         city: input.city,
+        handedness: input.handedness,
         photoUrl,
         displayName: input.displayName,
         username: input.username,
@@ -82,6 +87,11 @@ export class ProfileService {
     const player = await this.deps.players.ensureForUser(userId);
     await withTransaction(pool, (db) => repository.replacePlayerSports(db, player.playerId, input.sportIds, input.primarySportId));
     return this.getProfile(userId);
+  }
+
+  /** The per-sport rating and performance block, by sport slug. */
+  async getInsights(userId: string, sportSlug: string): Promise<SportInsights | null> {
+    return insightsFor(this.deps.pool, userId, sportSlug);
   }
 
   async getMatchHistory(userId: string, limit: number, sport?: string): Promise<{ matches: MatchHistoryItem[]; counts: Record<string, number> }> {

@@ -48,8 +48,14 @@ export async function createTestContext() {
   const connectionString = env.DATABASE_URL_DIRECT ?? env.DATABASE_URL;
 
   const admin = createPool({ connectionString, max: 1 });
+  // Neon drops connections that sit idle (the admin one does for a whole file). pg then emits
+  // 'error' on the pool and discards the client; without a listener that is an unhandled error,
+  // as in src/server.ts, which logs it.
+  const ignoreIdleError = () => {};
+  admin.on('error', ignoreIdleError);
   await admin.query(`CREATE SCHEMA ${schema}`);
   const pool = createPool({ connectionString, max: 5, schema });
+  pool.on('error', ignoreIdleError);
   await applyMigrations(pool);
   const db = createPrisma(pool, schema);
   await db.$transaction((tx) => seedReferenceData(tx), { maxWait: 20_000, timeout: 120_000 });

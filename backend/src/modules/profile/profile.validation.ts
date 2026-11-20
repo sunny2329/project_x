@@ -30,6 +30,8 @@ export const updateProfileSchema = z
       )
       .optional(),
     city: optionalText(80, 'City'),
+    /** Playing hand; null clears it. */
+    handedness: z.enum(['left', 'right'], { error: 'Pick left or right' }).nullable().optional(),
     /** A photo uploaded to /api/v1/media; null removes the photo. */
     photoMediaId: z.uuid().nullable().optional(),
     /** Empty string clears the bio. */

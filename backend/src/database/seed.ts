@@ -60,7 +60,7 @@ export async function seedReferenceData(db: DbTx): Promise<Record<string, number
 
 /**
  * One-off, idempotent copy from the legacy tables: a player row per user, "sports I play"
- * (usr_user_sport), and ratings (usr_sport_rating). Legacy rows are left untouched.
+ * (usr_user_sport), and ratings (usr_sport_rating, moved +500 onto the 1500 scale). Legacy rows are left untouched.
  */
 export async function backfillFromLegacy(db: DbTx): Promise<Record<string, number>> {
   const players = await db.$executeRaw`
@@ -77,7 +77,7 @@ export async function backfillFromLegacy(db: DbTx): Promise<Record<string, numbe
     ON CONFLICT DO NOTHING`;
   const ratings = await db.$executeRaw`
     INSERT INTO player_ratings (player_id, sport_id, system, rating, rated_matches, updated_at)
-    SELECT pl.id, r.sport_id::int, 'elo', r.rating::float8, r.matches_played, now()
+    SELECT pl.id, r.sport_id::int, 'elo', r.rating::float8 + 500, r.matches_played, now()
       FROM usr_sport_rating r JOIN players pl ON pl.user_id = r.user_id JOIN sports s ON s.id = r.sport_id
     ON CONFLICT DO NOTHING`;
   return { players, playerSports, ratings };

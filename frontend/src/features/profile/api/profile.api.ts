@@ -1,5 +1,5 @@
 import { apiRequest } from '@/shared/api/client';
-import type { ClaimableMatch, FollowList, FollowListPage, MatchHistoryItem, Profile, ProfileChanges, PublicProfile, Sport, UserSummary } from '../types';
+import type { ClaimableMatch, SportInsights, FollowList, FollowListPage, MatchHistoryItem, Profile, ProfileChanges, PublicProfile, Sport, UserSummary } from '../types';
 
 const auth = { authenticated: true } as const;
 
@@ -20,6 +20,8 @@ export const profileApi = {
       auth,
     ),
 
+  insights: (sport: string) => apiRequest<{ insights: SportInsights | null }>(`/api/v1/profile/me/sports/${encodeURIComponent(sport)}/insights`, auth),
+
   claimable: () => apiRequest<{ matches: ClaimableMatch[] }>('/api/v1/players/claimable', auth),
 
   claim: (playerIds: string[]) => apiRequest<{ claimed: number }>('/api/v1/players/claim', { method: 'POST', body: { playerIds }, ...auth }),
@@ -28,6 +30,7 @@ export const profileApi = {
 export const usersApi = {
   search: (q: string, limit = 15) => apiRequest<{ users: UserSummary[] }>(`/api/v1/users/search?q=${encodeURIComponent(q)}&limit=${limit}`, auth),
   get: (id: string) => apiRequest<{ user: PublicProfile }>(`/api/v1/users/${id}`, auth),
+  insights: (id: string, sport: string) => apiRequest<{ insights: SportInsights | null }>(`/api/v1/users/${id}/sports/${encodeURIComponent(sport)}/insights`, auth),
   matches: (id: string, limit = 10) => apiRequest<{ matches: MatchHistoryItem[] }>(`/api/v1/users/${id}/matches?limit=${limit}`, auth),
   follow: (id: string) => apiRequest<{ isFollowing: boolean; followers: number }>(`/api/v1/users/${id}/follow`, { method: 'PUT', ...auth }),
   unfollow: (id: string) => apiRequest<{ isFollowing: boolean; followers: number }>(`/api/v1/users/${id}/follow`, { method: 'DELETE', ...auth }),

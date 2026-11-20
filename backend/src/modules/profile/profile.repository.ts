@@ -1,6 +1,7 @@
 import type { Queryable } from '../../database/pool.js';
 import { UserStatus } from '../auth/auth.types.js';
-import { FollowStatus, type MatchHistoryItem, type PlayerSport, type RatingTrend } from './profile.types.js';
+import { DEFAULT_RATING } from '../../engine/rating/index.js';
+import { FollowStatus, type Handedness, type MatchHistoryItem, type PlayerSport, type ProfileExtras, type RatingTrend } from './profile.types.js';
 
 /** How many rated matches the profile trend line shows. */
 const TREND_POINTS = 12;
@@ -23,17 +24,17 @@ export const profileRepository = {
     return rows[0]?.bio ?? null;
   },
 
-  async findExtras(db: Queryable, userId: string): Promise<{ city: string | null; photoUrl: string | null; displayName: string | null }> {
-    const { rows } = await db.query<{ city: string | null; photoUrl: string | null; displayName: string | null }>(
-      `SELECT pr.city, pr.profile_photo AS "photoUrl", pl.display_name AS "displayName"
+  async findExtras(db: Queryable, userId: string): Promise<ProfileExtras> {
+    const { rows } = await db.query<ProfileExtras>(
+      `SELECT pr.city, pr.profile_photo AS "photoUrl", pl.display_name AS "displayName", pr.handedness
          FROM usr_user u LEFT JOIN usr_user_profile pr ON pr.user_id = u.id LEFT JOIN players pl ON pl.user_id = u.id
         WHERE u.id = $1`,
       [userId],
     );
-    return rows[0] ?? { city: null, photoUrl: null, displayName: null };
+    return rows[0] ?? { city: null, photoUrl: null, displayName: null, handedness: null };
   },
 
-  /** Per sport: 1000, then the rating after each of the last rated matches. */
+  /** Per sport: the start rating (1500), then the rating after each of the last rated matches. */
   async findRatingTrends(db: Queryable, userId: string): Promise<RatingTrend[]> {
     const { rows } = await db.query<{ sportId: string; points: number[] }>(
       `SELECT sport_id::text AS "sportId", array_agg(rating_after ORDER BY created_at) AS points
@@ -45,7 +46,7 @@ export const profileRepository = {
         GROUP BY sport_id`,
       [userId, TREND_POINTS],
     );
-    return rows.map((r) => ({ sportId: r.sportId, points: [1000, ...r.points.map((x) => Math.round(x))] }));
+    return rows.map((r) => ({ sportId: r.sportId, points: [DEFAULT_RATING, ...r.points.map((x) => Math.round(x))] }));
   },
 
   /** Matches per sport slug (not abandoned), for the history filter chips. */
@@ -70,7 +71,12 @@ export const profileRepository = {
     const { rows } = await db.query<PlayerSport>(
       `SELECT s.id::text AS id, s.slug, s.name, s.icon_key AS "iconKey", s.accent_color AS "accentColor",
               ps.is_primary AS "isPrimary",
-              coalesce(r.rating, 1000)::float8 AS rating, coalesce(r.rated_matches, 0) AS "ratedMatches",
+              coalesce(r.rating, ${DEFAULT_RATING})::float8 AS rating, coalesce(r.rated_matches, 0) AS "ratedMatches",
+              -- Change over the last 30 days: now minus the rating 30 days ago (or before the first match in that window).
+              round(coalesce(r.rating, ${DEFAULT_RATING}) - coalesce(
+                (SELECT h.rating_after FROM player_rating_history h WHERE h.player_id = p.id AND h.sport_id = s.id AND h.created_at <= now() - interval '30 days' ORDER BY h.created_at DESC LIMIT 1),
+                (SELECT h.rating_before FROM player_rating_history h WHERE h.player_id = p.id AND h.sport_id = s.id ORDER BY h.created_at LIMIT 1),
+                r.rating, ${DEFAULT_RATING}))::int AS "delta30",
               coalesce(st.matches_played, 0) AS "matchesPlayed", coalesce(st.won, 0) AS "matchesWon", coalesce(st.lost, 0) AS "matchesLost",
               coalesce(st.major_won, 0) AS "majorWon", coalesce(st.major_lost, 0) AS "majorLost",
               coalesce(st.minor_won, 0) AS "minorWon", coalesce(st.minor_lost, 0) AS "minorLost"
@@ -96,6 +102,41 @@ export const profileRepository = {
     return rows[0]!;
   },
 
+  /**
+   * Profile hero tiles: the current run of results across every sport ("W4": last 4 won) and
+   * titles (knockout finals won, any sport). Draws end a run.
+   */
+  async findHeadline(db: Queryable, userId: string): Promise<{ streak: { kind: 'W' | 'L'; count: number } | null; titles: number }> {
+    const [{ rows: recent }, { rows: titles }] = await Promise.all([
+      db.query<{ outcome: string }>(
+        `SELECT ms.outcome::text AS outcome
+           FROM players p JOIN match_participants mp ON mp.player_id = p.id
+           JOIN match_sides ms ON ms.id = mp.side_id JOIN matches m ON m.id = mp.match_id
+          WHERE p.user_id = $1 AND m.status = 'completed' AND ms.outcome IS NOT NULL
+          ORDER BY m.completed_at DESC NULLS LAST
+          LIMIT 50`,
+        [userId],
+      ),
+      db.query<{ count: number }>(
+        `SELECT count(DISTINCT f.id)::int AS count
+           FROM players p
+           JOIN tournament_entry_members em ON em.player_id = p.id
+           JOIN fixtures f ON f.winner_entry_id = em.entry_id AND f.round_name = 'Final' AND f.status = 'completed'
+           JOIN tournament_stages st ON st.id = f.stage_id AND st.type = 'knockout'
+          WHERE p.user_id = $1`,
+        [userId],
+      ),
+    ]);
+    const first = recent[0]?.outcome;
+    let streak: { kind: 'W' | 'L'; count: number } | null = null;
+    if (first === 'won' || first === 'lost') {
+      let count = 0;
+      while (count < recent.length && recent[count]!.outcome === first) count += 1;
+      streak = { kind: first === 'won' ? 'W' : 'L', count };
+    }
+    return { streak, titles: titles[0]!.count };
+  },
+
   /** Suspended accounts don't count, matching the follower / following lists. */
   async countFollows(db: Queryable, userId: string): Promise<{ followers: number; following: number }> {
     const { rows } = await db.query<{ followers: number; following: number }>(
@@ -118,6 +159,7 @@ export const profileRepository = {
       fullName?: string | undefined;
       bio?: string | null | undefined;
       city?: string | null | undefined;
+      handedness?: Handedness | null | undefined;
       photoUrl?: string | null | undefined;
       displayName?: string | undefined;
       username?: string | undefined;
@@ -133,6 +175,7 @@ export const profileRepository = {
               bio = CASE WHEN $3 THEN $4 ELSE bio END,
               city = CASE WHEN $5 THEN $6 ELSE city END,
               profile_photo = CASE WHEN $7 THEN $8 ELSE profile_photo END,
+              handedness = CASE WHEN $9 THEN $10 ELSE handedness END,
               updated_at = CURRENT_TIMESTAMP
         WHERE user_id = $1`,
       [
@@ -144,6 +187,8 @@ export const profileRepository = {
         changes.city ?? null,
         changes.photoUrl !== undefined,
         changes.photoUrl ?? null,
+        changes.handedness !== undefined,
+        changes.handedness ?? null,
       ],
     );
     if (changes.displayName !== undefined) {

@@ -2,6 +2,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import type { Db, DbTx } from '../../database/prisma.js';
 import { Prisma } from '../../database/prisma.js';
 import { parseConfig, rulesName, scoringRegistry, type ScoreSummary } from '../../engine/scoring/index.js';
+import { DEFAULT_RATING } from '../../engine/rating/index.js';
 import {
   addLateEntry,
   DEFAULT_TIEBREAKERS,
@@ -78,7 +79,7 @@ export interface FixtureEntryView {
   id: string;
   name: string;
   seed: number | null;
-  /** Average rating of the entry's players in the event's sport (1000 for unrated players). */
+  /** Average rating of the entry's players in the event's sport (1500 for unrated players). */
   rating: number;
   players: Array<{ playerId: string; userId: string | null; displayName: string }>;
 }
@@ -1211,7 +1212,7 @@ export class TournamentsService implements MatchDecidedHook {
       tiebreakers: event.tiebreakers,
       maxEntries: event.maxEntries,
       entries: entries.map((e) => {
-        const values = e.members.map((m) => ratings.get(m.playerId) ?? 1000);
+        const values = e.members.map((m) => ratings.get(m.playerId) ?? DEFAULT_RATING);
         return {
           id: e.id,
           name: e.name ?? e.members.map((m) => m.player.displayName).join(' / '),
@@ -1279,7 +1280,7 @@ export class TournamentsService implements MatchDecidedHook {
     type EntryRow = NonNullable<(typeof rows)[number]['entry1']>;
     const entryView = (e: EntryRow | null, sportId: number): FixtureEntryView | null => {
       if (!e) return null;
-      const values = e.members.map((m) => ratings.get(`${m.playerId}:${sportId}`) ?? 1000);
+      const values = e.members.map((m) => ratings.get(`${m.playerId}:${sportId}`) ?? DEFAULT_RATING);
       return {
         id: e.id,
         name: e.name ?? e.members.map((m) => m.player.displayName).join(' / '),

@@ -347,6 +347,12 @@ route('put', '/api/v1/profile/me/sports', {
   body: updateSportsSchema,
   data: profile,
 });
+route('get', '/api/v1/profile/me/sports/:sport/insights', {
+  tag: 'Profile',
+  summary: 'My rating and performance in one sport (tier, trend, splits, form, activity, partner, rival); same shape at /api/v1/users/:id/sports/:sport/insights',
+  data: obj({ insights: nullable(ref('SportInsights')) }),
+  errors: { 404: ['SPORT_NOT_FOUND'] },
+});
 route('get', '/api/v1/profile/me/matches', {
   tag: 'Profile',
   summary: 'My match history, newest first',
@@ -781,6 +787,9 @@ const schemas: Record<string, Schema> = {
   Profile: obj({
     user: ref('PublicUser'),
     bio: nullable(str),
+    handedness: nullable(enumOf('left', 'right')),
+    streak: nullable(obj({ kind: enumOf('W', 'L'), count: int })),
+    titles: int,
     sports: arrayOf(ref('PlayerSport')),
     record: obj({ played: int, won: int, lost: int }),
     followers: int,
@@ -795,6 +804,7 @@ const schemas: Record<string, Schema> = {
     isPrimary: bool,
     rating: num,
     ratedMatches: int,
+    delta30: int,
     matchesPlayed: int,
     matchesWon: int,
     matchesLost: int,
@@ -802,6 +812,21 @@ const schemas: Record<string, Schema> = {
     majorLost: int,
     minorWon: int,
     minorLost: int,
+  }),
+  SportInsights: obj({
+    rating: int,
+    ratedMatches: int,
+    provisional: bool,
+    placementsLeft: int,
+    confidence: enumOf('placement', 'low', 'medium', 'high'),
+    tier: nullable(obj({ key: str, name: str, progress: num, next: nullable(obj({ key: str, name: str, pointsToGo: int })) })),
+    delta30: int,
+    peak: int,
+    percentile: nullable(obj({ topPercent: int, city: nullable(str) })),
+    trend: obj({ '1M': arrayOf(int), '3M': arrayOf(int), '1Y': arrayOf(int) }),
+    record: obj({ played: int, won: int, lost: int, drawn: int, winRate: nullable(int) }),
+    form: arrayOf(enumOf('W', 'L', 'D')),
+    activity: arrayOf(dateTime),
   }),
   MatchHistoryItem: obj({
     matchId: uuid,

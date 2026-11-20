@@ -31,14 +31,14 @@ function base(p: BaseProps, fontFamily: string, defaultColor: string, defaultLh:
   };
 }
 
-/** Body text (Instrument Sans). */
+/** Body text (DM Sans). */
 export function T({ w = 400, style, ...p }: BaseProps & { w?: BodyWeight }) {
   const { colors } = useTheme();
   return <RNText {...p} style={[base(p, bodyFont(w), colors.fg, 1.4), ...(Array.isArray(style) ? style : [style])]} />;
 }
 
-/** Display text (Big Shoulders Display): titles and every score number. */
-export function D({ w = 900, style, ...p }: BaseProps & { w?: DisplayWeight }) {
+/** Display text (Barlow Condensed): titles and every score / rating number. */
+export function D({ w = 700, style, ...p }: BaseProps & { w?: DisplayWeight }) {
   const { colors } = useTheme();
   return <RNText {...p} style={[base(p, displayFont(w), colors.fg, 1.0), ...(Array.isArray(style) ? style : [style])]} />;
 }

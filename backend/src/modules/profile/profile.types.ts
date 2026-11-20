@@ -6,6 +6,15 @@ import type { PublicUser } from '../auth/auth.types.js';
  */
 export const FollowStatus = { ACCEPTED: 1, PENDING: 2 } as const;
 
+export type Handedness = 'left' | 'right';
+
+export interface ProfileExtras {
+  city: string | null;
+  photoUrl: string | null;
+  displayName: string | null;
+  handedness: Handedness | null;
+}
+
 /** A sport as the profile shows it. */
 export interface Sport {
   id: string;
@@ -23,6 +32,8 @@ export interface PlayerSport extends Sport {
   isPrimary: boolean;
   rating: number;
   ratedMatches: number;
+  /** Rating change over the last 30 days (0 when nothing changed). */
+  delta30: number;
   matchesPlayed: number;
   matchesWon: number;
   matchesLost: number;
@@ -32,7 +43,7 @@ export interface PlayerSport extends Sport {
   minorLost: number;
 }
 
-/** Rating after each rated match, oldest first, starting from 1000 (the trend line). */
+/** Rating after each rated match, oldest first, starting from 1500 (the trend line). */
 export interface RatingTrend {
   sportId: string;
   points: number[];
@@ -45,6 +56,11 @@ export interface Profile {
   displayName: string;
   city: string | null;
   photoUrl: string | null;
+  handedness: Handedness | null;
+  /** Current run across every sport ("W4"), null after a draw or before any result. */
+  streak: { kind: 'W' | 'L'; count: number } | null;
+  /** Knockout finals won. */
+  titles: number;
   ratingTrends: RatingTrend[];
   sports: PlayerSport[];
   /** Totals across every sport, including ones no longer in the user's list. */

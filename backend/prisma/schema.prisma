@@ -733,6 +733,8 @@ model usr_user_profile {
   city_id       BigInt?
   bio           String?  @db.VarChar(500)
   city          String?  @db.VarChar(80)
+  /// "left" | "right" (CHECK in migration 7); null = not said.
+  handedness    String?  @db.VarChar(5)
   created_at    DateTime @default(now()) @db.Timestamp(6)
   updated_at    DateTime @default(now()) @db.Timestamp(6)
   usr_user      usr_user @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_usr_user_profile_user")
@@ -1449,7 +1451,7 @@ model PlayerRating {
   sportId      Int       @map("sport_id")
   /// "elo" in the MVP; "glicko2" later. The RD/volatility columns are ready for Glicko-2.
   system       String    @default("elo") @db.VarChar(20)
-  rating       Float     @default(1000)
+  rating       Float     @default(1500)
   deviation    Float?
   volatility   Float?
   ratedMatches Int       @default(0) @map("rated_matches")

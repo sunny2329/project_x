@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { sendSuccess } from '../../utils/api-response.js';
 import { AppError } from '../../utils/app-error.js';
 import { notificationsRepository } from '../notifications/notifications.repository.js';
+import { insightsFor } from '../profile/profile.insights.js';
 import { profileRepository } from '../profile/profile.repository.js';
 import { usersRepository, type FollowCursor, type FollowList } from './users.repository.js';
 
@@ -61,16 +62,24 @@ export function createUsersRouter(pool: pg.Pool, requireAuth: RequestHandler): R
     const userId = userIdParam(req.params.id);
     const summary = await usersRepository.findSummary(pool, viewerId, userId);
     if (!summary) throw notFound();
-    const [extras, sports, follows, headToHead, recentMatches] = await Promise.all([
+    const [extras, sports, follows, headToHead, recentMatches, headline] = await Promise.all([
       usersRepository.findExtras(pool, userId),
       profileRepository.findPlayerSports(pool, userId),
       profileRepository.countFollows(pool, userId),
       viewerId === userId ? null : usersRepository.headToHead(pool, viewerId, userId),
       profileRepository.findMatchHistory(pool, userId, 5),
+      profileRepository.findHeadline(pool, userId),
     ]);
     sendSuccess(res, {
-      user: { ...summary, ...extras, ...follows, isMe: viewerId === userId, sports, headToHead, recentMatches },
+      user: { ...summary, ...extras, ...follows, ...headline, isMe: viewerId === userId, sports, headToHead, recentMatches },
     });
+  });
+
+  /** Rating and performance in one sport (profile v2). `insights` is null before the player has a player row. */
+  router.get('/:id/sports/:sport/insights', async (req, res) => {
+    const userId = userIdParam(req.params.id);
+    if (!(await usersRepository.findSummary(pool, req.auth!.userId, userId))) throw notFound();
+    sendSuccess(res, { insights: await insightsFor(pool, userId, req.params.sport) });
   });
 
   router.get('/:id/matches', async (req, res) => {

@@ -20,7 +20,7 @@ const ROSTER: { slug: string; name: string }[] = [
   { slug: 'volleyball', name: 'Volleyball' },
 ];
 
-/** Sign-up 4/4 "What do you play?": a rating per sport, starting at 1000. Then claim guest matches, or Home. */
+/** Sign-up 4/4 "What do you play?": a rating per sport, starting at 1500. Then claim guest matches, or Home. */
 export default function PickSportsScreen() {
   const { colors } = useTheme();
   const catalogue = useProfileStore((s) => s.catalogue);
@@ -64,7 +64,7 @@ export default function PickSportsScreen() {
           What do you play?
         </D>
         <T size={15} lh={22} color={colors.muted}>
-          Pick any. You get a rating for each sport, starting at 1000.
+          Pick any. You get a rating for each sport, starting at 1500.
         </T>
       </View>
 

@@ -7,11 +7,11 @@ import { useDebounced } from '@/shared/hooks/useCountdown';
 import { useSubmit } from '@/shared/hooks/useSubmit';
 import { pickPhoto, uploadPhoto } from '@/shared/media/upload';
 import { useTheme, withAlpha } from '@/shared/theme';
-import { Avatar, Button, Field, Loading, Notice, Row, Screen, T, TextButton } from '@/shared/ui';
+import { Avatar, Button, Field, Loading, Notice, Row, Screen, Segmented, T, TextButton } from '@/shared/ui';
 import { sameSelection, toggleSport, type SportSelection } from '../sportSelection';
 import { useProfileStore } from '../store/profile.store';
 
-/** Edit profile: photo, names, city, username, bio and the sports I play. */
+/** Edit profile: photo, names, city, playing hand, username, bio and the sports I play. */
 export default function EditProfileScreen() {
   const { colors } = useTheme();
   const profile = useProfileStore((s) => s.profile);
@@ -19,6 +19,7 @@ export default function EditProfileScreen() {
   const [fullName, setFullName] = useState(profile?.user.fullName ?? '');
   const [displayName, setDisplayName] = useState(profile?.displayName ?? '');
   const [city, setCity] = useState(profile?.city ?? '');
+  const [hand, setHand] = useState<'left' | 'right' | 'unset'>(profile?.handedness ?? 'unset');
   const [username, setUsername] = useState(profile?.user.username ?? '');
   const [bio, setBio] = useState(profile?.bio ?? '');
   const [photo, setPhoto] = useState<{ uri: string; width: number; height: number } | null>(null);
@@ -59,6 +60,7 @@ export default function EditProfileScreen() {
         fullName: fullName.trim(),
         displayName: displayName.trim() || fullName.trim(),
         city: city.trim(),
+        handedness: hand === 'unset' ? null : hand,
         bio: bio.trim(),
         ...(handle !== profile.user.username ? { username: handle } : {}),
         ...(media ? { photoMediaId: media.id } : removePhoto ? { photoMediaId: null } : {}),
@@ -118,6 +120,21 @@ export default function EditProfileScreen() {
           <Field label="Scoreboard name" value={displayName} onChangeText={setDisplayName} height={50} size={16} maxLength={40} style={{ flex: 1 }} error={serverFieldErrors.displayName} />
           <Field label="City" value={city} onChangeText={setCity} height={50} size={16} maxLength={60} style={{ flex: 1 }} error={serverFieldErrors.city} />
         </Row>
+        <View style={{ gap: 6 }}>
+          <T size={13} w={600} color={colors.muted}>
+            Playing hand
+          </T>
+          <Segmented
+            options={[
+              { value: 'right', label: 'Right-handed' },
+              { value: 'left', label: 'Left-handed' },
+              { value: 'unset', label: 'Not saying' },
+            ]}
+            value={hand}
+            onChange={setHand}
+            size={14}
+          />
+        </View>
         <Field
           label="Username"
           value={username}

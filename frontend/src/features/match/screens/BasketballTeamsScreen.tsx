@@ -2,7 +2,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, TextInput, View } from 'react-native';
 import { useAuthStore } from '@/features/auth/store/auth.store';
-import { useTheme } from '@/shared/theme';
+import { displayFont, useTheme } from '@/shared/theme';
 import { Button, D, EmptyState, Header, Icon, IconButton, Row, Screen, T } from '@/shared/ui';
 import { firstName } from '@/shared/utils/format';
 import { colorWord, inkOn, setupLine, TEAM_COLORS } from '../basketball';
@@ -56,7 +56,7 @@ function TeamName({ side, value, ink, onChange, size = 22 }: { side: number; val
       onChangeText={onChange}
       maxLength={40}
       autoCapitalize="words"
-      style={{ flex: 1, minWidth: 0, fontFamily: 'BigShouldersDisplay_900Black', fontSize: size, textTransform: 'uppercase', color: ink, padding: 0 }}
+      style={{ flex: 1, minWidth: 0, fontFamily: displayFont(700), fontSize: size, textTransform: 'uppercase', color: ink, padding: 0 }}
     />
   );
 }

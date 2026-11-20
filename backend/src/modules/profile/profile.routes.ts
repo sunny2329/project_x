@@ -22,6 +22,10 @@ export function createProfileRouter(service: ProfileService, requireAuth: Reques
     sendSuccess(res, { profile: await service.updateSports(req.auth!.userId, req.body) });
   });
 
+  router.get('/me/sports/:sport/insights', async (req, res) => {
+    sendSuccess(res, { insights: await service.getInsights(req.auth!.userId, req.params.sport) });
+  });
+
   router.get('/me/matches', async (req, res) => {
     const query = matchHistoryQuerySchema.safeParse(req.query);
     if (!query.success) throw AppError.badRequest('VALIDATION_ERROR', 'Invalid query.', { limit: ['Must be 1-100'] });

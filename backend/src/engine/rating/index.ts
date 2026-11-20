@@ -33,7 +33,50 @@ export interface RatingSystem {
   rate(sides: [RatedSide, RatedSide], winnerIndex: 0 | 1 | null): RatingUpdate[];
 }
 
-export const DEFAULT_RATING = 1000;
+/** Everyone starts here in every sport (design v2; was 1000 until migration 6_rating_scale_1500). */
+export const DEFAULT_RATING = 1500;
+/** Rated matches before a rating counts: until then the player is "Prov. n/3". */
+export const PLACEMENT_MATCHES = 3;
+
+/** Tier ladder, same for every sport. `hi` is exclusive; Elite has no top. */
+export const TIERS = [
+  { key: 'rookie', name: 'Rookie', lo: Number.NEGATIVE_INFINITY, hi: 1200 },
+  { key: 'bronze', name: 'Bronze', lo: 1200, hi: 1400 },
+  { key: 'silver', name: 'Silver', lo: 1400, hi: 1550 },
+  { key: 'gold', name: 'Gold', lo: 1550, hi: 1700 },
+  { key: 'platinum', name: 'Platinum', lo: 1700, hi: 1850 },
+  { key: 'elite', name: 'Elite', lo: 1850, hi: Number.POSITIVE_INFINITY },
+] as const;
+
+export type TierKey = (typeof TIERS)[number]['key'];
+export type Confidence = 'placement' | 'low' | 'medium' | 'high';
+
+export interface TierInfo {
+  key: TierKey;
+  name: string;
+  /** 0-1 through the tier (ring / bar fill). Rookie counts from 1000, Elite fills up to 2100. */
+  progress: number;
+  /** The next tier and the points still needed, or null at Elite. */
+  next: { key: TierKey; name: string; pointsToGo: number } | null;
+}
+
+export function tierOf(rating: number): TierInfo {
+  const i = TIERS.findIndex((t) => rating >= t.lo && rating < t.hi);
+  const t = TIERS[i]!;
+  const lo = Number.isFinite(t.lo) ? t.lo : 1000;
+  const hi = Number.isFinite(t.hi) ? t.hi : 2100;
+  const progress = Math.min(1, Math.max(0, (rating - lo) / (hi - lo)));
+  const n = TIERS[i + 1];
+  return { key: t.key, name: t.name, progress, next: n ? { key: n.key, name: n.name, pointsToGo: Math.max(1, Math.ceil(t.hi - rating)) } : null };
+}
+
+/** Placement under 3 rated matches; then low (3-4), medium (5-14), high (15+). */
+export function confidenceOf(ratedMatches: number): Confidence {
+  if (ratedMatches < PLACEMENT_MATCHES) return 'placement';
+  if (ratedMatches < 5) return 'low';
+  if (ratedMatches < 15) return 'medium';
+  return 'high';
+}
 
 const average = (values: number[]) => values.reduce((sum, v) => sum + v, 0) / values.length;
 const round1 = (n: number) => Math.round(n * 10) / 10;

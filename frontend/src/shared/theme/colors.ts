@@ -63,6 +63,30 @@ export interface Palette {
   wDot: string;
   /** Initials-avatar backgrounds. */
   av: [string, string, string, string, string];
+  /* Design v2 tokens (names follow the CSS variables in "Project X App Design.html"). */
+  /** Cards on the page background. */
+  card: string;
+  /** Rating ring / progress track, confidence bars that are off. */
+  track: string;
+  /** Rating pills, tier chips, selected-row tints. */
+  accentSoft: string;
+  /** The orange header block (profile, tournament, result card). */
+  hero: string;
+  onHero: string;
+  heroMuted: string;
+  /** Stat tiles inside the hero. */
+  heroChip: string;
+  goodBg: string;
+  badBg: string;
+  /** LIVE pill. */
+  live: string;
+  liveBg: string;
+  liveText: string;
+  /** Explainer callouts (tiebreak notes). */
+  info: string;
+  infoBg: string;
+  /** Tab bar background. */
+  nav: string;
 }
 
 /** LIVE badges, dots and borders (same in both themes). */
@@ -75,21 +99,21 @@ export const READY = '#4ADE80';
 export const GOLD = '#F5D06B';
 
 export const darkPalette: Palette = {
-  bg: '#0A0A0A',
-  surface: '#161412',
+  bg: '#0A0908',
+  surface: '#151210',
   raised: '#221F1C',
   raised2: '#1B1917',
-  bar: '#0F0E0D',
+  bar: '#120F0D',
   scrim: '#000000',
-  line: '#2C2825',
+  line: '#2E2722',
   line2: '#3F3A35',
-  fg: '#F6F2EE',
+  fg: '#F5EFE9',
   soft: '#D8D1CA',
-  muted: '#ABA39B',
+  muted: '#A69B91',
   faint: '#7D756E',
-  primary: '#E85D04',
-  onPrimary: '#0A0A0A',
-  accentText: '#FF8A3D',
+  primary: '#EA580C',
+  onPrimary: '#0A0908',
+  accentText: '#FDBA8C',
   accentDeep: '#1F1209',
   accentLine: '#5C2F10',
   accentTint: 'rgba(232,93,4,0.14)',
@@ -99,8 +123,8 @@ export const darkPalette: Palette = {
   warnBg: '#2A2113',
   warnText: '#FFD58A',
   warnLine: '#5C4A24',
-  good: '#4ADE80',
-  bad: '#FF8A98',
+  good: '#9BD88A',
+  bad: '#FFB49E',
   tBad: '#C990FA',
   tTT: '#F2CC4D',
   tPk: '#FDA668',
@@ -117,24 +141,39 @@ export const darkPalette: Palette = {
   wFill: 'rgba(242,237,231,0.30)',
   wDot: '#F2EDE7',
   av: ['#3B2A55', '#4A2433', '#173A43', '#3D2A17', '#26361A'],
+  card: '#1B1714',
+  track: '#2A231E',
+  accentSoft: '#3A1C0C',
+  hero: '#1D1814',
+  onHero: '#F5EFE9',
+  heroMuted: '#A69B91',
+  heroChip: '#2E2722',
+  goodBg: '#17301A',
+  badBg: '#3A1A12',
+  live: '#F87171',
+  liveBg: '#3A1414',
+  liveText: '#FCA5A5',
+  info: '#C7CBFF',
+  infoBg: '#1E1F3A',
+  nav: '#120F0D',
 };
 
 export const lightPalette: Palette = {
   bg: '#FFFFFF',
-  surface: '#F7F3EF',
+  surface: '#F7F4F1',
   raised: '#EEE8E2',
   raised2: '#F2EDE8',
   bar: '#FFFFFF',
   scrim: '#CFC7BF',
-  line: '#E6DED6',
+  line: '#EAE3DC',
   line2: '#D2C8BE',
-  fg: '#16120F',
+  fg: '#17120E',
   soft: '#3B3430',
-  muted: '#6B625B',
+  muted: '#6B6158',
   faint: '#978D85',
   primary: '#C2410C',
   onPrimary: '#FFFFFF',
-  accentText: '#C2410C',
+  accentText: '#9A3412',
   accentDeep: '#FFF1E7',
   accentLine: '#F8C6A3',
   accentTint: 'rgba(234,88,12,0.10)',
@@ -144,8 +183,8 @@ export const lightPalette: Palette = {
   warnBg: '#FEF3C7',
   warnText: '#92400E',
   warnLine: '#E9C46A',
-  good: '#15803D',
-  bad: '#BE123C',
+  good: '#2E6418',
+  bad: '#8A2A12',
   tBad: '#7E22CE',
   tTT: '#A16207',
   tPk: '#C2410C',
@@ -162,6 +201,21 @@ export const lightPalette: Palette = {
   wFill: 'rgba(28,25,23,0.22)',
   wDot: '#1C1917',
   av: ['#EBD9FF', '#FCE1EA', '#CDF3F8', '#FFE6CC', '#E3F5C8'],
+  card: '#FFFFFF',
+  track: '#F1E8E0',
+  accentSoft: '#FDEBDF',
+  hero: '#C2410C',
+  onHero: '#FFFFFF',
+  heroMuted: '#FFE1CF',
+  heroChip: '#A3360A',
+  goodBg: '#E6F4E1',
+  badBg: '#FBE3DC',
+  live: '#DC2626',
+  liveBg: '#FDE4E4',
+  liveText: '#991B1B',
+  info: '#3730A3',
+  infoBg: '#ECEEFF',
+  nav: '#FFFFFF',
 };
 
 /** Each sport's colour (backend/src/catalog/sports.ts); dark text (`ink`) goes on top of it. */

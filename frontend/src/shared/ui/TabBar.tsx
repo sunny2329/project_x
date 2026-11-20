@@ -6,79 +6,62 @@ import { useTheme } from '@/shared/theme';
 import { Icon, type IconName } from './Icon';
 import { T } from './Text';
 
+/** Tab routes shown in the bar, in order. `chats` stays a tab route but is opened from Home's header. */
 const TABS: Record<string, { icon: IconName; label: string }> = {
   index: { icon: 'home', label: 'Home' },
-  tournaments: { icon: 'trophy', label: 'Tournaments' },
-  chats: { icon: 'chat', label: 'Chats' },
+  tournaments: { icon: 'trophy', label: 'Events' },
   profile: { icon: 'person', label: 'Profile' },
 };
 
-/** Home · Tournaments · + New match (orange square) · Chats · Profile. */
+/** Design v2: Home · Play (opens a new friendly match) · Events · Profile. */
 export function TabBar({ state, emitter, navigateToTab }: BottomTabBarProps) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
-  const routes = state.routes.filter((r) => TABS[r.name]);
-  const item = (route: (typeof routes)[number]) => {
-    const meta = TABS[route.name]!;
-    const focused = state.routes[state.index]?.key === route.key;
+  const cell = (key: string, icon: IconName, label: string, focused: boolean, onPress: () => void, role: 'tab' | 'button' = 'tab') => {
     const color = focused ? colors.primary : colors.muted;
     return (
       <Pressable
-        key={route.key}
-        accessibilityRole="tab"
-        accessibilityState={{ selected: focused }}
-        accessibilityLabel={meta.label}
-        onPress={() => {
-          const event = emitter.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
-          if (!focused && !event.defaultPrevented) navigateToTab(route.key);
-        }}
-        style={{ flex: 1, minWidth: 0, height: 52, alignItems: 'center', justifyContent: 'center', gap: 3, paddingHorizontal: 1 }}
+        key={key}
+        accessibilityRole={role}
+        accessibilityState={role === 'tab' ? { selected: focused } : undefined}
+        accessibilityLabel={label}
+        onPress={onPress}
+        style={{ flex: 1, minWidth: 64, minHeight: 44, alignItems: 'center', justifyContent: 'flex-start', gap: 4, paddingTop: 2 }}
       >
-        <Icon name={meta.icon} size={24} color={color} />
-        <T size={11} w={600} color={color} lh={14} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={{ maxWidth: '100%' }}>
-          {meta.label}
+        <Icon name={icon} size={24} color={color} />
+        <T size={11} w={focused ? 700 : 400} color={color} lh={14} numberOfLines={1}>
+          {label}
         </T>
       </Pressable>
     );
+  };
+  const tab = (name: string) => {
+    const route = state.routes.find((r) => r.name === name);
+    if (!route) return null;
+    const meta = TABS[name]!;
+    const focused = state.routes[state.index]?.key === route.key;
+    return cell(route.key, meta.icon, meta.label, focused, () => {
+      const event = emitter.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
+      if (!focused && !event.defaultPrevented) navigateToTab(route.key);
+    });
   };
   return (
     <View
       style={{
         flexDirection: 'row',
-        alignItems: 'center',
-        paddingTop: 6,
-        paddingHorizontal: 4,
-        paddingBottom: Math.max(insets.bottom, 10) + 4,
-        backgroundColor: colors.bar,
+        justifyContent: 'space-around',
+        alignItems: 'flex-start',
+        paddingTop: 8,
+        paddingBottom: Math.max(insets.bottom, 12) + 4,
+        backgroundColor: colors.nav,
         borderTopWidth: 1,
         borderTopColor: colors.line,
       }}
     >
-      {routes.slice(0, 2).map(item)}
-      <View style={{ flex: 1, alignItems: 'center' }}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="New match"
-          onPress={() => router.push('/match/new')}
-          style={({ pressed }) => ({
-            width: 56,
-            height: 56,
-            borderRadius: 18,
-            backgroundColor: colors.primary,
-            alignItems: 'center',
-            justifyContent: 'center',
-            opacity: pressed ? 0.85 : 1,
-            shadowColor: '#000',
-            shadowOpacity: 0.45,
-            shadowRadius: 10,
-            shadowOffset: { width: 0, height: 6 },
-            elevation: 6,
-          })}
-        >
-          <Icon name="plus" size={26} color={colors.onPrimary} strokeWidth={2.4} />
-        </Pressable>
-      </View>
-      {routes.slice(2).map(item)}
+      {tab('index')}
+      {cell('play', 'play', 'Play', false, () => router.push('/match/new'), 'button')}
+      {tab('tournaments')}
+      {tab('profile')}
     </View>
   );
 }
