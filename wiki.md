@@ -573,6 +573,16 @@ Frontend (`frontend/.env`, template `frontend/.env.example`): `EXPO_PUBLIC_API_U
 
 ## Changelog
 
+### 2026-11-20: PWA merged to `main` and web app redeployed (merge `e70aec8`)
+- `feat/pwa-web-app` merged into `main` (branch `chore/merge-pwa`, fast-forwarded and pushed).
+- `npm run web:deploy` run: https://radsadi26-project-x.expo.app now serves teams, draw changes
+  and the feed fixes (it had been on the 2026-11-11 build). Redeploy by hand after every merge;
+  nothing deploys the web app automatically.
+- Checks before pushing: frontend typecheck, lint (0 errors) and jest (101 passed); backend
+  typecheck and vitest (269 passed, 20 files, but took 44 min against remote Neon).
+- Backend tests hung with no output on this machine: Node tried Neon over IPv6, which times out
+  here. Workaround: `NODE_OPTIONS='--dns-result-order=ipv4first --no-network-family-autoselection' npm test`.
+
 ### 2026-11-20: Tournament matches in the feed; Home tab scrolls to top (commit `371399d`, branch `feat/teams`)
 - Bug: a tournament match's result post read "<scorer> played pickleball", because the post is
   written under the match creator (the scorer), who isn't on either side.
@@ -628,7 +638,8 @@ Frontend (`frontend/.env`, template `frontend/.env.example`): `EXPO_PUBLIC_API_U
   Home Screen). Android users can use it too, or the APK.
 - Live at **https://radsadi26-project-x.expo.app** (Expo Hosting, `radsadi26` account, project
   `project-x`). Deploy: `cd frontend && npm run web:deploy` (exports with the Render API URL, then
-  `eas deploy --prod`). `web.output: 'single'` (one index.html for every route).
+  `eas deploy --prod`). `web.output: 'single'` (one index.html for every route). Not automatic:
+  redeploy by hand after merging to `main` (last deployed 2026-11-20 from `e70aec8`).
 - PWA files in `frontend/public/`: `index.html` (manifest link, iPhone home-screen tags, theme colour,
   service worker registration, phone-width column on wide screens), `manifest.json`, icons
   (192 / 512 / maskable / apple-touch, made from `assets/icon.png`), `sw.js` (network first; keeps the
