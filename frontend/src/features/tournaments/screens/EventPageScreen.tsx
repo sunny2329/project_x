@@ -6,7 +6,7 @@ import { useResource } from '@/shared/hooks/useResource';
 import { Button, EmptyState, Header, Label, Loading, Notice, Row, Screen } from '@/shared/ui';
 import { parseDay } from '@/shared/utils/format';
 import { tournamentsApi } from '../api/tournaments.api';
-import { drawSummary, EventTabs, FixtureCard, InfoChip } from '../components/TournamentBits';
+import { drawSummary, EventHeader, FixtureCard, InfoChip } from '../components/TournamentBits';
 import { statusBadge } from '../status';
 import type { FixtureView } from '../types';
 
@@ -54,16 +54,15 @@ export default function EventPageScreen() {
   const canRegister = event.status === 'registration_open' && !event.myEntryId;
 
   return (
-    <Screen gap={14} refreshing={refreshing} onRefresh={refresh}>
-      <Header kicker={event.tournament.name} display={event.name} />
+    <Screen edgeToEdge px={0} gap={0} refreshing={refreshing} onRefresh={refresh}>
+      <EventHeader event={event} active="matches" />
+      <View style={{ paddingHorizontal: 16, paddingTop: 14, gap: 14 }}>
 
       <Row gap={6} style={{ flexWrap: 'wrap' }}>
         {badge ? <InfoChip label={badge.label} tone={event.status === 'in_progress' ? 'progress' : event.status === 'registration_open' ? 'ready' : undefined} /> : null}
         <InfoChip label={event.ruleset.name} dot={event.sport.accentColor} />
         <InfoChip label={drawSummary(event)} />
       </Row>
-
-      <EventTabs event={event} active="matches" />
 
       {error ? <Notice tone="error" icon="alert" text={error} /> : null}
 
@@ -84,6 +83,7 @@ export default function EventPageScreen() {
         />
       ) : null}
       {event.podium?.champion ? <Button label="Podium" variant="outline" icon="trophy" height={48} onPress={() => router.push({ pathname: '/event/[id]/podium', params: { id: event.id } })} /> : null}
+      </View>
     </Screen>
   );
 }

@@ -11,7 +11,7 @@ import { Avatar, Button, Chip, EmptyState, Header, IconButton, Label, Loading, N
 import { confirmAction } from '@/shared/utils/confirm';
 import { ago, shortName } from '@/shared/utils/format';
 import { tournamentsApi } from '../api/tournaments.api';
-import { EventTabs } from '../components/TournamentBits';
+import { EventHeader } from '../components/TournamentBits';
 import type { EntryView, EventDetail } from '../types';
 
 type Tab = 'pending' | 'approved';
@@ -116,7 +116,9 @@ export default function EntriesScreen() {
 
   return (
     <Screen
-      gap={14}
+      edgeToEdge
+      px={0}
+      gap={0}
       refreshing={event.refreshing}
       onRefresh={event.refresh}
       footerBar={organizer && !drawn}
@@ -138,7 +140,8 @@ export default function EntriesScreen() {
         ) : undefined
       }
     >
-      <Header kicker={e.tournament.name} display={e.name} right={canAdd ? <IconButton icon="plus" label={drawn ? 'Add a late entry' : 'Add an entry'} onPress={() => startAdding(null)} /> : undefined} />
+      <EventHeader event={e} active="entries" action={canAdd ? { icon: 'plus', label: drawn ? 'Add a late entry' : 'Add an entry', onPress: () => startAdding(null) } : undefined} />
+      <View style={{ paddingHorizontal: 16, paddingTop: 14, gap: 14 }}>
 
       {t && t.events.length > 1 && organizer ? (
         <Row gap={8} style={{ flexWrap: 'wrap' }}>
@@ -147,8 +150,6 @@ export default function EntriesScreen() {
           ))}
         </Row>
       ) : null}
-
-      {!organizer ? <EventTabs event={e} active="entries" /> : null}
 
       {organizer ? (
         <Segmented<Tab>
@@ -332,6 +333,7 @@ export default function EntriesScreen() {
           if (!adding?.length) setAddingFor(null);
         }}
       />
+      </View>
     </Screen>
   );
 }

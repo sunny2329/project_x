@@ -665,7 +665,16 @@ Frontend (`frontend/.env`, template `frontend/.env.example`): `EXPO_PUBLIC_API_U
   matches, Copy link / WhatsApp. The helpers live in `public/public.score.ts` (unit-tested) and are
   inlined into page.js with `Function.toString()`, so they must stay self-contained. No viewer count
   (not tracked). In the app, the watch screen's score card uses the same orange layout.
-- Not yet: tournament screens.
+- Tournament events (`tournaments/components/TournamentV2.tsx`): orange `EventHeader` (tournament
+  name, "Badminton · Men's Singles · 13 players · Knockout", share the `/t/<slug>` page, tabs on the
+  orange: Matches · Draw · Groups · Entries) on the event, bracket, groups and entries screens.
+  Fixture card: "QF2 · Court 3" (`rounds.ts` `roundCode`), seeds as [n], FINAL in green, start time,
+  live card tinted with an orange border and a LIVE pill. Draw: round chips ("R16 · 8 done", "QF ·
+  1 live", "SF · Sat"; `roundSub`), opens on the round in play, that round as a list, "Bracket view"
+  for the tree. Groups: group chips ("Complete", "3-way tie", "2 left"; `groups.ts`), qualifiers
+  tinted with "Qualified", "Out on tiebreak" for the one level with the last qualifier, the tie
+  explained in a lavender callout, group matches, then the qualifying and tiebreak rules.
+- Not yet: courts board, create tournament, multi-sport categories and hub, public tournament page.
 
 
 ### 2026-11-20: PWA merged to `main` and web app redeployed (merge `e70aec8`)

@@ -1,8 +1,10 @@
 import { router } from 'expo-router';
-import { Pressable, View } from 'react-native';
-import { LIVE, READY, sportText, useTheme, withAlpha } from '@/shared/theme';
-import { Badge, D, T, Tap } from '@/shared/ui';
-import { clock, weekdayDayMonth } from '@/shared/utils/format';
+import { View } from 'react-native';
+import { LIVE, READY, useTheme, withAlpha } from '@/shared/theme';
+import { Badge, D, type IconName, T, Tap } from '@/shared/ui';
+import { EventHero, shareTournament } from './TournamentV2';
+import { clock, clock12, weekdayDayMonth } from '@/shared/utils/format';
+import { roundCode } from '../rounds';
 import { fixtureBadge } from '../status';
 import type { EventDetail, EventSummary, FixtureView } from '../types';
 import { drawFormatLabel } from '../types';
@@ -31,10 +33,12 @@ export function fixtureSide(f: FixtureView, i: number): { name: string; placehol
   return { name: f.placeholders[i] ?? (f.status === 'bye' ? 'Bye' : 'TBD'), placeholder: true, seed: null };
 }
 
-/** "Group A · Court 2 · 10:30". */
-export function fixtureMeta(f: FixtureView, withEvent = false): string {
-  return [withEvent ? f.event.name : null, f.groupName ?? f.roundName, f.court?.name, f.scheduledAt && f.status !== 'completed' ? clock(f.scheduledAt) : null].filter(Boolean).join(' · ');
+/** "QF1 · Court 2" / "Group A · Court 2 · 10:30". `short` gives "QF2" style round codes and leaves the time to the card. */
+export function fixtureMeta(f: FixtureView, withEvent = false, short = false): string {
+  const round = f.groupName ?? (short ? roundCode(f) : f.roundName);
+  return [withEvent ? f.event.name : null, round, f.court?.name, !short && f.scheduledAt && f.status !== 'completed' ? clock(f.scheduledAt) : null].filter(Boolean).join(' · ');
 }
+
 
 /** The live score per side as "21 · 14" (games so far, then the running points). */
 function liveLine(f: FixtureView, i: number): { done: string; current: string | null } {
@@ -44,7 +48,7 @@ function liveLine(f: FixtureView, i: number): { done: string; current: string | 
 }
 
 /**
- * A fixture in lists: LIVE (red border) with the running score, READY with "vs", a finished one
+ * A fixture in lists (design v2): live ones tinted with an orange border and the running score, a finished one
  * with the games, and a dashed placeholder while its entries aren't known yet.
  */
 export function FixtureCard({ fixture: f, withEvent = false, mineIds = [], onPress }: { fixture: FixtureView; withEvent?: boolean; mineIds?: string[]; onPress?: () => void }) {
@@ -53,7 +57,6 @@ export function FixtureCard({ fixture: f, withEvent = false, mineIds = [], onPre
   const badge = fixtureBadge(f.status, f.match?.status);
   const finished = f.status === 'completed' && f.match;
   const placeholder = f.status === 'pending' && f.entries.some((e) => !e);
-  const tint = sportText(colors, f.event.sport.slug);
   const label = (i: number) => {
     const s = fixtureSide(f, i);
     const mine = f.entries[i]?.players.some((p) => p.userId && mineIds.includes(p.userId));
@@ -83,45 +86,56 @@ export function FixtureCard({ fixture: f, withEvent = false, mineIds = [], onPre
     );
   }
 
+  // Right of the meta line: LIVE pill, FINAL (green), the start time, or the fixture's state.
+  const right = live ? (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingVertical: 3, paddingHorizontal: 8, borderRadius: 99, backgroundColor: colors.liveBg }}>
+      <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: colors.live }} />
+      <T size={11} w={700} color={colors.liveText}>
+        LIVE
+      </T>
+    </View>
+  ) : finished ? (
+    <T size={11} w={700} ls={0.06} color={colors.good}>
+      FINAL
+    </T>
+  ) : f.scheduledAt ? (
+    <T size={12} w={700}>
+      {clock12(f.scheduledAt)}
+    </T>
+  ) : badge ? (
+    <Badge label={badge.label} tone={badge.tone} size="xs" />
+  ) : null;
+
   return (
     <Tap
       label={`${label(0)} vs ${label(1)}`}
       onPress={open}
-      style={{ gap: 8, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 16, backgroundColor: colors.surface, borderWidth: 1, borderColor: live ? LIVE : colors.line }}
+      style={{ gap: 8, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 16, backgroundColor: live ? colors.accentSoft : colors.card, borderWidth: live ? 2 : 1, borderColor: live ? colors.primary : colors.line }}
     >
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 8 }}>
-        <T size={12} color={colors.muted} flex numberOfLines={1}>
-          {fixtureMeta(f, withEvent)}
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+        <T size={12} w={700} color={colors.muted} flex numberOfLines={1}>
+          {fixtureMeta(f, withEvent, true)}
         </T>
-        {finished ? (
-          <T size={12} color={colors.muted}>
-            Final
-          </T>
-        ) : badge ? (
-          <Badge label={badge.label} tone={badge.tone} size="xs" />
-        ) : null}
+        {right}
       </View>
       {[0, 1].map((i) => {
         const won = f.winnerEntryId !== null && f.entries[i]?.id === f.winnerEntryId;
+        const seed = fixtureSide(f, i).seed;
         const score = f.match && (live || finished) ? liveLine(f, i) : null;
+        const text = [score?.done, score?.current].filter((x) => x !== null && x !== undefined && x !== '').join(' ');
         return (
-          <View key={i} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-            <T w={finished ? (won ? 700 : 400) : i === 0 || live ? 700 : 600} color={finished && !won ? colors.muted : live && i === 1 ? colors.soft : colors.fg} flex numberOfLines={1}>
+          <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            {f.entries.some((e) => e?.seed) ? (
+              <T size={12} color={colors.muted} style={{ width: 24 }}>
+                {seed ? `[${seed}]` : ''}
+              </T>
+            ) : null}
+            <T size={15} w={finished && won ? 700 : 400} color={finished && !won ? colors.muted : colors.fg} flex numberOfLines={1}>
               {label(i)}
             </T>
-            {score ? (
-              <D size={18} color={finished && !won ? colors.muted : live && i === 1 ? colors.soft : colors.fg}>
-                {score.done}
-                {score.current !== null ? (
-                  <D size={18} color={i === 0 ? tint : colors.soft}>
-                    {score.done ? ' · ' : ''}
-                    {score.current}
-                  </D>
-                ) : null}
-              </D>
-            ) : i === 0 && f.status === 'ready' ? (
-              <T color={colors.muted}>vs</T>
-            ) : null}
+            <D size={17} w={700} color={finished && !won ? colors.muted : colors.fg}>
+              {score ? text || '-' : f.status === 'ready' || f.scheduledAt ? '-' : ''}
+            </D>
           </View>
         );
       })}
@@ -131,30 +145,34 @@ export function FixtureCard({ fixture: f, withEvent = false, mineIds = [], onPre
 
 export type EventTab = 'matches' | 'groups' | 'bracket' | 'entries';
 
-/** Matches · Groups · Bracket · Entries (Groups and Bracket only when the draw has them). */
-export function EventTabs({ event, active }: { event: EventDetail; active: EventTab }) {
-  const { colors } = useTheme();
+function eventTabs(event: EventDetail): { key: EventTab; label: string; onPress: () => void }[] {
   const hasGroups = event.stages.some((s) => s.type === 'round_robin' || s.groups.length > 1) || event.drawFormat !== 'knockout';
   const hasBracket = event.stages.some((s) => s.type === 'knockout') || event.drawFormat !== 'round_robin';
-  const tabs: { key: EventTab; label: string; go: () => void }[] = [
-    { key: 'matches', label: 'Matches', go: () => router.replace({ pathname: '/event/[id]', params: { id: event.id } }) },
-    ...(hasGroups ? [{ key: 'groups' as const, label: 'Groups', go: () => router.push({ pathname: '/event/[id]/groups', params: { id: event.id } }) }] : []),
-    ...(hasBracket ? [{ key: 'bracket' as const, label: 'Bracket', go: () => router.push({ pathname: '/event/[id]/bracket', params: { id: event.id } }) }] : []),
-    { key: 'entries', label: 'Entries', go: () => router.push({ pathname: '/event/[id]/entries', params: { id: event.id } }) },
+  return [
+    { key: 'matches', label: 'Matches', onPress: () => router.replace({ pathname: '/event/[id]', params: { id: event.id } }) },
+    ...(hasBracket ? [{ key: 'bracket' as const, label: 'Draw', onPress: () => router.replace({ pathname: '/event/[id]/bracket', params: { id: event.id } }) }] : []),
+    ...(hasGroups ? [{ key: 'groups' as const, label: 'Groups', onPress: () => router.replace({ pathname: '/event/[id]/groups', params: { id: event.id } }) }] : []),
+    { key: 'entries', label: 'Entries', onPress: () => router.replace({ pathname: '/event/[id]/entries', params: { id: event.id } }) },
   ];
+}
+
+/** "Badminton · Men's Singles · 13 players · Knockout". */
+export function eventSubline(event: EventDetail): string {
+  const approved = event.entries.filter((e) => e.status === 'approved').length;
+  return [event.sport.name, event.name, entriesNoun(event.format.playersPerSide, approved), drawFormatLabel(event.drawFormat).replace('Groups + knockout', 'Groups → KO')].join(' · ');
+}
+
+/** Design v2 event header: tournament name, the event line, share, and Matches · Draw · Groups · Entries on the orange. */
+export function EventHeader({ event, active, action }: { event: EventDetail; active: EventTab; action?: { icon: IconName; label: string; onPress: () => void } }) {
   return (
-    <View accessibilityRole="tablist" style={{ flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: colors.raised }}>
-      {tabs.map((t) => {
-        const on = t.key === active;
-        return (
-          <Pressable key={t.key} accessibilityRole="tab" accessibilityState={{ selected: on }} onPress={on ? undefined : t.go} style={{ flex: 1, height: 44, alignItems: 'center', justifyContent: 'center', borderBottomWidth: on ? 2 : 0, borderBottomColor: colors.primary }}>
-            <T size={14} w={on ? 700 : 600} color={on ? colors.fg : colors.muted}>
-              {t.label}
-            </T>
-          </Pressable>
-        );
-      })}
-    </View>
+    <EventHero
+      title={event.tournament.name}
+      sub={eventSubline(event)}
+      fallback={`/tournament/${event.tournament.id}`}
+      action={action ?? { icon: 'upload', label: 'Share the public page', onPress: () => shareTournament(event.tournament.name, event.tournament.slug) }}
+      tabs={eventTabs(event)}
+      active={active}
+    />
   );
 }
 

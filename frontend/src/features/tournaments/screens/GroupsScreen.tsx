@@ -1,11 +1,13 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
 import { useResource } from '@/shared/hooks/useResource';
-import { READY, useTheme } from '@/shared/theme';
-import { D, EmptyState, Header, Icon, Label, Loading, Row, Screen, T, Tap } from '@/shared/ui';
+import { useTheme } from '@/shared/theme';
+import { D, EmptyState, Header, Loading, Row, Screen, T, Tap } from '@/shared/ui';
 import { tournamentsApi } from '../api/tournaments.api';
-import { fixtureSide } from '../components/TournamentBits';
+import { EventHeader, fixtureSide } from '../components/TournamentBits';
+import { InfoCallout, PickerChips } from '../components/TournamentV2';
+import { groupSub, rowStatus } from '../groups';
 import type { StandingRow, Tiebreaker } from '../types';
 
 /** What a sport's major and minor totals are called in the standings. */
@@ -53,7 +55,7 @@ function tieNote(rows: StandingRow[], words: [string, string], pairs: boolean): 
   return parts.join(' ');
 }
 
-/** Group standings: P, W, L, games ±, points ±, qualifiers marked Q, and how ties were broken. */
+/** Group standings (design v2): group chips, P W L ±, qualifiers tinted, "Out on tiebreak", how ties were broken, group matches. */
 export default function GroupsScreen() {
   const { colors } = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -81,6 +83,7 @@ export default function GroupsScreen() {
   const note = tieNote(rows, words, pairs);
   const order = (event.tiebreakers.length ? event.tiebreakers : (['match_wins', 'head_to_head', 'major_diff', 'minor_diff'] as Tiebreaker[])).map((t) => tiebreakName(t, words)).join(', ');
   const results = event.fixtures.filter((f) => f.groupId === group?.id && f.status === 'completed' && f.match);
+  const complete = groupSub(rows, event.fixtures.filter((f) => f.groupId === group?.id)) !== 'Not started' && event.fixtures.filter((f) => f.groupId === group?.id).every((f) => f.status === 'completed' || f.status === 'bye' || f.status === 'cancelled');
 
   const cell = (text: string | number, opts: { w?: 400 | 700 | 800; color?: string; width?: number } = {}) => (
     <T size={14} w={opts.w ?? 400} color={opts.color} center style={{ width: opts.width ?? 34 }}>
@@ -89,36 +92,23 @@ export default function GroupsScreen() {
   );
 
   return (
-    <Screen gap={16} refreshing={refreshing} onRefresh={refresh}>
-      <Header kicker={`${event.tournament.name} · ${event.name}`} display={groups.length > 1 ? 'Groups' : 'Table'} />
+    <Screen edgeToEdge px={0} gap={0} refreshing={refreshing} onRefresh={refresh}>
+      <EventHeader event={event} active="groups" />
+      <View style={{ paddingHorizontal: 16, paddingTop: 14, gap: 16 }}>
 
       {!group ? (
         <EmptyState title="No groups yet" body="Groups appear once the draw is made." />
       ) : (
         <>
           {groups.length > 1 ? (
-            <View accessibilityRole="tablist" style={{ flexDirection: 'row', gap: 8 }}>
-              {groups.map((g) => {
-                const on = g.id === group.id;
-                return (
-                  <Pressable
-                    key={g.id}
-                    accessibilityRole="tab"
-                    accessibilityState={{ selected: on }}
-                    accessibilityLabel={g.name}
-                    onPress={() => setGroupId(g.id)}
-                    style={{ flex: 1, height: 44, borderRadius: 12, backgroundColor: on ? colors.primary : 'transparent', borderWidth: on ? 0 : 1, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' }}
-                  >
-                    <D size={20} w={on ? 900 : 800} color={on ? colors.onPrimary : colors.fg}>
-                      {g.name.replace(/^Group\s+/i, '')}
-                    </D>
-                  </Pressable>
-                );
-              })}
-            </View>
+            <PickerChips
+              items={groups.map((g) => ({ key: g.id, label: g.name, sub: groupSub(g.standings ?? [], event.fixtures.filter((f) => f.groupId === g.id)) }))}
+              value={group.id}
+              onChange={setGroupId}
+            />
           ) : null}
 
-          <View style={{ borderRadius: 18, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, overflow: 'hidden' }}>
+          <View style={{ borderRadius: 18, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, overflow: 'hidden' }}>
             <Row style={{ paddingVertical: 10, paddingHorizontal: 4 }}>
               {cell('#', { width: 26, color: colors.muted, w: 700 })}
               <T size={11} w={700} ls={0.06} color={colors.muted} flex>
@@ -131,30 +121,26 @@ export default function GroupsScreen() {
               ))}
             </Row>
             {rows.map((r) => {
+              const status = rowStatus(r, rows, qualifiers, complete);
               const q = qualifiers > 0 && r.rank <= qualifiers && !r.withdrawn;
               return (
-                <Row key={r.entryId} style={{ paddingVertical: 12, paddingHorizontal: 4, borderTopWidth: 1, borderTopColor: colors.raised, backgroundColor: q ? 'rgba(74,222,128,0.07)' : 'transparent' }}>
-                  {q ? <View style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, backgroundColor: READY }} /> : null}
-                  {cell(r.rank, { width: 26, w: q ? 800 : 400 })}
-                  <Row gap={4} style={{ flex: 1, minWidth: 0 }}>
-                    <T size={14} w={q ? 700 : 400} color={q ? colors.fg : colors.soft} numberOfLines={1} style={{ flexShrink: 1 }}>
+                <Row key={r.entryId} style={{ paddingVertical: 12, paddingHorizontal: 4, borderTopWidth: 1, borderTopColor: colors.line, backgroundColor: q ? colors.accentSoft : 'transparent' }}>
+                  <D size={18} w={700} center style={{ width: 26 }}>
+                    {r.rank}
+                  </D>
+                  <View style={{ flex: 1, minWidth: 0, gap: 1 }}>
+                    <T size={14} w={700} numberOfLines={1}>
                       {short(r.name)}
+                      {r.withdrawn ? ' · WD' : ''}
                     </T>
-                    {r.withdrawn ? (
-                      <T size={11} w={700} color={colors.muted}>
-                        WD
+                    {status ? (
+                      <T size={11} w={700} color={status.tone === 'good' ? colors.good : colors.bad}>
+                        {status.text}
                       </T>
                     ) : null}
-                    {q ? (
-                      <View style={{ paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4, backgroundColor: READY }}>
-                        <T size={10} w={800} color={colors.ink}>
-                          Q
-                        </T>
-                      </View>
-                    ) : null}
-                  </Row>
+                  </View>
                   {cell(r.played, { width: 30 })}
-                  {cell(r.won, { width: 30, w: q ? 800 : 400 })}
+                  {cell(r.won, { width: 30 })}
                   {cell(r.lost, { width: 30 })}
                   {cell(signed(r.majorWon - r.majorLost), { width: 44 })}
                   {cell(signed(r.minorWon - r.minorLost), { width: 44 })}
@@ -163,23 +149,20 @@ export default function GroupsScreen() {
             })}
           </View>
 
-          <Row gap={10} style={{ alignItems: 'flex-start', paddingVertical: 12, paddingHorizontal: 14, borderRadius: 14, backgroundColor: colors.raised }}>
-            <Icon name="info" size={18} color={colors.soft} />
-            <T size={13} lh={19} color={colors.soft} flex>
-              {note ? `${note} ` : ''}Order of tiebreaks: {order}.{rows.some((r) => r.withdrawn) ? ' WD = withdrawn: results stay, ranked last.' : ''}
-            </T>
-          </Row>
+          {note ? <InfoCallout text={note} /> : null}
 
           {results.length ? (
             <View style={{ gap: 8 }}>
-              <Label>{group.name} results</Label>
+              <T size={15} w={700}>
+                Group matches
+              </T>
               {results.map((f) => {
                 const w = f.entries.findIndex((e) => e?.id === f.winnerEntryId);
                 const winner = w < 0 ? 0 : w;
                 const loser = 1 - winner;
                 const score = f.match!.segments.map((s) => `${s[winner]}-${s[loser]}`).join(' ');
                 return (
-                  <Tap key={f.id} label="Result" onPress={() => router.push({ pathname: '/match/[id]/result', params: { id: f.match!.id } })} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 12, backgroundColor: colors.surface }}>
+                  <Tap key={f.id} label="Result" onPress={() => router.push({ pathname: '/match/[id]/result', params: { id: f.match!.id } })} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8, paddingVertical: 12, borderTopWidth: 1, borderTopColor: colors.line }}>
                     <T size={14} flex numberOfLines={1}>
                       <T size={14} w={700}>
                         {short(fixtureSide(f, winner).name.replace(/ \/ /g, ' & '))}
@@ -189,7 +172,7 @@ export default function GroupsScreen() {
                       </T>{' '}
                       {short(fixtureSide(f, loser).name.replace(/ \/ /g, ' & '))}
                     </T>
-                    <D size={16} w={800}>
+                    <D size={18} w={700}>
                       {score || f.match!.headline}
                     </D>
                   </Tap>
@@ -197,8 +180,13 @@ export default function GroupsScreen() {
               })}
             </View>
           ) : null}
+
+          <T size={12} lh={18} color={colors.muted}>
+            {qualifiers ? `Top ${qualifiers} from each group go to the knockout. ` : ''}Tiebreakers: {order}.{rows.some((r) => r.withdrawn) ? ' WD = withdrawn: results stay, ranked last.' : ''}
+          </T>
         </>
       )}
+      </View>
     </Screen>
   );
 }

@@ -3,10 +3,12 @@ import { useMemo, useRef, useState } from 'react';
 import { ScrollView, View, type ScrollViewInstance } from 'react-native';
 import { useResource } from '@/shared/hooks/useResource';
 import { LIVE, sportText, useTheme } from '@/shared/theme';
-import { Button, Chip, D, EmptyState, Header, Icon, Loading, Row, Screen, T, Tap } from '@/shared/ui';
+import { Button, D, EmptyState, Header, Icon, Loading, Row, Screen, T, Tap, TextButton } from '@/shared/ui';
 import { clock, weekdayDay } from '@/shared/utils/format';
 import { tournamentsApi } from '../api/tournaments.api';
-import { fixtureSide } from '../components/TournamentBits';
+import { EventHeader, FixtureCard, fixtureSide } from '../components/TournamentBits';
+import { PickerChips } from '../components/TournamentV2';
+import { roundChip, roundSub } from '../rounds';
 import type { FixtureView } from '../types';
 
 const CARD_W = 180;
@@ -107,6 +109,8 @@ export default function BracketScreen() {
   const { colors } = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { data, error, loading, refreshing, refresh } = useResource(() => tournamentsApi.event(id), [id], { poll: 15_000 });
+  /** The tree (all rounds side by side) instead of one round as a list. */
+  const [tree, setTree] = useState(false);
   const scroller = useRef<ScrollViewInstance>(null);
   const [round, setRound] = useState<number | null>(null);
   const event = data?.event;
@@ -144,11 +148,12 @@ export default function BracketScreen() {
   }
 
   const line = colors.line2;
+  // Open on the round in play: the first with anything left to finish (else the last one).
+  const inPlay = layout ? layout.columns.findIndex((col) => col.some((f) => f.status !== 'completed' && f.status !== 'bye' && f.status !== 'cancelled')) : 0;
+  const shown = round ?? (inPlay < 0 ? Math.max(0, (layout?.columns.length ?? 1) - 1) : inPlay);
   return (
-    <Screen px={0} gap={16} refreshing={refreshing} onRefresh={refresh}>
-      <View style={{ paddingHorizontal: 20 }}>
-        <Header kicker={`${event.tournament.name} · ${event.name}`} display="Bracket" />
-      </View>
+    <Screen edgeToEdge px={0} gap={16} refreshing={refreshing} onRefresh={refresh}>
+      <EventHeader event={event} active="bracket" />
 
       {!layout ? (
         <View style={{ paddingHorizontal: 20 }}>
@@ -156,22 +161,32 @@ export default function BracketScreen() {
         </View>
       ) : (
         <>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 20 }}>
-            {layout.columns.map((col, c) => (
-              <Chip
-                key={c}
-                label={col[0]?.roundName ?? `Round ${c + 1}`}
-                active={(round ?? 0) === c}
-                height={34}
-                onPress={() => {
-                  setRound(c);
-                  scroller.current?.scrollTo({ x: c * (CARD_W + GAP_X), animated: true });
-                }}
-              />
-            ))}
-          </ScrollView>
+          <View style={{ paddingHorizontal: 16 }}>
+            <PickerChips
+              items={layout.columns.map((col, c) => ({ key: String(c), label: roundChip(col[0]?.roundName ?? null, c), sub: roundSub(col) }))}
+              value={String(shown)}
+              onChange={(k) => {
+                const c = Number(k);
+                setRound(c);
+                scroller.current?.scrollTo({ x: c * (CARD_W + GAP_X), animated: true });
+              }}
+            />
+          </View>
 
-          {layout.playIns.length ? (
+          {!tree ? (
+            <View style={{ gap: 10, paddingHorizontal: 16 }}>
+              {(layout.columns[shown] ?? []).filter((f) => f.status !== 'bye').map((f) => (
+                <FixtureCard key={f.id} fixture={f} />
+              ))}
+              {(layout.columns[shown] ?? []).some((f) => f.status === 'bye') ? (
+                <T size={12} color={colors.muted}>
+                  {(layout.columns[shown] ?? []).filter((f) => f.status === 'bye').length} byes in this round
+                </T>
+              ) : null}
+            </View>
+          ) : null}
+
+          {tree && layout.playIns.length ? (
             <View style={{ gap: 8 }}>
               <T size={12} w={700} ls={0.06} color={colors.muted} style={{ paddingHorizontal: 20 }}>
                 PLAY-INS · WINNERS JOIN THE FIRST ROUND
@@ -186,6 +201,7 @@ export default function BracketScreen() {
             </View>
           ) : null}
 
+          {tree ? (
           <ScrollView
             ref={scroller}
             horizontal
@@ -220,6 +236,7 @@ export default function BracketScreen() {
               {layout.columns.map((col, c) => col.map((f, i) => <BracketCard key={f.id} f={f} slug={event.sport.slug} x={layout.pos[c]![i]!.x} y={layout.pos[c]![i]!.y} />))}
             </View>
           </ScrollView>
+          ) : null}
 
           <View style={{ gap: 10, paddingHorizontal: 20 }}>
             {layout.third ? (
@@ -234,13 +251,11 @@ export default function BracketScreen() {
                 </T>
               </Tap>
             ) : null}
-            <Row gap={16}>
-              <T size={12} color={colors.muted}>
-                Numbers are seeds
+            <Row between>
+              <T size={12} color={colors.muted} flex>
+                {tree ? 'Numbers are seeds. Winners move on by themselves.' : 'Seeds in brackets. Winners move on by themselves.'}
               </T>
-              <T size={12} color={colors.muted}>
-                Winners move on by themselves
-              </T>
+              <TextButton label={tree ? 'List view' : 'Bracket view'} size={13} color={colors.accentText} onPress={() => setTree((v) => !v)} />
             </Row>
             {event.podium?.champion ? (
               <Button label="See the podium" icon="trophy" height={48} radius={14} size={14} onPress={() => router.push({ pathname: '/event/[id]/podium', params: { id: event.id } })} />
