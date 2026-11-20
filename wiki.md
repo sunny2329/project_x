@@ -573,7 +573,7 @@ Frontend (`frontend/.env`, template `frontend/.env.example`): `EXPO_PUBLIC_API_U
 
 ## Changelog
 
-### 2026-11-20: Tournament matches in the feed; Home tab scrolls to top
+### 2026-11-20: Tournament matches in the feed; Home tab scrolls to top (commit `371399d`, branch `feat/teams`)
 - Bug: a tournament match's result post read "<scorer> played pickleball", because the post is
   written under the match creator (the scorer), who isn't on either side.
 - Backend: feed / post responses carry `match.tournament` (`feed.repository.ts` POST_COLUMNS).
