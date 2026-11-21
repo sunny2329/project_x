@@ -715,6 +715,14 @@ Frontend (`frontend/.env`, template `frontend/.env.example`): `EXPO_PUBLIC_API_U
   "Badminton 1642" instead of colour dots, white tournament cards.
 
 
+### 2026-11-21: Design v2 published (main `f7c3881`)
+- Migrations `6_rating_scale_1500` and `7_profile_handedness` applied to the hosted Neon database
+  (27 player ratings, now averaging 1500; new ratings default to 1500).
+- `feat/design-v2` fast-forwarded into `main` and pushed; Render auto-deployed the API (checked: the
+  new public page script is served, `/health` 200).
+- `npm run web:deploy` run: https://radsadi26-project-x.expo.app serves design v2.
+- Backend tests that hung on a dropped database connection re-run green (flows + public: 26/26).
+
 ### 2026-11-20: PWA merged to `main` and web app redeployed (merge `e70aec8`)
 - `feat/pwa-web-app` merged into `main` (branch `chore/merge-pwa`, fast-forwarded and pushed).
 - `npm run web:deploy` run: https://radsadi26-project-x.expo.app now serves teams, draw changes
