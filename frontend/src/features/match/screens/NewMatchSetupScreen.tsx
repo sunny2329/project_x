@@ -5,37 +5,29 @@ import { useAuthStore } from '@/features/auth/store/auth.store';
 import { profileApi } from '@/features/profile/api/profile.api';
 import { TeamPickerSheet } from '@/features/teams/components/TeamBits';
 import { useResource } from '@/shared/hooks/useResource';
-import { useSubmit } from '@/shared/hooks/useSubmit';
 import { useTheme } from '@/shared/theme';
-import { Avatar, Button, D, EmptyState, Header, Icon, Notice, Screen, Segmented, T, Tap, TextButton } from '@/shared/ui';
-import { firstName } from '@/shared/utils/format';
+import { Avatar, Button, D, EmptyState, Header, Icon, Screen, T, Tap, TextButton } from '@/shared/ui';
 import { matchApi } from '../api/match.api';
 import { AddPlayerSheet } from '../components/AddPlayerSheet';
-import { CoinToss } from '../components/CoinToss';
 import { StepHeader } from '../components/SetupBits';
 import { fromTeamMember, lineupKeys, lineupProblem, maskPhone, type LineupPlayer } from '../lineup';
 import { maxPlayersPerSide, rulesTitle } from '../rules';
-import { teamSide, useMatchDraft } from '../store/draft.store';
+import { useMatchDraft } from '../store/draft.store';
 import { BasketballSetup } from './BasketballSetupScreen';
-
-type Serve = 'A' | 'B' | 'toss';
 
 /**
  * Friendly match · step 2 of 2 (design v2): Team A / Team B, add players or guests, who serves
- * first (or a coin toss), Start scoring (the live link is shared from ⋯ on the scoring screen). Cricket goes on to "Who
- * bats first?"; basketball has its own setup. `mode=result` is the same screen opened from "Enter
+ * then Next: who serves first (the court screen, which starts the match; cricket: "Who bats first?").
+ * The live link is shared from ⋯ on the scoring screen; basketball has its own setup. `mode=result` is the same screen opened from "Enter
  * a result" (Change): it returns there instead.
  */
 export default function NewMatchSetupScreen() {
   const { colors } = useTheme();
   const { mode } = useLocalSearchParams<{ mode?: string }>();
   const me = useAuthStore((s) => s.user);
-  const { sport, formatCode, rulesetId, override, lineup, teams, firstServer, add, remove, pickTeam, unlinkTeam, serveFirst } = useMatchDraft();
+  const { sport, formatCode, rulesetId, override, lineup, teams, add, remove, pickTeam, unlinkTeam } = useMatchDraft();
   const [adding, setAdding] = useState<number | null>(null);
   const [pickingTeam, setPickingTeam] = useState<number | null>(null);
-  const [serve, setServe] = useState<Serve>(firstServer === 1 ? 'B' : 'A');
-  const [tossing, setTossing] = useState(false);
-  const { submit, submitting, formError } = useSubmit();
   // My own rating line ("Pickleball 1588") and recent guests for the quick-add chips.
   const profile = useResource(() => profileApi.me(), []);
   const guests = useResource(() => matchApi.recentGuests(), []);
@@ -63,37 +55,6 @@ export default function NewMatchSetupScreen() {
   const quick = (guests.data?.players ?? []).filter((g) => !taken.has(g.userId ?? g.playerId) && !taken.has(g.playerId)).slice(0, 3);
   const summary = [sport.name, format.name, ruleset ? (Object.keys(override).length ? rulesTitle(ruleset, override) : ruleset.name) : null].filter(Boolean).join(' · ');
   const nameOf = (p: LineupPlayer) => (p.userId && p.userId === me?.id ? 'You' : p.displayName);
-  const sideName = (i: number) => lineup[i]!.map((p) => firstName(nameOf(p))).join(' & ') || `Team ${i === 0 ? 'A' : 'B'}`;
-
-  const pickServe = (v: Serve) => {
-    if (v === 'toss') {
-      setTossing(true);
-      return;
-    }
-    setServe(v);
-    const side = v === 'A' ? 0 : 1;
-    const first = lineup[side]![0];
-    if (first) serveFirst(side, first.key);
-    else useMatchDraft.setState({ firstServer: side });
-  };
-
-  const servingSide = lineup[firstServer]!;
-  const server = servingSide[0];
-  const otherPartner = servingSide[1];
-
-  const start = () =>
-    void submit(async () => {
-      const { match } = await matchApi.create({
-        sport: sport.slug,
-        format: format.code,
-        ...(rulesetId ? { rulesetId } : {}),
-        sides: lineup.map((players, side) => ({ ...teamSide(teams, side), players: players.map((p) => p.input) })),
-        rulesOverride: { ...override, firstServerSideIndex: firstServer },
-      });
-      useMatchDraft.getState().reset();
-      router.dismissAll();
-      router.push({ pathname: '/match/[id]', params: { id: match.id } });
-    });
 
   const sub = (p: LineupPlayer): string => {
     if (p.isGuest) return ['Guest', p.phone ? maskPhone(p.phone) : null, 'can claim later'].filter(Boolean).join(' · ');
@@ -158,7 +119,6 @@ export default function NewMatchSetupScreen() {
       gap={16}
       footer={
         <View style={{ gap: 10 }}>
-          {formError ? <Notice tone="error" icon="alert" text={formError} /> : null}
           {problem ? (
             <T size={13} color={colors.muted} center>
               {problem}
@@ -166,10 +126,8 @@ export default function NewMatchSetupScreen() {
           ) : null}
           {forResult ? (
             <Button label="Done" weight={700} disabled={!!problem} onPress={() => router.back()} />
-          ) : overs ? (
-            <Button label="Next: who bats first" weight={700} disabled={!!problem} onPress={() => router.push('/match/serve')} />
           ) : (
-            <Button label="Start scoring" weight={700} disabled={!!problem} loading={submitting} onPress={start} />
+            <Button label={overs ? 'Next: who bats first' : 'Next: who serves first'} iconRight="arrowRight" weight={700} disabled={!!problem} onPress={() => router.push('/match/serve')} />
           )}
         </View>
       }
@@ -217,54 +175,13 @@ export default function NewMatchSetupScreen() {
         </View>
       ) : null}
 
-      {!forResult && !overs ? (
+      {!forResult ? (
         <>
-          <View style={{ gap: 8 }}>
-            <T size={14} w={700}>
-              First serve
-            </T>
-            <Segmented
-              options={[
-                { value: 'A', label: 'Team A' },
-                { value: 'B', label: 'Team B' },
-                { value: 'toss', label: 'Coin toss' },
-              ]}
-              value={serve}
-              onChange={pickServe}
-              height={48}
-              activeColor={colors.card}
-              activeText={colors.fg}
-            />
-            {server ? (
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                <T size={12} color={colors.muted} flex>
-                  {serve === 'toss' ? `${sideName(firstServer)} won the toss. ` : ''}
-                  {nameOf(server) === 'You' ? 'You serve' : `${firstName(server.displayName)} serves`} first.
-                </T>
-                {otherPartner ? (
-                  <TextButton label={`${firstName(nameOf(otherPartner))} serves instead`} size={12} color={colors.accentText} onPress={() => serveFirst(firstServer, otherPartner.key)} />
-                ) : null}
-              </View>
-            ) : null}
-          </View>
-
           <T size={12} color={colors.muted} center>
             Share the live scoreboard any time from ⋯ while scoring.
           </T>
         </>
       ) : null}
-
-      <CoinToss
-        visible={tossing}
-        sides={[sideName(0), sideName(1)]}
-        onResult={(side) => {
-          const first = lineup[side]![0];
-          if (first) serveFirst(side, first.key);
-          else useMatchDraft.setState({ firstServer: side });
-          setServe('toss');
-        }}
-        onClose={() => setTossing(false)}
-      />
 
       <TeamPickerSheet
         visible={pickingTeam !== null}

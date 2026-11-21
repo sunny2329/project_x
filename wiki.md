@@ -733,6 +733,10 @@ Frontend (`frontend/.env`, template `frontend/.env.example`): `EXPO_PUBLIC_API_U
   `minWidth: 0`; row labels don't wrap), so both teams' columns fit. The sport row is a white card
   with the sport icon. With players missing, the main button is "Add players" (opens Who's playing in
   result mode) instead of a disabled Send.
+- Who's playing? is back to the pre-v2 flow (user's call): no inline First serve / coin toss; the
+  button is "Next: who serves first", which opens the court screen (`ServeFirstScreen`: tap a side on
+  the court or toss a coin, pick the first server in doubles, Start match). Cricket still says "Next:
+  who bats first".
 
 
 ### 2026-11-21: Design v2 published (main `f7c3881`)
