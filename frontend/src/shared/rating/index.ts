@@ -52,3 +52,18 @@ export function signed(n: number): string {
   const r = Math.round(n);
   return r > 0 ? `+${r}` : r < 0 ? `−${Math.abs(r)}` : '0';
 }
+
+/**
+ * One overall rating across sports: each sport's rating weighted by its rated matches. Only sports
+ * past placement count; if none are yet, every rated sport counts and the result is provisional.
+ * Null when nothing has been rated.
+ */
+export function overallRating(sports: { rating: number; ratedMatches: number }[]): { rating: number; sports: number; matches: number; provisional: boolean } | null {
+  const rated = sports.filter((s) => s.ratedMatches > 0);
+  if (!rated.length) return null;
+  const settled = rated.filter((s) => s.ratedMatches >= PLACEMENT_MATCHES);
+  const used = settled.length ? settled : rated;
+  const matches = used.reduce((n, s) => n + s.ratedMatches, 0);
+  const rating = Math.round(used.reduce((n, s) => n + s.rating * s.ratedMatches, 0) / matches);
+  return { rating, sports: used.length, matches, provisional: !settled.length };
+}

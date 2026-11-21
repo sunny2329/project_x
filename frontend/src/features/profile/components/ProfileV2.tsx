@@ -8,10 +8,10 @@ import { useState, type ReactNode } from 'react';
 import { ScrollView, View } from 'react-native';
 import Svg, { Circle, Line, Path } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { CONFIDENCE_LABEL, START_RATING } from '@/shared/rating';
+import { CONFIDENCE_LABEL, overallRating, START_RATING, tierFor } from '@/shared/rating';
 import { ConfidenceLine, Diamond, RatingPill, RatingRing, TierChip } from '@/shared/rating/Rating';
 import { useTheme } from '@/shared/theme';
-import { Avatar, Button, D, Icon, initials, Notice, T, Tap, type IconName } from '@/shared/ui';
+import { Button, D, ExpandableAvatar, Icon, initials, Notice, T, Tap, type IconName } from '@/shared/ui';
 import { activityGrid, activitySummary, BAND_LABEL, pct, percentileLine, performanceTiles, trendGeometry } from '../insights';
 import type { InsightPerson, PlayerSport, SportInsights, Streak, TrendRange } from '../types';
 
@@ -89,7 +89,7 @@ export function ProfileHero({ title, onBack, actions, user, followers, following
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
         <View style={{ width: 68, height: 68, borderRadius: 34, borderWidth: 3, borderColor: colors.heroMuted, overflow: 'hidden', backgroundColor: colors.onHero, alignItems: 'center', justifyContent: 'center' }}>
           {user.photoUrl ? (
-            <Avatar name={user.fullName} id={user.id} photoUrl={user.photoUrl} size={62} />
+            <ExpandableAvatar name={user.fullName} id={user.id} photoUrl={user.photoUrl} size={62} caption={`@${user.username}`} />
           ) : (
             <D size={26} color={colors.primary}>
               {initials(user.fullName)}
@@ -548,6 +548,32 @@ function PersonRow({ person: p, kind, note, vs, onPress }: { person: InsightPers
   );
 }
 
+/** "Overall 1563 · Gold · across 2 sports, 40 rated matches": one number across every sport. */
+export function OverallCard({ sports }: { sports: PlayerSport[] }) {
+  const { colors } = useTheme();
+  const o = overallRating(sports);
+  if (!o) return null;
+  const tier = tierFor(o.rating);
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16, borderRadius: 18, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line }} accessibilityLabel={`Overall rating ${o.rating}, ${tier.name}`}>
+      <View style={{ gap: 2 }}>
+        <T size={12} w={700} color={colors.muted}>
+          Overall rating
+        </T>
+        <D size={36} lh={38}>
+          {o.rating}
+        </D>
+      </View>
+      <View style={{ flex: 1, minWidth: 0, gap: 6, alignItems: 'flex-start' }}>
+        <TierChip name={tier.name} provisional={o.provisional} />
+        <T size={12} lh={17} color={colors.muted}>
+          {o.provisional ? 'Provisional · ' : ''}Across {o.sports} {o.sports === 1 ? 'sport' : 'sports'}, {o.matches} rated {o.matches === 1 ? 'match' : 'matches'}, weighted by matches played
+        </T>
+      </View>
+    </View>
+  );
+}
+
 /** Ratings by sport + the picked sport's card and sections, with loading and error states. */
 export function SportInsightsBlock({
   sports,
@@ -570,7 +596,8 @@ export function SportInsightsBlock({
   return (
     <>
       <View style={{ gap: 10 }}>
-        <SectionTitle title="Ratings by sport" right="Never mixed across sports" />
+        <OverallCard sports={sports} />
+        <SectionTitle title="Ratings by sport" right="Tap a sport for details" />
         <SportChips sports={sports} picked={picked?.slug ?? null} onPick={onPick} />
       </View>
       {error ? <Notice tone="error" icon="alert" text={error} /> : null}

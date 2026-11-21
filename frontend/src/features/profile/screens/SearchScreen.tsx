@@ -7,7 +7,7 @@ import { tournamentStatusLabel } from '@/features/tournaments/status';
 import { useDebounced } from '@/shared/hooks/useCountdown';
 import { useSearch } from '@/shared/hooks/useSearch';
 import { useTheme } from '@/shared/theme';
-import { Avatar, Button, Chip, Dot, EmptyState, Icon, IconButton, Label, Row, Screen, SearchField, T, Tap } from '@/shared/ui';
+import { Avatar, Button, Chip, EmptyState, Icon, IconButton, Label, Row, Screen, SearchField, T, Tap } from '@/shared/ui';
 import { dateRange } from '@/shared/utils/format';
 import { usersApi } from '../api/profile.api';
 import type { UserSummary } from '../types';
@@ -56,10 +56,10 @@ function TournamentRow({ t }: { t: TournamentListItem }) {
     <Tap
       label={t.name}
       onPress={() => router.push({ pathname: '/tournament/[id]', params: { id: t.id } })}
-      style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 14, backgroundColor: colors.surface }}
+      style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 16, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line }}
     >
-      <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: colors.raised, alignItems: 'center', justifyContent: 'center' }}>
-        <Icon name="trophy" size={22} color={colors.primary} />
+      <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: colors.accentSoft, alignItems: 'center', justifyContent: 'center' }}>
+        <Icon name="trophy" size={22} color={colors.accentText} />
       </View>
       <View style={{ flex: 1, gap: 2 }}>
         <T size={15} w={700} numberOfLines={1}>
@@ -107,7 +107,7 @@ export default function SearchScreen() {
       {tab === 'players' ? (
         <View>
           {users.map((u) => (
-            <View key={u.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.raised }}>
+            <View key={u.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.line }}>
               <Tap label={u.fullName} onPress={() => router.push({ pathname: '/user/[id]', params: { id: u.id } })} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                 <Avatar name={u.fullName} id={u.id} photoUrl={u.photoUrl} size={48} />
                 <View style={{ flex: 1, gap: 3 }}>
@@ -120,12 +120,12 @@ export default function SearchScreen() {
                       {u.ratings.length ? ' ·' : ''}
                     </T>
                     {u.ratings.slice(0, 3).map((r) => (
-                      <Row key={r.sportId} gap={6}>
-                        <Dot color={r.accentColor} size={7} />
-                        <T size={13} color={colors.muted}>
+                      <T key={r.sportId} size={13} color={colors.muted}>
+                        {r.name}{' '}
+                        <T size={13} w={700} color={colors.fg}>
                           {Math.round(r.rating)}
                         </T>
-                      </Row>
+                      </T>
                     ))}
                   </Row>
                 </View>

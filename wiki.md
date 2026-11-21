@@ -707,6 +707,12 @@ Frontend (`frontend/.env`, template `frontend/.env.example`): `EXPO_PUBLIC_API_U
   Cards are white (`colors.card`) with a hairline everywhere; grey `surface` is for inputs, trays and
   panels. Organizer dashboard event rows no longer nest the action button inside the row's button.
   The Events tab screen is titled "Events".
+- 2026-11-21 fixes after testing: the profile photo opens full size again when tapped (own and other
+  players' profiles; the v2 header had dropped `ExpandableAvatar`). New "Overall rating" card above
+  Ratings by sport (`overallRating` in `shared/rating`): each sport's rating weighted by its rated
+  matches, only sports past placement (provisional if none are), with tier and "Across 2 sports, 40
+  rated matches". Search players is in the Home header (search · chats · bell); search results show
+  "Badminton 1642" instead of colour dots, white tournament cards.
 
 
 ### 2026-11-20: PWA merged to `main` and web app redeployed (merge `e70aec8`)

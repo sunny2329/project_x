@@ -101,13 +101,11 @@ export default function HomeScreen() {
           </D>
         </View>
         <View style={{ flexDirection: 'row', gap: 8 }}>
-          <IconButton icon="chat" label="Chats" tone="plain" radius={22} style={{ borderWidth: 1, borderColor: colors.line, backgroundColor: colors.card }} onPress={() => router.push('/chats')} />
+          <IconButton icon="search" label="Search players" onPress={() => router.push('/search')} />
+          <IconButton icon="chat" label="Chats" onPress={() => router.push('/chats')} />
           <IconButton
             icon="bell"
             label={unreadCount ? `Notifications, ${unreadCount} new` : 'Notifications'}
-            tone="plain"
-            radius={22}
-            style={{ borderWidth: 1, borderColor: colors.line, backgroundColor: colors.card }}
             onPress={() => router.push('/notifications')}
             badge={
               unreadCount ? (
@@ -205,7 +203,6 @@ export default function HomeScreen() {
       {section(
         'Feed',
         <View style={{ flexDirection: 'row', gap: 8 }}>
-          <IconButton icon="search" label="Search" size={40} radius={20} onPress={() => router.push('/search')} />
           <IconButton icon="pen" label="New post" size={40} radius={20} onPress={() => router.push('/post/new')} />
         </View>,
       )}
