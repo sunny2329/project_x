@@ -1,7 +1,6 @@
 /*
- * Design v2 friendly-match setup pieces: step header with progress, rule row, toggle row.
+ * Design v2 friendly-match setup pieces: step header with progress and rule row.
  */
-import type { ReactNode } from 'react';
 import { Pressable, View } from 'react-native';
 import { useTheme } from '@/shared/theme';
 import { goBack, IconButton, T } from '@/shared/ui';
@@ -61,34 +60,6 @@ export function OptionRow({ title, detail, selected, onPress }: { title: string;
         ) : null}
       </View>
       <View style={{ width: 18, height: 18, borderRadius: 9, borderWidth: selected ? 6 : 2, borderColor: selected ? colors.primary : colors.muted }} />
-    </Pressable>
-  );
-}
-
-/** Card with a title, a line of detail and an on/off switch. */
-export function ToggleRow({ title, detail, value, onChange }: { title: string; detail?: ReactNode; value: boolean; onChange: (v: boolean) => void }) {
-  const { colors } = useTheme();
-  return (
-    <Pressable
-      accessibilityRole="switch"
-      accessibilityState={{ checked: value }}
-      accessibilityLabel={title}
-      onPress={() => onChange(!value)}
-      style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, paddingHorizontal: 14, borderRadius: 14, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.card }}
-    >
-      <View style={{ flex: 1, gap: 2 }}>
-        <T size={14} w={700}>
-          {title}
-        </T>
-        {detail ? (
-          <T size={12} color={colors.muted}>
-            {detail}
-          </T>
-        ) : null}
-      </View>
-      <View style={{ width: 48, height: 28, borderRadius: 14, padding: 3, backgroundColor: value ? colors.primary : colors.line, alignItems: value ? 'flex-end' : 'flex-start' }}>
-        <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: value ? colors.onPrimary : colors.card }} />
-      </View>
     </Pressable>
   );
 }

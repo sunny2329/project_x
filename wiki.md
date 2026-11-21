@@ -726,6 +726,9 @@ Frontend (`frontend/.env`, template `frontend/.env.example`): `EXPO_PUBLIC_API_U
   "+ Point" on the serving side, "Side out" on the receiving side, the "3 · 2 · 2" call and server
   number; rally sports show "+ Point" on both sides. `ScoringV2.tsx` / `scoring-v2.ts` removed. It
   keeps the v2 colours (one orange accent; white cards).
+- Starting a friendly no longer pops the share sheet over the scoring screen (and the "Share live
+  scoreboard link" switch is gone); the link is shared from ⋯ → Share live link while scoring, and
+  step 2 says so.
 
 
 ### 2026-11-21: Design v2 published (main `f7c3881`)

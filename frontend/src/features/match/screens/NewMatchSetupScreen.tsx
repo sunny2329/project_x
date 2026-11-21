@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, Share, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { useAuthStore } from '@/features/auth/store/auth.store';
 import { profileApi } from '@/features/profile/api/profile.api';
 import { TeamPickerSheet } from '@/features/teams/components/TeamBits';
@@ -9,10 +9,10 @@ import { useSubmit } from '@/shared/hooks/useSubmit';
 import { useTheme } from '@/shared/theme';
 import { Avatar, Button, D, EmptyState, Header, Icon, Notice, Screen, Segmented, T, Tap, TextButton } from '@/shared/ui';
 import { firstName } from '@/shared/utils/format';
-import { matchApi, shareUrl } from '../api/match.api';
+import { matchApi } from '../api/match.api';
 import { AddPlayerSheet } from '../components/AddPlayerSheet';
 import { CoinToss } from '../components/CoinToss';
-import { StepHeader, ToggleRow } from '../components/SetupBits';
+import { StepHeader } from '../components/SetupBits';
 import { fromTeamMember, lineupKeys, lineupProblem, maskPhone, type LineupPlayer } from '../lineup';
 import { maxPlayersPerSide, rulesTitle } from '../rules';
 import { teamSide, useMatchDraft } from '../store/draft.store';
@@ -22,7 +22,7 @@ type Serve = 'A' | 'B' | 'toss';
 
 /**
  * Friendly match · step 2 of 2 (design v2): Team A / Team B, add players or guests, who serves
- * first (or a coin toss), share the live scoreboard link, Start scoring. Cricket goes on to "Who
+ * first (or a coin toss), Start scoring (the live link is shared from ⋯ on the scoring screen). Cricket goes on to "Who
  * bats first?"; basketball has its own setup. `mode=result` is the same screen opened from "Enter
  * a result" (Change): it returns there instead.
  */
@@ -35,7 +35,6 @@ export default function NewMatchSetupScreen() {
   const [pickingTeam, setPickingTeam] = useState<number | null>(null);
   const [serve, setServe] = useState<Serve>(firstServer === 1 ? 'B' : 'A');
   const [tossing, setTossing] = useState(false);
-  const [share, setShare] = useState(true);
   const { submit, submitting, formError } = useSubmit();
   // My own rating line ("Pickleball 1588") and recent guests for the quick-add chips.
   const profile = useResource(() => profileApi.me(), []);
@@ -94,11 +93,6 @@ export default function NewMatchSetupScreen() {
       useMatchDraft.getState().reset();
       router.dismissAll();
       router.push({ pathname: '/match/[id]', params: { id: match.id } });
-      if (share) {
-        const url = shareUrl(match);
-        // The scorer is already on the scoring screen; the share sheet opens over it.
-        Share.share({ message: `Follow our ${sport.name.toLowerCase()} match live: ${url}`, url }).catch(() => undefined);
-      }
     });
 
   const sub = (p: LineupPlayer): string => {
@@ -254,7 +248,9 @@ export default function NewMatchSetupScreen() {
             ) : null}
           </View>
 
-          <ToggleRow title="Share live scoreboard link" detail="Friends follow point by point, no login needed" value={share} onChange={setShare} />
+          <T size={12} color={colors.muted} center>
+            Share the live scoreboard any time from ⋯ while scoring.
+          </T>
         </>
       ) : null}
 
