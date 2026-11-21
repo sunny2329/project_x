@@ -8,10 +8,10 @@ import { useState, type ReactNode } from 'react';
 import { ScrollView, View } from 'react-native';
 import Svg, { Circle, Line, Path } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { CONFIDENCE_LABEL, overallRating, START_RATING, tierFor } from '@/shared/rating';
-import { ConfidenceLine, Diamond, RatingPill, RatingRing, TierChip } from '@/shared/rating/Rating';
+import { CONFIDENCE_LABEL, overallRating, PLACEMENT_MATCHES, START_RATING, tierFor } from '@/shared/rating';
+import { ConfidenceLine, Diamond, RatingPill, RatingRing, TierChip, TierLadder } from '@/shared/rating/Rating';
 import { useTheme } from '@/shared/theme';
-import { Button, D, ExpandableAvatar, Icon, initials, Notice, T, Tap, type IconName } from '@/shared/ui';
+import { Button, D, ExpandableAvatar, Icon, IconButton, initials, Notice, Sheet, T, Tap, type IconName } from '@/shared/ui';
 import { activityGrid, activitySummary, BAND_LABEL, pct, percentileLine, performanceTiles, trendGeometry } from '../insights';
 import type { InsightPerson, PlayerSport, SportInsights, Streak, TrendRange } from '../types';
 
@@ -36,7 +36,7 @@ export interface HeroProps {
   /** Back button for another player's page. */
   onBack?: () => void;
   actions: { icon: IconName; label: string; onPress: () => void }[];
-  user: { id: string; fullName: string; username: string; photoUrl: string | null; city: string | null; handedness: 'left' | 'right' | null };
+  user: { id: string; fullName: string; username: string; photoUrl: string | null; city: string | null; handedness: 'left' | 'right' | null; bio?: string | null };
   followers: number;
   following: number;
   onFollowers: () => void;
@@ -103,6 +103,11 @@ export function ProfileHero({ title, onBack, actions, user, followers, following
           <T size={13} color={colors.heroMuted} numberOfLines={1}>
             {sub}
           </T>
+          {user.bio?.trim() ? (
+            <T size={13} lh={18} color={colors.onHero} numberOfLines={3}>
+              {user.bio.trim()}
+            </T>
+          ) : null}
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <Tap label={`${followers} followers`} onPress={onFollowers} style={{ paddingVertical: 2 }}>
               <T size={12} color={colors.heroMuted}>
@@ -549,13 +554,14 @@ function PersonRow({ person: p, kind, note, vs, onPress }: { person: InsightPers
 }
 
 /** "Overall 1563 · Gold · across 2 sports, 40 rated matches": one number across every sport. */
-export function OverallCard({ sports }: { sports: PlayerSport[] }) {
+export function OverallCard({ sports, isMe = true }: { sports: PlayerSport[]; isMe?: boolean }) {
   const { colors } = useTheme();
+  const [info, setInfo] = useState(false);
   const o = overallRating(sports);
   if (!o) return null;
   const tier = tierFor(o.rating);
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16, borderRadius: 18, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line }} accessibilityLabel={`Overall rating ${o.rating}, ${tier.name}`}>
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16, borderRadius: 18, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line }}>
       <View style={{ gap: 2 }}>
         <T size={12} w={700} color={colors.muted}>
           Overall rating
@@ -570,6 +576,31 @@ export function OverallCard({ sports }: { sports: PlayerSport[] }) {
           {o.provisional ? 'Provisional · ' : ''}Across {o.sports} {o.sports === 1 ? 'sport' : 'sports'}, {o.matches} rated {o.matches === 1 ? 'match' : 'matches'}, weighted by matches played
         </T>
       </View>
+      <IconButton icon="info" label="How ratings and tiers work" size={36} iconSize={18} style={{ alignSelf: 'flex-start' }} onPress={() => setInfo(true)} />
+      <Sheet visible={info} onClose={() => setInfo(false)} scroll>
+        <D size={26}>Rating tiers</D>
+        <T size={14} lh={20} color={colors.muted}>
+          Everyone starts at {START_RATING}. Beating stronger players moves a rating up faster; the tier follows the rating.
+        </T>
+        <TierLadder rating={o.rating} who={isMe ? 'You' : 'Overall'} />
+        <View style={{ gap: 8 }}>
+          {[
+            `Overall rating: each sport's rating weighted by how many rated matches you have played in it.`,
+            `Your first ${PLACEMENT_MATCHES} matches in a sport are placement: that sport is provisional and left out of the overall once another sport is settled.`,
+            'Ratings in each sport are kept separately; the overall is only a summary.',
+          ].map((line) => (
+            <View key={line} style={{ flexDirection: 'row', gap: 8 }}>
+              <T size={14} color={colors.accentText}>
+                •
+              </T>
+              <T size={14} lh={20} flex>
+                {line}
+              </T>
+            </View>
+          ))}
+        </View>
+        <Button label="Got it" height={50} radius={14} onPress={() => setInfo(false)} />
+      </Sheet>
     </View>
   );
 }
@@ -596,7 +627,7 @@ export function SportInsightsBlock({
   return (
     <>
       <View style={{ gap: 10 }}>
-        <OverallCard sports={sports} />
+        <OverallCard sports={sports} isMe={isMe} />
         <SectionTitle title="Ratings by sport" right="Tap a sport for details" />
         <SportChips sports={sports} picked={picked?.slug ?? null} onPick={onPick} />
       </View>

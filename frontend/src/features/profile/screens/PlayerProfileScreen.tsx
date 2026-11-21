@@ -72,7 +72,7 @@ export default function PlayerProfileScreen() {
         title="Player"
         onBack={() => goBack('/')}
         actions={[{ icon: 'dots', label: 'More', onPress: () => setMore(true) }]}
-        user={{ id: u.id, fullName: u.fullName, username: u.username, photoUrl: u.photoUrl, city: u.city, handedness: u.handedness }}
+        user={{ id: u.id, fullName: u.fullName, username: u.username, photoUrl: u.photoUrl, city: u.city, handedness: u.handedness, bio: u.bio }}
         followers={u.followers}
         following={u.following}
         onFollowers={() => follows('followers')}
@@ -123,11 +123,6 @@ export default function PlayerProfileScreen() {
 
       <View style={{ paddingHorizontal: 20, paddingTop: 20, gap: 22 }}>
       {message.formError || follow.formError ? <Notice tone="error" icon="alert" text={(message.formError ?? follow.formError)!} /> : null}
-      {u.bio ? (
-        <T size={14} color={colors.soft}>
-          {u.bio}
-        </T>
-      ) : null}
 
       {u.sports.length ? (
         <SportInsightsBlock sports={u.sports} picked={picked} onPick={setSlug} insights={insights.data?.insights ?? null} loading={insights.loading} error={insights.error} isMe={false} />

@@ -713,6 +713,10 @@ Frontend (`frontend/.env`, template `frontend/.env.example`): `EXPO_PUBLIC_API_U
   matches, only sports past placement (provisional if none are), with tier and "Across 2 sports, 40
   rated matches". Search players is in the Home header (search · chats · bell); search results show
   "Badminton 1642" instead of colour dots, white tournament cards.
+- Overall rating card has an ⓘ button: a sheet with the tier ladder (Rookie below 1200 … Elite 1850+,
+  the player's tier highlighted: "You · 1563" on your profile, "Overall · 1620" on others) and how
+  the overall and placement work. The profile bio now sits in the orange header under the name (3
+  lines max) on both profiles; "Edit profile" is a button in the header of your own profile.
 
 
 ### 2026-11-21: Design v2 published (main `f7c3881`)

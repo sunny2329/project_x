@@ -73,7 +73,7 @@ export default function ProfileScreen() {
           { icon: 'upload', label: 'Share profile card', onPress: () => void Share.share({ message: `${profile.user.fullName} (@${username}) on ProjectX` }) },
           { icon: 'gear', label: 'Settings', onPress: () => router.push('/settings') },
         ]}
-        user={{ id: profile.user.id, fullName: profile.user.fullName, username, photoUrl: profile.photoUrl, city: profile.city, handedness: profile.handedness }}
+        user={{ id: profile.user.id, fullName: profile.user.fullName, username, photoUrl: profile.photoUrl, city: profile.city, handedness: profile.handedness, bio: profile.bio }}
         followers={profile.followers}
         following={profile.following}
         onFollowers={() => follows('followers')}
@@ -81,19 +81,21 @@ export default function ProfileScreen() {
         record={profile.record}
         streak={profile.streak}
         titles={profile.titles}
-      />
+      >
+        <Button
+          label="Edit profile"
+          icon="pen"
+          variant="outline"
+          textColor={colors.onHero}
+          height={44}
+          radius={14}
+          size={15}
+          style={{ borderColor: colors.heroMuted, backgroundColor: 'transparent' }}
+          onPress={() => router.push('/profile/edit')}
+        />
+      </ProfileHero>
 
       <View style={{ paddingHorizontal: 20, paddingTop: 20, gap: 22 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-          {profile.bio ? (
-            <T size={14} color={colors.soft} flex>
-              {profile.bio}
-            </T>
-          ) : (
-            <View style={{ flex: 1 }} />
-          )}
-          <TextButton label="Edit profile" onPress={() => router.push('/profile/edit')} style={{ paddingVertical: 8 }} />
-        </View>
 
         {sports.length ? (
           <SportInsightsBlock

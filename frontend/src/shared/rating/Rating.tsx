@@ -211,7 +211,7 @@ export function RatingPill({
 }
 
 /** The six-step ladder with the player's tier highlighted. */
-export function TierLadder({ rating }: { rating: number | null }) {
+export function TierLadder({ rating, who = 'You' }: { rating: number | null; who?: string }) {
   const { colors } = useTheme();
   const mine = rating === null ? null : tierFor(rating).key;
   return (
@@ -240,7 +240,7 @@ export function TierLadder({ rating }: { rating: number | null }) {
               </T>
               {on && rating !== null ? (
                 <T size={11} color={colors.accentText}>
-                  You · {Math.round(rating)}
+                  {who} · {Math.round(rating)}
                 </T>
               ) : null}
             </View>
