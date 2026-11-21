@@ -3,18 +3,18 @@ import { View } from 'react-native';
 import { useNow } from '@/shared/hooks/useNow';
 import { useResource } from '@/shared/hooks/useResource';
 import { useSubmit } from '@/shared/hooks/useSubmit';
-import { LIVE, READY, sportText, useTheme, withAlpha } from '@/shared/theme';
-import { Badge, Button, D, EmptyState, Header, Loading, Notice, Row, Screen, T, Tap } from '@/shared/ui';
-import { clock, clock12, weekdayDayMonth } from '@/shared/utils/format';
+import { useTheme } from '@/shared/theme';
+import { Button, D, EmptyState, Header, Loading, Notice, Row, Screen, T } from '@/shared/ui';
+import { clock12 } from '@/shared/utils/format';
 import { tournamentsApi } from '../api/tournaments.api';
 import { fixtureSide } from '../components/TournamentBits';
+import { EventHero } from '../components/TournamentV2';
+import { roundCode } from '../rounds';
 import type { FixtureView } from '../types';
-import { fixtureTag } from './ScheduleScreen';
 
 const isLive = (f: FixtureView) => f.match?.status === 'live' || f.status === 'live';
-const short = (f: FixtureView, i: number) => fixtureSide(f, i).name.split(' / ').map((p) => p.split(' ')[0]).join(' / ');
 
-/** Match day at a glance: every court with what's on it now, what's ready, and what's next. */
+/** Court control (design v2): every court with what's on it now, what's ready or next, its scorer and the one action that moves it on. */
 export default function CourtBoardScreen() {
   const { colors } = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -52,105 +52,97 @@ export default function CourtBoardScreen() {
       router.push({ pathname: '/match/[id]', params: { id: match.id } });
     });
 
+  const events = new Set(list.filter((f) => f.status !== 'completed' && f.status !== 'bye' && f.status !== 'cancelled').map((f) => f.eventId)).size;
+  const vs = (f: FixtureView) => `${fixtureSide(f, 0).name} vs ${fixtureSide(f, 1).name}`;
+  const pill = (text: string, tone: 'live' | 'good' | 'plain') => (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingVertical: 4, paddingHorizontal: 9, borderRadius: 99, backgroundColor: tone === 'live' ? colors.liveBg : tone === 'good' ? colors.goodBg : colors.surface }}>
+      {tone === 'live' ? <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: colors.live }} /> : null}
+      <T size={11} w={700} color={tone === 'live' ? colors.liveText : tone === 'good' ? colors.good : colors.fg}>
+        {text}
+      </T>
+    </View>
+  );
+
   return (
-    <Screen gap={14} refreshing={fixtures.refreshing} onRefresh={fixtures.refresh}>
-      <Header kicker={`${weekdayDayMonth(new Date(now))} · ${clock12(new Date(now))}`} display="Court board" right={<Button label="Schedule" variant="surface" height={40} radius={12} size={13} inline px={12} onPress={() => router.push({ pathname: '/tournament/[id]/schedule', params: { id: t.id } })} />} />
+    <Screen edgeToEdge px={0} gap={0} refreshing={fixtures.refreshing} onRefresh={fixtures.refresh}>
+      <EventHero
+        title="Court control"
+        sub={`Organizer view · ${t.courts.length} ${t.courts.length === 1 ? 'court' : 'courts'} · ${events} ${events === 1 ? 'event' : 'events'} running · ${clock12(new Date(now))}`}
+        fallback={`/tournament/${t.id}`}
+        action={{ icon: 'calendar', label: 'Schedule', onPress: () => router.push({ pathname: '/tournament/[id]/schedule', params: { id: t.id } }) }}
+      />
+      <View style={{ paddingHorizontal: 16, paddingTop: 14, gap: 12 }}>
+        <T size={12} color={colors.muted}>
+          {counts.live} live · {counts.ready} ready to start · {counts.free} free
+        </T>
 
-      <Row gap={8}>
-        {[
-          { n: counts.live, label: 'Live', bg: withAlpha(LIVE, 0.12), fg: colors.good },
-          { n: counts.ready, label: 'Ready to start', bg: 'rgba(74,222,128,0.1)', fg: colors.good },
-          { n: counts.free, label: 'Free', bg: colors.surface, fg: colors.fg },
-        ].map((s) => (
-          <View key={s.label} style={{ flex: 1, padding: 10, borderRadius: 12, backgroundColor: s.bg }}>
-            <D size={26} lh={26} color={s.fg}>
-              {s.n}
-            </D>
-            <T size={12} color={colors.soft}>
-              {s.label}
-            </T>
-          </View>
-        ))}
-      </Row>
+        {start.formError || fixtures.error ? <Notice tone="error" icon="alert" text={(start.formError ?? fixtures.error)!} /> : null}
 
-      {start.formError || fixtures.error ? <Notice tone="error" icon="alert" text={(start.formError ?? fixtures.error)!} /> : null}
-
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
         {courts.map(({ court, live, ready, next }) => {
-          const scorer = court.scorers.length ? court.scorers.map((s) => s.name).join(', ') : 'any staff';
-          const nextLine = next ? `Next: ${fixtureTag(next)} · ${clock(next.scheduledAt!)}` : null;
-          const card = { width: '48%' as const, flexGrow: 1, minHeight: 196, gap: 10, padding: 12, borderRadius: 16 };
-          if (live) {
-            const segs = live.match?.segments ?? [];
-            return (
-              <Tap key={court.id} label={`${court.name}, live`} onPress={() => live.match && router.push({ pathname: '/match/[id]/watch', params: { id: live.match.id } })} style={{ ...card, backgroundColor: colors.surface, borderWidth: 1.5, borderColor: LIVE }}>
-                <Row between>
-                  <D size={22} upper>
-                    {court.name}
-                  </D>
-                  <Badge label="LIVE" tone="live" size="xs" />
-                </Row>
-                <View style={{ gap: 6 }}>
-                  {[0, 1].map((i) => (
-                    <Row key={i} between gap={6}>
-                      <T size={13} w={i === 0 ? 700 : 400} color={i === 0 ? colors.fg : colors.soft} flex numberOfLines={1}>
-                        {short(live, i)}
-                      </T>
-                      <D size={22} color={i === 0 ? colors.fg : colors.soft}>
-                        {segs.map((s) => s[i]).join(' ')}
-                        {live.match?.sides[i]?.current ? (
-                          <D size={22} color={i === 0 ? sportText(colors, live.event.sport.slug) : colors.soft}>
-                            {segs.length ? ' ' : ''}
-                            {live.match.sides[i]!.current}
-                          </D>
-                        ) : null}
-                      </D>
-                    </Row>
-                  ))}
-                </View>
-                <T size={12} color={colors.muted} style={{ marginTop: 'auto' }}>
-                  Scorer · {scorer}
-                  {nextLine ? `\n${nextLine}` : ''}
-                </T>
-              </Tap>
-            );
-          }
-          if (ready) {
-            return (
-              <Tap key={court.id} label={`${court.name}, ready`} onPress={() => router.push({ pathname: '/fixture/[id]', params: { id: ready.id } })} style={{ ...card, backgroundColor: colors.surface, borderWidth: 1.5, borderColor: READY }}>
-                <Row between>
-                  <D size={22} upper>
-                    {court.name}
-                  </D>
-                  <Badge label="READY" tone="ready" size="xs" />
-                </Row>
-                <T size={13} w={600} lh={19}>
-                  {short(ready, 0)}
-                  {'\n'}v {short(ready, 1)}
-                </T>
-                <Button label="Start" color={READY} height={38} radius={10} size={13} weight={800} style={{ marginTop: 'auto' }} loading={start.submitting} onPress={() => go(ready)} />
-              </Tap>
-            );
-          }
+          const f = live ?? ready ?? next ?? null;
+          const scorer = court.scorers.length ? `Scorer: ${court.scorers.map((x) => x.name).join(', ')}` : 'No scorer yet';
+          const segs = live?.match?.segments ?? [];
+          const unit = live ? (live.event.sport.slug === 'tennis' || live.event.sport.slug === 'padel' ? 'S' : 'G') : 'G';
+          const right = live
+            ? pill(`LIVE · ${unit}${segs.length + 1} ${(live.match?.sides ?? []).map((x) => x.current ?? x.primary).join('–')}`, 'live')
+            : ready
+              ? pill(ready.scheduledAt ? `Starting ${clock12(ready.scheduledAt)}` : 'Ready', 'plain')
+              : next
+                ? pill(`Next · ${clock12(next.scheduledAt!)}`, 'plain')
+                : pill('Free', 'good');
+          const action = live
+            ? { label: 'Open score', outline: true, onPress: () => live.match && router.push({ pathname: '/match/[id]/watch', params: { id: live.match.id } }) }
+            : ready && court.scorers.length
+              ? { label: 'Start match', outline: false, onPress: () => go(ready) }
+              : ready
+                ? { label: 'Assign scorer', outline: false, onPress: () => router.push({ pathname: '/tournament/[id]/staff', params: { id: t.id } }) }
+                : next
+                  ? { label: 'Open match', outline: true, onPress: () => router.push({ pathname: '/fixture/[id]', params: { id: next.id } }) }
+                  : { label: 'Assign match', outline: false, onPress: () => router.push({ pathname: '/tournament/[id]/schedule', params: { id: t.id } }) };
           return (
-            <View key={court.id} style={{ ...card, borderWidth: 1, borderStyle: 'dashed', borderColor: colors.line2 }}>
-              <Row between>
-                <D size={22} upper>
+            <View key={court.id} style={{ gap: 6, padding: 16, borderRadius: 18, backgroundColor: live ? colors.accentSoft : colors.card, borderWidth: live ? 2 : 1, borderColor: live ? colors.primary : colors.line }}>
+              <Row between gap={8}>
+                <D size={22} lh={24}>
                   {court.name}
                 </D>
-                <T size={10} w={800} color={colors.muted}>
-                  FREE
-                </T>
+                {right}
               </Row>
-              <T size={13} lh={19} color={colors.muted}>
-                {next && Date.parse(next.scheduledAt!) > now ? `Nothing scheduled until ${clock(next.scheduledAt!)}` : 'Nothing scheduled'}
-              </T>
-              <Button label="Move a match here" variant="outline" height={38} radius={10} size={13} style={{ marginTop: 'auto' }} onPress={() => router.push({ pathname: '/tournament/[id]/schedule', params: { id: t.id } })} />
+              {f ? (
+                <>
+                  <T size={12} color={colors.muted} numberOfLines={1}>
+                    {[f.event.name, f.groupName ?? roundCode(f)].filter(Boolean).join(' · ')}
+                  </T>
+                  <T size={16} w={700} numberOfLines={2}>
+                    {vs(f)}
+                  </T>
+                </>
+              ) : (
+                <T size={13} color={colors.muted}>
+                  Nothing scheduled on this court.
+                </T>
+              )}
+              <Row between gap={10} style={{ marginTop: 6 }}>
+                <T size={13} color={colors.muted} flex numberOfLines={1}>
+                  {scorer}
+                </T>
+                <Button
+                  label={action.label}
+                  variant={action.outline ? 'outline' : undefined}
+                  height={44}
+                  radius={12}
+                  size={14}
+                  weight={700}
+                  inline
+                  px={16}
+                  loading={!action.outline && action.label === 'Start match' && start.submitting}
+                  onPress={action.onPress}
+                />
+              </Row>
             </View>
           );
         })}
+        {!t.courts.length ? <EmptyState title="No courts yet" body="Add courts under Staff & courts." action={<Button label="Staff & courts" inline height={44} onPress={() => router.push({ pathname: '/tournament/[id]/staff', params: { id: t.id } })} style={{ marginTop: 8 }} />} /> : null}
       </View>
-      {!t.courts.length ? <EmptyState title="No courts yet" body="Add courts under Staff & courts." action={<Button label="Staff & courts" inline height={44} onPress={() => router.push({ pathname: '/tournament/[id]/staff', params: { id: t.id } })} style={{ marginTop: 8 }} />} /> : null}
     </Screen>
   );
 }

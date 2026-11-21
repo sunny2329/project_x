@@ -674,7 +674,12 @@ Frontend (`frontend/.env`, template `frontend/.env.example`): `EXPO_PUBLIC_API_U
   for the tree. Groups: group chips ("Complete", "3-way tie", "2 left"; `groups.ts`), qualifiers
   tinted with "Qualified", "Out on tiebreak" for the one level with the last qualifier, the tie
   explained in a lavender callout, group matches, then the qualifying and tiebreak rules.
-- Not yet: courts board, create tournament, multi-sport categories and hub, public tournament page.
+- Court control (`CourtBoardScreen`): orange header (courts, events running, time; Schedule
+  button), a card per court with a status pill (LIVE · G2 14–11 / Starting 7:30 PM / Next · 8:15 PM
+  / Free), event · round, the matchup, its scorer, and one action (Open score, Start match, Assign
+  scorer, Open match, Assign match). The design's Walkover / Retired / No-show row and "Call
+  players" are not built (no fixture picker / player notification yet).
+- Not yet: create tournament, multi-sport categories and hub, public tournament page.
 
 
 ### 2026-11-20: PWA merged to `main` and web app redeployed (merge `e70aec8`)
