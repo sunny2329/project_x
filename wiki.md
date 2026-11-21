@@ -729,6 +729,10 @@ Frontend (`frontend/.env`, template `frontend/.env.example`): `EXPO_PUBLIC_API_U
 - Starting a friendly no longer pops the share sheet over the scoring screen (and the "Share live
   scoreboard link" switch is gone); the link is shared from ⋯ → Share live link while scoring, and
   step 2 says so.
+- Enter a result (racket sports): the score grid no longer overflows on the web (`NumberBox` gets
+  `minWidth: 0`; row labels don't wrap), so both teams' columns fit. The sport row is a white card
+  with the sport icon. With players missing, the main button is "Add players" (opens Who's playing in
+  result mode) instead of a disabled Send.
 
 
 ### 2026-11-21: Design v2 published (main `f7c3881`)

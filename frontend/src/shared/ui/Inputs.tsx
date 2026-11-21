@@ -255,7 +255,8 @@ export function NumberBox({
       placeholder={placeholder}
       placeholderTextColor={colors.faint}
       style={{
-        ...(width ? { width } : { flex: 1 }),
+        // minWidth 0: on the web a text input won't shrink below its intrinsic width otherwise.
+        ...(width ? { width } : { flex: 1, minWidth: 0 }),
         height,
         borderRadius: radius,
         backgroundColor: invalid ? colors.badBg : background ?? colors.surface,

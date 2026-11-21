@@ -4,7 +4,7 @@ import { Platform, View } from 'react-native';
 import { useAuthStore } from '@/features/auth/store/auth.store';
 import { useSubmit } from '@/shared/hooks/useSubmit';
 import { useTheme } from '@/shared/theme';
-import { Button, DatePicker, Dot, EmptyState, Field, Header, Notice, Row, Screen, T, Tap, TextButton } from '@/shared/ui';
+import { Button, DatePicker, EmptyState, Field, Header, Icon, Notice, Row, Screen, sportIcon, T, Tap, TextButton } from '@/shared/ui';
 import { firstName, toDay, weekdayComma } from '@/shared/utils/format';
 import { matchApi } from '../api/match.api';
 import { checkResult, ResultGrid } from '../components/ResultGrid';
@@ -78,18 +78,22 @@ export default function EnterResultScreen() {
                 : 'Guests can’t confirm, so this goes straight into your history without changing ratings.'}
           </T>
           {formError ? <Notice tone="error" icon="alert" text={formError} /> : null}
-          <Button label={confirmers.length ? `Send to ${confirmerName} to confirm` : 'Save result'} weight={800} disabled={!check.complete || !!problem} loading={submitting} onPress={send} />
+          {problem ? (
+            <Button label="Add players" icon="personAdd" weight={700} onPress={() => router.push({ pathname: '/match/setup', params: { mode: 'result' } })} />
+          ) : (
+            <Button label={confirmers.length ? `Send to ${confirmerName} to confirm` : 'Save result'} weight={700} disabled={!check.complete} loading={submitting} onPress={send} />
+          )}
         </View>
       }
     >
       <Header title="Enter a result" />
 
-      <Row gap={10} style={{ paddingVertical: 12, paddingHorizontal: 14, borderRadius: 14, backgroundColor: colors.surface }}>
-        <Dot color={sport.accentColor} />
+      <Row gap={10} style={{ paddingVertical: 12, paddingHorizontal: 14, borderRadius: 16, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line }}>
+        <Icon name={sportIcon(sport.slug)} size={18} color={colors.accentText} />
         <T size={14} w={600} flex numberOfLines={1}>
           {[sport.name, format.name, rulesTitle(base!, override)].join(' · ')}
         </T>
-        <TextButton label="Change" size={13} color={colors.soft} onPress={() => router.push({ pathname: '/match/setup', params: { mode: 'result' } })} />
+        <TextButton label="Change" size={13} color={colors.accentText} onPress={() => router.push({ pathname: '/match/setup', params: { mode: 'result' } })} />
       </Row>
 
       <ResultGrid ruleset={ruleset} names={[nameOf(0), nameOf(1)]} cells={cells} onChange={setCells} check={check} />

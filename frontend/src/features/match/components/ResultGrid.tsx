@@ -101,7 +101,7 @@ export function ResultGrid({
       </Row>
       {grid.map((row, i) => (
         <Row key={i} gap={8}>
-          <T size={13} w={600} color={colors.muted} style={{ width: 60 }}>
+          <T size={13} w={600} color={colors.muted} numberOfLines={1} style={{ width: 60, flexShrink: 0 }}>
             {rowName(i)}
           </T>
           {[0, 1].map((col) => (
