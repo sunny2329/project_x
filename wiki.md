@@ -726,6 +726,8 @@ Frontend (`frontend/.env`, template `frontend/.env.example`): `EXPO_PUBLIC_API_U
   new public page script is served, `/health` 200).
 - `npm run web:deploy` run: https://radsadi26-project-x.expo.app serves design v2.
 - Backend tests that hung on a dropped database connection re-run green (flows + public: 26/26).
+- Later the same day: tier info sheet and bio-under-name (`dd7b3db`) merged to `main` and the web app
+  redeployed (checked: the live bundle has the new sheet).
 
 ### 2026-11-20: PWA merged to `main` and web app redeployed (merge `e70aec8`)
 - `feat/pwa-web-app` merged into `main` (branch `chore/merge-pwa`, fast-forwarded and pushed).
