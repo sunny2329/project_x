@@ -717,6 +717,10 @@ Frontend (`frontend/.env`, template `frontend/.env.example`): `EXPO_PUBLIC_API_U
   the player's tier highlighted: "You · 1563" on your profile, "Overall · 1620" on others) and how
   the overall and placement work. The profile bio now sits in the orange header under the name (3
   lines max) on both profiles; "Edit profile" is a button in the header of your own profile.
+- Friendly step 1: tapping a sport glides the screen down to Format / Scoring rules (not on first
+  open, not for basketball), and a line above "Next: add players" always shows the pick ("Table
+  Tennis · Singles · Best of 5 · 11 points") with "Change", which scrolls to the options. `Screen`
+  takes `scrollRef` / `onScroll` / `onViewportHeight`.
 
 
 ### 2026-11-21: Design v2 published (main `f7c3881`)

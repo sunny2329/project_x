@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { View } from 'react-native';
+import { type ScrollViewInstance, View } from 'react-native';
 import { useTheme } from '@/shared/theme';
 import { Button, D, EmptyState, Icon, Loading, Screen, Segmented, sportIcon, T, Tap, TextButton } from '@/shared/ui';
 import { RulesSheet } from '../components/RulesSheet';
@@ -25,6 +25,15 @@ export default function NewMatchSportScreen() {
   const { sport, formatCode, rulesetId, override, lineup, start, setFormat, setRuleset, setRule, resetRules, add } = useMatchDraft();
   const [editingRules, setEditingRules] = useState(false);
   const started = useRef(false);
+  // Where the format/rules block starts, so a sport tap can bring it into view.
+  const scroller = useRef<ScrollViewInstance>(null);
+  const optionsY = useRef<number | null>(null);
+  const showOptions = () => {
+    // After the new sport's options have laid out.
+    setTimeout(() => {
+      if (optionsY.current !== null) scroller.current?.scrollTo({ y: Math.max(0, optionsY.current - 12), animated: true });
+    }, 60);
+  };
 
   const list = (sports ?? []).filter((s) => s.rulesets.some((r) => SCORED_MODELS.has(r.scoringModel)));
   const opponent = params.with ? { key: params.with, displayName: params.withName ?? 'Opponent', isGuest: false, userId: params.with, input: { userId: params.with } } : null;
@@ -56,6 +65,7 @@ export default function NewMatchSportScreen() {
     useMatchDraft.setState({ lineup: keep.map((side) => [...side]) });
     const draft = useMatchDraft.getState();
     if (draft.formatCode) setFormat(draft.formatCode);
+    if (!s.rulesets.some((r) => r.scoringModel === 'baskets')) showOptions();
   };
 
   const basketball = sport?.rulesets.some((r) => r.scoringModel === 'baskets') ?? false;
@@ -66,12 +76,23 @@ export default function NewMatchSportScreen() {
   const singlesFormat = sport?.formats.find((f) => f.code === 'singles');
   const doublesFormat = sport?.formats.find((f) => f.code === 'doubles');
   const singlesDoubles = !!(singlesFormat || doublesFormat) && sport!.formats.every((f) => f.code === 'singles' || f.code === 'doubles');
+  const summary = sport ? [sport.name, basketball ? null : format?.name, basketball || !ruleset ? null : changed ? rulesTitle(ruleset, override) : ruleset.name].filter(Boolean).join(' · ') : null;
 
   return (
     <Screen
       gap={18}
+      scrollRef={scroller}
       footer={
         <View style={{ gap: 10 }}>
+          {summary ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Icon name={sportIcon(sport!.slug)} size={16} color={colors.accentText} />
+              <T size={13} w={600} flex numberOfLines={1} accessibilityLabel={`Playing ${summary}`}>
+                {summary}
+              </T>
+              {!basketball ? <TextButton label="Change" size={13} color={colors.accentText} onPress={showOptions} /> : null}
+            </View>
+          ) : null}
           <Button label="Next: add players" iconRight="arrowRight" weight={700} disabled={!sport} onPress={() => router.push('/match/setup')} />
           <TextButton
             label="Already played? Enter a result"
@@ -131,7 +152,7 @@ export default function NewMatchSportScreen() {
       </View>
 
       {sport && !basketball ? (
-        <>
+        <View style={{ gap: 18 }} onLayout={(e) => (optionsY.current = e.nativeEvent.layout.y)}>
           {sport.formats.length > 1 || singlesDoubles ? (
             <View style={{ gap: 8 }}>
               <T size={14} w={700}>
@@ -182,7 +203,7 @@ export default function NewMatchSportScreen() {
               />
             ) : null}
           </View>
-        </>
+        </View>
       ) : sport ? (
         <T size={13} color={colors.muted}>
           Next: quick starts, court size and how the game ends.

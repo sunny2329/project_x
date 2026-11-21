@@ -1,5 +1,5 @@
-import type { ReactNode } from 'react';
-import { KeyboardAvoidingView, Platform, RefreshControl, ScrollView, View, type ViewStyle } from 'react-native';
+import type { ReactNode, Ref } from 'react';
+import { KeyboardAvoidingView, Platform, RefreshControl, ScrollView, View, type NativeScrollEvent, type NativeSyntheticEvent, type ScrollViewInstance, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/shared/theme';
 
@@ -25,6 +25,11 @@ interface ScreenProps {
   onRefresh?: () => void;
   background?: string;
   contentStyle?: ViewStyle;
+  /** The scroll view, for screens that scroll something into view themselves. */
+  scrollRef?: Ref<ScrollViewInstance>;
+  onScroll?: (e: NativeSyntheticEvent<NativeScrollEvent>) => void;
+  /** Height of the visible scroll area. */
+  onViewportHeight?: (height: number) => void;
 }
 
 /** Every screen's frame: safe-area top, design padding, keyboard handling, optional fixed footer. */
@@ -42,6 +47,9 @@ export function Screen({
   onRefresh,
   background,
   contentStyle,
+  scrollRef,
+  onScroll,
+  onViewportHeight,
 }: ScreenProps) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
@@ -53,6 +61,10 @@ export function Screen({
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: background ?? colors.bg }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       {scroll ? (
         <ScrollView
+          ref={scrollRef}
+          onScroll={onScroll}
+          scrollEventThrottle={onScroll ? 32 : undefined}
+          onLayout={onViewportHeight ? (e) => onViewportHeight(e.nativeEvent.layout.height) : undefined}
           contentContainerStyle={inner}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
