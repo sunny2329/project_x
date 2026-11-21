@@ -721,6 +721,11 @@ Frontend (`frontend/.env`, template `frontend/.env.example`): `EXPO_PUBLIC_API_U
   open, not for basketball), and a line above "Next: add players" always shows the pick ("Table
   Tennis · Singles · Best of 5 · 11 points") with "Change", which scrolls to the options. `Screen`
   takes `scrollRef` / `onScroll` / `onViewportHeight`.
+- Live scoring for racket sports is back to the pre-v2 layout (user's call: the v2 board had no
+  Side out button): `ScoreScreen` / `Scoreboard` restored from before `30a57ff`, so pickleball shows
+  "+ Point" on the serving side, "Side out" on the receiving side, the "3 · 2 · 2" call and server
+  number; rally sports show "+ Point" on both sides. `ScoringV2.tsx` / `scoring-v2.ts` removed. It
+  keeps the v2 colours (one orange accent; white cards).
 
 
 ### 2026-11-21: Design v2 published (main `f7c3881`)
