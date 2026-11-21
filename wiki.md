@@ -744,6 +744,10 @@ Frontend (`frontend/.env`, template `frontend/.env.example`): `EXPO_PUBLIC_API_U
 - Backend tests that hung on a dropped database connection re-run green (flows + public: 26/26).
 - Later the same day: tier info sheet and bio-under-name (`dd7b3db`) merged to `main` and the web app
   redeployed (checked: the live bundle has the new sheet).
+- Later again: racket scoring back to the pre-v2 board, no share sheet on start, sport-step
+  auto-scroll, Enter-a-result fixes (`035422c`) merged and the web app redeployed. The production URL
+  took a few minutes to switch to the new build after "Promoted deployment to production"; check the
+  `entry-<hash>.js` in its HTML against the deployment URL before calling it live.
 
 ### 2026-11-20: PWA merged to `main` and web app redeployed (merge `e70aec8`)
 - `feat/pwa-web-app` merged into `main` (branch `chore/merge-pwa`, fast-forwarded and pushed).
