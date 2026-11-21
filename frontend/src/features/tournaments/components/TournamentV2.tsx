@@ -56,7 +56,7 @@ export function EventHero({
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   return (
-    <View style={{ backgroundColor: colors.hero, paddingTop: insets.top + 8, paddingHorizontal: 12, gap: 10 }}>
+    <View style={{ backgroundColor: colors.hero, paddingTop: insets.top + 8, paddingHorizontal: 12, gap: 10, ...(tabs?.length ? {} : { borderBottomLeftRadius: 24, borderBottomRightRadius: 24, paddingBottom: 8 }) }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
         <HeroIcon icon="back" label="Back" onPress={() => goBack(fallback)} />
         <View style={{ flex: 1, gap: 2 }}>

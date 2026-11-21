@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { View } from 'react-native';
-import { LIVE, READY, useTheme, withAlpha } from '@/shared/theme';
+import { useTheme } from '@/shared/theme';
 import { Badge, D, type IconName, T, Tap } from '@/shared/ui';
 import { EventHero, shareTournament } from './TournamentV2';
 import { clock, clock12, weekdayDayMonth } from '@/shared/utils/format';
@@ -179,7 +179,7 @@ export function EventHeader({ event, active, action }: { event: EventDetail; act
 /** A tinted chip (event pages, cards): "● Best of 3 · 21". */
 export function InfoChip({ label, dot, tone }: { label: string; dot?: string; tone?: 'progress' | 'ready' | 'neutral' }) {
   const { colors } = useTheme();
-  const bg = tone === 'progress' ? withAlpha(LIVE, 0.16) : tone === 'ready' ? READY : colors.surface;
+  const bg = tone === 'progress' ? colors.accentSoft : tone === 'ready' ? colors.goodBg : colors.surface;
   const fg = tone === 'progress' ? colors.good : tone === 'ready' ? colors.ink : colors.fg;
   return (
     <View style={{ height: 28, paddingHorizontal: 10, borderRadius: 8, backgroundColor: bg, flexDirection: 'row', alignItems: 'center', gap: 6 }}>

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Pressable, Switch, View, type ViewStyle } from 'react-native';
-import { useTheme, withAlpha } from '@/shared/theme';
+import { textOn, useTheme, withAlpha } from '@/shared/theme';
 import { Icon } from './Icon';
 import { D, T } from './Text';
 
@@ -44,7 +44,8 @@ export function Segmented<V extends string>({
     <View accessibilityRole="tablist" style={[{ flexDirection: 'row', padding: 4, gap: 4, borderRadius: radius, backgroundColor: tray ?? colors.surface }, style]}>
       {options.map((o) => {
         const active = o.value === value;
-        const fill = activeColor ?? colors.primary;
+        // Design v2: the picked option is a white card on the tray (pass activeColor for a filled one).
+        const fill = activeColor ?? colors.card;
         return (
           <Pressable
             key={o.value}
@@ -55,7 +56,7 @@ export function Segmented<V extends string>({
             onPress={() => onChange(o.value)}
             style={{ flex: 1, height, borderRadius: radius - 3, backgroundColor: active ? fill : 'transparent', alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 }}
           >
-            <T size={size} w={active ? 700 : 600} color={active ? activeText ?? (activeColor ? colors.ink : colors.onPrimary) : o.disabled ? colors.faint : colors.muted}>
+            <T size={size} w={active ? 700 : 600} color={active ? activeText ?? (activeColor ? textOn(activeColor) : colors.fg) : o.disabled ? colors.faint : colors.muted}>
               {o.label}
             </T>
             {o.badge}
@@ -92,7 +93,7 @@ export function Chip({
   const fill = activeColor ?? colors.primary;
   const bg = active ? (tint ? withAlpha(fill, 0.16) : fill) : 'transparent';
   const border = active ? (tint ? fill : fill) : colors.line;
-  const fg = active && !tint ? (activeColor ? colors.ink : colors.onPrimary) : colors.fg;
+  const fg = active && !tint ? (activeColor ? textOn(activeColor) : colors.onPrimary) : colors.fg;
   return (
     <Pressable
       accessibilityRole="button"
@@ -234,10 +235,12 @@ export function Stepper({ value, onChange, min = 0, max = 99, label }: { value: 
       disabled={value + delta < min || value + delta > max}
       onPress={() => onChange(value + delta)}
       style={({ pressed }) => ({
-        width: 36,
-        height: 36,
-        borderRadius: 10,
-        backgroundColor: colors.raised,
+        width: 44,
+        height: 44,
+        borderRadius: 12,
+        backgroundColor: colors.card,
+        borderWidth: 1,
+        borderColor: colors.line,
         alignItems: 'center',
         justifyContent: 'center',
         opacity: value + delta < min || value + delta > max ? 0.4 : pressed ? 0.7 : 1,
@@ -249,9 +252,9 @@ export function Stepper({ value, onChange, min = 0, max = 99, label }: { value: 
     </Pressable>
   );
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
       {btn(-1, '−', `Fewer ${label}`)}
-      <D size={22} style={{ width: 32, textAlign: 'center' }}>
+      <D size={24} style={{ width: 40, textAlign: 'center' }}>
         {value}
       </D>
       {btn(1, '+', `More ${label}`)}

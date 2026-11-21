@@ -48,7 +48,7 @@ export function Field({
 }: FieldProps) {
   const { colors } = useTheme();
   const [focused, setFocused] = useState(false);
-  const border = error ? '#FF5468' : focused && focusRing ? colors.primary : colors.line;
+  const border = error ? colors.bad : focused && focusRing ? colors.primary : colors.line;
   return (
     <View style={[{ gap: 8 }, style]}>
       {label ? (
@@ -258,9 +258,9 @@ export function NumberBox({
         ...(width ? { width } : { flex: 1 }),
         height,
         borderRadius: radius,
-        backgroundColor: invalid ? 'rgba(255,84,104,0.08)' : background ?? colors.surface,
+        backgroundColor: invalid ? colors.badBg : background ?? colors.surface,
         borderWidth: invalid ? 2 : background ? 0 : 1,
-        borderColor: invalid ? '#FF5468' : colors.line,
+        borderColor: invalid ? colors.bad : colors.line,
         textAlign: 'center',
         color: colors.fg,
         fontFamily: displayFont(900),

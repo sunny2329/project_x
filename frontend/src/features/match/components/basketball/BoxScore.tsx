@@ -81,7 +81,7 @@ export function PlayerTable({ match, score, initialSide = 0 }: { match: MatchVie
                   <T size={14} style={cell}>
                     {String(l?.assists ?? 0)}
                   </T>
-                  <T size={14} w={out ? 800 : 400} color={out ? '#FF5468' : colors.fg} style={cell}>
+                  <T size={14} w={out ? 800 : 400} color={out ? colors.bad : colors.fg} style={cell}>
                     {String(l?.fouls ?? 0)}
                   </T>
                 </View>

@@ -1,20 +1,26 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { Share, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useState } from 'react';
+import { Pressable, ScrollView, View } from 'react-native';
 import { useResource } from '@/shared/hooks/useResource';
 import { useTheme } from '@/shared/theme';
-import { Badge, Button, D, EmptyState, Header, Icon, IconButton, Label, Loading, Row, Screen, T, Tap } from '@/shared/ui';
+import { Badge, Button, D, EmptyState, Header, Loading, Row, Screen, T, Tap } from '@/shared/ui';
 import { dayMonth, longDateRange, plural } from '@/shared/utils/format';
-import { publicTournamentUrl, tournamentsApi } from '../api/tournaments.api';
-import { drawSummary, entriesNoun } from '../components/TournamentBits';
+import { tournamentsApi } from '../api/tournaments.api';
+import { drawSummary } from '../components/TournamentBits';
+import { EventHero, shareTournament } from '../components/TournamentV2';
+import { categoryStatus, type HubTone, progress } from '../hub';
 import { statusBadge } from '../status';
 
-/** A tournament for players: dates, venue, organizer, its events; Register in the bar below. */
+/**
+ * Tournament hub (design v2 "Multi-sport event hub"): orange header with event progress, sport
+ * filter, a card per category with what's happening in it; Register in the bar below.
+ */
 export default function TournamentPageScreen() {
   const { colors } = useTheme();
-  const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { data, error, loading, refreshing, refresh } = useResource(() => tournamentsApi.get(id), [id]);
+  const fixtures = useResource(() => tournamentsApi.fixtures(id).catch(() => ({ fixtures: [] })), [id], { poll: 20_000 });
+  const [sport, setSport] = useState('all');
 
   if (loading) return <Loading />;
   const t = data?.tournament;
@@ -27,138 +33,172 @@ export default function TournamentPageScreen() {
     );
   }
 
-  const badge = statusBadge(t.status);
+  const list = fixtures.data?.fixtures ?? [];
   const open = t.events.filter((e) => e.status === 'registration_open' && (e.maxEntries === null || e.approvedEntries + e.pendingEntries < e.maxEntries) && !e.myEntry);
-  const stripe = t.events.length ? t.events.map((e) => e.sport.accentColor) : [colors.primary];
-  const share = () => void Share.share({ message: `${t.name}\n${publicTournamentUrl(t.slug)}`, url: publicTournamentUrl(t.slug) });
+  const sports = [...new Map(t.events.map((e) => [e.sport.slug, e.sport.name])).entries()];
+  const shown = sport === 'all' ? t.events : t.events.filter((e) => e.sport.slug === sport);
+  const done = progress(list);
+  const badge = statusBadge(t.status);
+  const sub = [
+    t.startsOn ? longDateRange(t.startsOn, t.endsOn) : null,
+    sports.length > 1 ? plural(sports.length, 'sport') : sports[0]?.[1],
+    plural(t.events.length, 'category', 'categories'),
+    t.courts.length ? plural(t.courts.length, 'court') : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+  const tone = (x: HubTone) =>
+    ({
+      live: { bg: colors.liveBg, fg: colors.liveText },
+      progress: { bg: colors.accentSoft, fg: colors.accentText },
+      next: { bg: colors.accentSoft, fg: colors.accentText },
+      open: { bg: colors.goodBg, fg: colors.good },
+      done: { bg: colors.goodBg, fg: colors.good },
+      plain: { bg: colors.surface, fg: colors.muted },
+    })[x];
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.bg }}>
-      <View style={{ paddingTop: insets.top + 10, paddingHorizontal: 20, paddingBottom: 22, backgroundColor: colors.accentDeep, gap: 16, overflow: 'hidden' }}>
-        <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 4, flexDirection: 'row' }}>
-          {stripe.map((c, i) => (
-            <View key={i} style={{ flex: 1, backgroundColor: c }} />
-          ))}
-        </View>
-        <Row between>
-          <IconButton icon="back" label="Back" tone="translucent" style={{ backgroundColor: 'rgba(255,255,255,0.08)' }} onPress={() => router.back()} />
-          <Row gap={8}>
-            {t.isOrganizer || t.isStaff ? (
-              <Button label="Manage" variant="outline" height={44} radius={14} size={14} inline onPress={() => router.push({ pathname: '/tournament/[id]/manage', params: { id: t.id } })} />
-            ) : null}
-            <IconButton icon="share" label="Share tournament" tone="translucent" style={{ backgroundColor: 'rgba(255,255,255,0.08)' }} onPress={share} />
-          </Row>
+    <Screen
+      edgeToEdge
+      px={0}
+      gap={0}
+      refreshing={refreshing || fixtures.refreshing}
+      onRefresh={() => {
+        refresh();
+        fixtures.refresh();
+      }}
+      footerBar
+      footer={
+        <Row gap={12}>
+          <View style={{ flex: 1 }}>
+            <T size={13} color={colors.muted}>
+              Entry fee
+            </T>
+            <T size={15} w={700}>
+              {t.entryFee ? `${t.entryFee} per player` : 'Free'}
+            </T>
+          </View>
+          <Button
+            label={t.events.some((e) => e.myEntry) && !open.length ? 'My matches' : 'Register'}
+            height={52}
+            size={16}
+            weight={700}
+            inline
+            px={28}
+            disabled={!open.length && !t.events.some((e) => e.myEntry)}
+            onPress={() => (open.length ? router.push({ pathname: '/tournament/[id]/register', params: { id: t.id } }) : router.push('/tournaments/mine'))}
+          />
         </Row>
-        {badge ? <Badge label={badge.label} tone={t.status === 'registration_open' ? 'readySolid' : badge.tone} /> : null}
-        <D size={46} lh={44} upper>
-          {t.name}
-        </D>
-        <View style={{ gap: 8 }}>
-          {t.startsOn ? (
-            <Row gap={10}>
-              <Icon name="calendar" size={18} color={colors.soft} />
-              <T size={14} color={colors.soft} flex>
-                {longDateRange(t.startsOn, t.endsOn)}
-                {t.registrationClosesAt ? ` · entries close ${dayMonth(t.registrationClosesAt)}` : ''}
-              </T>
+      }
+    >
+      <EventHero title={t.name} sub={sub} action={{ icon: 'share', label: 'Share tournament', onPress: () => shareTournament(t.name, t.slug) }}>
+        <View style={{ gap: 8, paddingHorizontal: 4, paddingBottom: 6 }}>
+          {done ? (
+            <>
+              <Row between>
+                <T size={13} color={colors.heroMuted}>
+                  Event progress
+                </T>
+                <T size={13} w={700} color={colors.onHero}>
+                  {done.text}
+                </T>
+              </Row>
+              <View style={{ height: 8, borderRadius: 4, backgroundColor: colors.heroChip, overflow: 'hidden' }}>
+                <View style={{ width: `${Math.round((done.done / done.total) * 100)}%`, height: 8, borderRadius: 4, backgroundColor: colors.onHero }} />
+              </View>
+            </>
+          ) : (
+            <Row gap={8} style={{ flexWrap: 'wrap' }}>
+              {badge ? (
+                <View style={{ paddingVertical: 4, paddingHorizontal: 10, borderRadius: 99, backgroundColor: colors.heroChip }}>
+                  <T size={12} w={700} color={colors.onHero}>
+                    {badge.label}
+                  </T>
+                </View>
+              ) : null}
+              {t.venue ? (
+                <T size={13} color={colors.heroMuted}>
+                  {t.venue.name}
+                </T>
+              ) : null}
+              {t.registrationClosesAt ? (
+                <T size={13} color={colors.heroMuted}>
+                  Entries close {dayMonth(t.registrationClosesAt)}
+                </T>
+              ) : null}
             </Row>
-          ) : null}
-          {t.venue || t.courts.length ? (
-            <Row gap={10}>
-              <Icon name="pin" size={18} color={colors.soft} />
-              <T size={14} color={colors.soft} flex>
-                {[t.venue?.name, t.courts.length ? plural(t.courts.length, 'court') : null].filter(Boolean).join(' · ')}
-              </T>
-            </Row>
-          ) : null}
-          {t.organizer.name ? (
-            <Row gap={10}>
-              <Icon name="personSmall" size={18} color={colors.soft} />
-              <T size={14} color={colors.soft} flex>
-                Run by {t.organizer.name}
-              </T>
+          )}
+          {t.isOrganizer || t.isStaff ? (
+            <Row gap={8}>
+              {[
+                { label: 'Manage', go: () => router.push({ pathname: '/tournament/[id]/manage', params: { id: t.id } }) },
+                ...(t.courts.length ? [{ label: 'Court control', go: () => router.push({ pathname: '/tournament/[id]/courts', params: { id: t.id } }) }] : []),
+              ].map((b) => (
+                <Tap key={b.label} label={b.label} onPress={b.go} style={{ height: 34, paddingHorizontal: 14, borderRadius: 17, justifyContent: 'center', backgroundColor: colors.heroChip }}>
+                  <T size={13} w={700} color={colors.onHero}>
+                    {b.label}
+                  </T>
+                </Tap>
+              ))}
             </Row>
           ) : null}
         </View>
+      </EventHero>
+
+      <View style={{ paddingHorizontal: 16, paddingTop: 16, gap: 10 }}>
         {t.description ? (
-          <T size={14} color={colors.soft}>
+          <T size={14} lh={20} color={colors.muted}>
             {t.description}
           </T>
         ) : null}
-      </View>
+        {sports.length > 1 ? (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+            {[['all', 'All'] as [string, string], ...sports].map(([slug, label]) => {
+              const on = slug === sport;
+              return (
+                <Pressable key={slug} accessibilityRole="tab" accessibilityState={{ selected: on }} onPress={() => setSport(slug)} style={{ height: 44, paddingHorizontal: 16, borderRadius: 22, justifyContent: 'center', backgroundColor: on ? colors.primary : colors.card, borderWidth: 1, borderColor: on ? colors.primary : colors.line }}>
+                  <T size={14} w={700} color={on ? colors.onPrimary : colors.fg}>
+                    {label}
+                  </T>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        ) : null}
 
-      <Screen
-        edgeToEdge
-        gap={10}
-        contentStyle={{ paddingTop: 18 }}
-        refreshing={refreshing}
-        onRefresh={refresh}
-        footerBar
-        footer={
-          <Row gap={12}>
-            <View style={{ flex: 1 }}>
-              <T size={13} color={colors.muted}>
-                Entry fee
-              </T>
-              <T size={15} w={700}>
-                {t.entryFee ? `${t.entryFee} per player` : 'Free'}
-              </T>
-            </View>
-            <Button
-              label={t.events.some((e) => e.myEntry) && !open.length ? 'My matches' : 'Register'}
-              height={54}
-              size={16}
-              weight={800}
-              inline
-              px={28}
-              disabled={!open.length && !t.events.some((e) => e.myEntry)}
-              onPress={() => (open.length ? router.push({ pathname: '/tournament/[id]/register', params: { id: t.id } }) : router.push('/tournaments/mine'))}
-            />
-          </Row>
-        }
-      >
-        <Label>{plural(t.events.length, 'event')}</Label>
-        {t.events.map((e) => {
-          const taken = e.approvedEntries + e.pendingEntries;
-          const full = e.maxEntries !== null && taken >= e.maxEntries;
+        {shown.map((e) => {
+          const st = categoryStatus(e, list);
+          const c = tone(st.tone);
           return (
-            <Tap key={e.id} label={e.name} onPress={() => router.push({ pathname: '/event/[id]', params: { id: e.id } })} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 16, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line }}>
-              <View style={{ width: 4, height: 44, borderRadius: 2, backgroundColor: e.sport.accentColor }} />
-              <View style={{ flex: 1, gap: 3 }}>
-                <T size={16} w={700} numberOfLines={1}>
+            <Tap key={e.id} label={e.name} onPress={() => router.push({ pathname: '/event/[id]', params: { id: e.id } })} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 18, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line }}>
+              <View style={{ flex: 1, gap: 2 }}>
+                <T size={12} color={colors.muted} numberOfLines={1}>
+                  {e.sport.name} · {drawSummary(e)}
+                </T>
+                <D size={20} lh={22} numberOfLines={1}>
                   {e.name}
-                </T>
+                </D>
                 <T size={13} color={colors.muted} numberOfLines={1}>
-                  {[e.sport.name, drawSummary(e), e.maxEntries ? entriesNoun(e.format.playersPerSide, e.maxEntries) : null].filter(Boolean).join(' · ')}
+                  {st.line}
                 </T>
-                {e.myEntry ? (
-                  <Badge label={e.myEntry.status === 'pending' ? 'YOUR ENTRY · PENDING' : 'YOU’RE IN'} tone={e.myEntry.status === 'pending' ? 'pending' : 'good'} size="xs" style={{ marginTop: 2 }} />
-                ) : null}
+                {e.myEntry ? <Badge label={e.myEntry.status === 'pending' ? 'Your entry · pending' : 'You’re in'} tone={e.myEntry.status === 'pending' ? 'pending' : 'good'} size="xs" style={{ marginTop: 4 }} /> : null}
               </View>
-              <View style={{ alignItems: 'flex-end', gap: 3 }}>
-                {full ? (
-                  <>
-                    <D size={20} color={colors.bad}>
-                      FULL
-                    </D>
-                    <T size={11} color={colors.muted}>
-                      {taken}/{e.maxEntries}
-                    </T>
-                  </>
-                ) : (
-                  <>
-                    <D size={20}>{e.maxEntries ? `${taken}/${e.maxEntries}` : taken}</D>
-                    <T size={11} color={colors.muted}>
-                      entries
-                    </T>
-                  </>
-                )}
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingVertical: 4, paddingHorizontal: 9, borderRadius: 99, backgroundColor: c.bg }}>
+                {st.tone === 'live' ? <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: colors.live }} /> : null}
+                <T size={11} w={700} color={c.fg}>
+                  {st.badge}
+                </T>
               </View>
             </Tap>
           );
         })}
-        {!t.events.length ? <EmptyState title="No events yet" body="The organizer hasn’t added any events." /> : null}
-      </Screen>
-    </View>
+        {!t.events.length ? <EmptyState title="No categories yet" body="The organizer hasn’t added any categories." /> : null}
+        {t.organizer.name ? (
+          <T size={12} color={colors.muted} center style={{ marginTop: 6 }}>
+            Run by {t.organizer.name}
+          </T>
+        ) : null}
+      </View>
+    </Screen>
   );
 }

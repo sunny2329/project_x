@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { ActivityIndicator, Pressable, type PressableProps, type ViewStyle } from 'react-native';
-import { useTheme } from '@/shared/theme';
+import { textOn, useTheme } from '@/shared/theme';
 import { Icon, type IconName } from './Icon';
 import { T } from './Text';
 
@@ -49,14 +49,14 @@ export function Button({
   const { colors } = useTheme();
   const fills: Record<Variant, { bg: string; fg: string; border?: string }> = {
     primary: { bg: colors.primary, fg: colors.onPrimary },
-    outline: { bg: 'transparent', fg: colors.fg, border: colors.line2 },
-    surface: { bg: colors.surface, fg: colors.fg },
+    outline: { bg: colors.card, fg: colors.fg, border: colors.line },
+    surface: { bg: colors.card, fg: colors.fg, border: colors.line },
     raised: { bg: colors.raised, fg: colors.fg },
-    danger: { bg: '#FF5468', fg: colors.onPrimary },
+    danger: { bg: colors.bad, fg: colors.onPrimary },
     ghost: { bg: 'transparent', fg: colors.muted },
-    good: { bg: '#4ADE80', fg: colors.ink },
+    good: { bg: colors.good, fg: colors.onPrimary },
   };
-  const fill = color ? { bg: color, fg: colors.ink } : fills[variant];
+  const fill = color ? { bg: color, fg: textOn(color) } : fills[variant];
   const fg = textColor ?? fill.fg;
   const isDisabled = disabled || loading;
   return (
@@ -115,9 +115,12 @@ interface IconButtonProps extends Omit<PressableProps, 'style' | 'children'> {
 }
 
 /** 44x44, 14px radius square icon buttons (back, close, search, ⋯). */
-export function IconButton({ icon, label, tone = 'surface', size = 44, iconSize, radius = 14, color, style, badge, ...rest }: IconButtonProps) {
+export function IconButton({ icon, label, tone: toneProp, size = 44, iconSize, radius, color, style, badge, ...rest }: IconButtonProps) {
   const { colors } = useTheme();
-  const bg = { surface: colors.surface, primary: colors.primary, translucent: 'rgba(10,15,28,0.14)', plain: 'transparent', raised: colors.raised }[tone];
+  // Design v2: back / close are bare chevrons; other icon buttons are outlined circles.
+  const tone = toneProp ?? (icon === 'back' || icon === 'close' ? 'plain' : 'surface');
+  const bg = { surface: colors.card, primary: colors.primary, translucent: 'rgba(10,15,28,0.14)', plain: 'transparent', raised: colors.raised }[tone];
+  const outlined = tone === 'surface';
   const fg = color ?? (tone === 'primary' ? colors.onPrimary : colors.fg);
   return (
     <Pressable
@@ -126,7 +129,7 @@ export function IconButton({ icon, label, tone = 'surface', size = 44, iconSize,
       hitSlop={4}
       {...rest}
       style={({ pressed }) => [
-        { width: size, height: size, borderRadius: radius, backgroundColor: bg, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.7 : 1 },
+        { width: size, height: size, borderRadius: radius ?? size / 2, backgroundColor: bg, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.7 : 1, ...(outlined ? { borderWidth: 1, borderColor: colors.line } : {}) },
         style,
       ]}
     >

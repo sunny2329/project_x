@@ -88,7 +88,22 @@ export function publicPage(title: string, kind: 'match' | 'tournament' | 'missin
   table { width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums; font-size:14px; }
   th { font-size:11px; letter-spacing:.06em; color:var(--sub); font-weight:700; padding:10px 6px; text-align:center; }
   td { padding:10px 6px; border-top:1px solid var(--hair); text-align:center; } td.l, th.l { text-align:left; }
-  .q { margin-left:4px; padding:1px 5px; border-radius:4px; background:#4ADE80; color:var(--ink); font-size:10px; font-weight:800; }
+  .q { margin-left:6px; font-size:11px; font-weight:700; color:var(--good); }
+  nav.tn { display:flex; gap:4px; align-items:center; max-width:560px; margin:0 auto; padding:6px 14px 10px; }
+  nav.tn a { padding:9px 12px; border-radius:12px; font-size:14px; font-weight:500; } nav.tn a.app { background:var(--primary); color:var(--onPrimary); font-weight:700; }
+  .thero { margin:-14px -20px 0; padding:28px 20px 24px; background:var(--hero); color:var(--onHero); display:flex; flex-direction:column; gap:12px; }
+  .thero .k { font-size:12px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; }
+  .thero h1 { font-size:42px; line-height:42px; text-transform:none; font-weight:700; }
+  .thero .s { font-size:15px; color:var(--heroMuted); }
+  .tiles { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:4px; }
+  .tiles > div { padding:14px 16px; border-radius:16px; background:rgba(0,0,0,.14); } .tiles .v { font-size:30px; line-height:32px; } .tiles .t { font-size:13px; color:var(--heroMuted); }
+  h2 { margin:8px 0 0; font-size:30px; line-height:32px; font-family:'Barlow Condensed', sans-serif; font-weight:700; }
+  .lv { display:flex; flex-direction:column; gap:8px; padding:14px 16px; border-radius:18px; background:var(--card); border:1px solid var(--line); }
+  .lv.on { background:var(--accentSoft); border:2px solid var(--primary); }
+  .lv .m { display:flex; justify-content:space-between; gap:8px; font-size:12px; color:var(--sub); } .lv .m b { color:var(--liveText); font-size:11px; white-space:nowrap; }
+  .lv .r { display:flex; align-items:center; gap:10px; font-size:16px; } .lv .r .n { flex:1; } .lv .r.w .n { font-weight:700; }
+  .lv .r .pv { font-size:18px; color:var(--sub); } .lv .r .c { font-size:28px; min-width:30px; text-align:right; } .lv.on .r.w .c { color:var(--accentText); }
+  .next { display:flex; gap:14px; padding:12px 0; border-top:1px solid var(--line); } .next .tm { font-size:22px; min-width:54px; } .next .w { font-weight:700; } .next .s { font-size:12px; color:var(--sub); }
   .bracket { display:flex; gap:12px; overflow-x:auto; padding-bottom:6px; } .round { min-width:190px; display:flex; flex-direction:column; gap:8px; }
   .round h3 { margin:0; font-size:12px; color:var(--sub); letter-spacing:.06em; text-transform:uppercase; }
   .ph { color:var(--dim); font-style:italic; } .win { font-weight:800; }
@@ -234,7 +249,7 @@ ${SCORE_HELPERS_JS}
       '<span class="r l"><span>' + entryName(f, 1) + '</span><span class="d">' + esc(score(1)) + '</span></span></a>';
   };
   const fixtureCard = (f) => '<div class="fx"><span class="m">' + esc([f.roundName || f.groupName, f.court && f.court.name].filter(Boolean).join(' · ')) +
-    (f.status === 'live' ? ' <span class="badge live">LIVE</span>' : '') + '</span>' +
+    (f.status === 'live' ? ' <span class="pill live"><i></i>LIVE</span>' : '') + '</span>' +
     '<span class="r ' + (f.winnerEntryId && f.entries[0] && f.winnerEntryId === f.entries[0].id ? 'b' : '') + '"><span>' + entryName(f, 0) + '</span></span>' +
     '<span class="r ' + (f.winnerEntryId && f.entries[1] && f.winnerEntryId === f.entries[1].id ? 'b' : 'l') + '"><span>' + entryName(f, 1) + '</span></span>' +
     (f.match && f.match.headline ? '<span class="m d" style="font-size:16px;color:var(--ink)">' + esc(f.match.headline) + '</span>' : '') + '</div>';
@@ -256,7 +271,7 @@ ${SCORE_HELPERS_JS}
           if (g.standings) {
             const q = (ev.drawConfig && ev.drawConfig.qualifiersPerGroup) || 0;
             html += '<table><thead><tr><th>#</th><th class="l">' + (ev.format.playersPerSide > 1 ? 'PAIR' : 'PLAYER') + '</th><th>P</th><th>W</th><th>L</th><th>G±</th><th>PTS±</th></tr></thead><tbody>' +
-              g.standings.map((r) => '<tr><td>' + r.rank + '</td><td class="l">' + esc(r.name) + (stage.sequence === 1 && ev.stages.length > 1 && r.rank <= q ? '<span class="q">Q</span>' : '') + '</td><td>' + r.played + '</td><td>' + r.won + '</td><td>' + r.lost + '</td><td>' + (r.majorWon - r.majorLost) + '</td><td>' + (r.minorWon - r.minorLost) + '</td></tr>').join('') + '</tbody></table>';
+              g.standings.map((r) => '<tr><td>' + r.rank + '</td><td class="l">' + esc(r.name) + (stage.sequence === 1 && ev.stages.length > 1 && r.rank <= q ? '<span class="q">Qualified</span>' : '') + '</td><td>' + r.played + '</td><td>' + r.won + '</td><td>' + r.lost + '</td><td>' + (r.majorWon - r.majorLost) + '</td><td>' + (r.minorWon - r.minorLost) + '</td></tr>').join('') + '</tbody></table>';
           }
           html += '</div>';
         }
@@ -267,37 +282,57 @@ ${SCORE_HELPERS_JS}
   }
 
   let selected = null;
+  const isLive = (f) => f.status === 'live' || (f.match && f.match.status === 'live');
+  const liveNowCard = (f, on) => {
+    const sides = (f.match && f.match.sides) || [];
+    const segs = (f.match && f.match.segments) || [];
+    const lead = sides.length === 2 ? (Number(sides[0].current ?? sides[0].primary) >= Number(sides[1].current ?? sides[1].primary) ? 0 : 1) : 0;
+    const row = (i) => '<div class="r' + (i === lead ? ' w' : '') + '"><span class="n">' + entryName(f, i) + '</span>' +
+      (segs.length ? '<span class="d pv">' + esc(segs.map((g) => g[i]).join(' · ')) + '</span>' : '') +
+      '<span class="d c">' + esc(sides[i] ? (sides[i].current ?? sides[i].primary) : '') + '</span></div>';
+    return '<a class="lv' + (on ? ' on' : '') + '" href="/s/' + esc(f.match ? f.match.shareToken : '') + '"><div class="m"><span>' +
+      esc([f.event.sport && f.event.sport.name, f.event.name, f.groupName || f.roundName, f.court && f.court.name].filter(Boolean).join(' · ')) +
+      '</span><b>● LIVE</b></div>' + row(0) + row(1) + '</a>';
+  };
   async function showTournament() {
     try {
       const { tournament: t } = await get('/tournaments/' + key);
       document.title = t.name + ' · ProjectX';
       document.getElementById('open').href = APP + 'tournaments/' + t.id;
-      const events = await Promise.all(t.events.map((e) => get('/tournament-events/' + e.id).then((r) => r.event)));
-      const liveNow = events.flatMap((ev) => ev.fixtures.filter((f) => f.status === 'live'));
-      const dayNo = t.startsOn ? Math.floor((Date.now() - new Date(t.startsOn).getTime()) / 86400000) + 1 : null;
-      const badge = t.status === 'in_progress' ? '<span class="badge live">LIVE' + (dayNo && dayNo > 0 ? ' · DAY ' + dayNo : '') + '</span>'
-        : t.status === 'registration_open' ? '<span class="badge" style="background:#4ADE80">REGISTRATION OPEN</span>'
-        : t.status === 'completed' ? '<span class="badge" style="background:var(--hair)">COMPLETE</span>' : '';
-      const stageLabel = (ev) => {
-        const live = ev.fixtures.find((f) => f.status === 'live' || f.status === 'ready');
-        if (live) return live.stageType === 'round_robin' ? (ev.stages.length > 1 ? 'Groups' : 'Round robin') : (live.roundName || 'Knockout') + (live.roundName && !/s$/.test(live.roundName) && live.roundName !== 'Final' ? 's' : '');
-        return ev.drawFormat === 'knockout' ? 'Knockout' : ev.drawFormat === 'round_robin' ? 'Round robin' : 'Groups + knockout';
-      };
-      let html =
-        '<div style="display:flex;flex-direction:column;gap:6px">' + badge +
-          '<h1 class="d" style="font-size:42px">' + esc(t.name) + '</h1>' +
-          '<span class="sub">' + esc([range(t.startsOn, t.endsOn), t.venue && t.venue.name].filter(Boolean).join(' · ')) + '</span></div>';
-      if (liveNow.length) {
-        html += '<div style="display:flex;flex-direction:column;gap:8px"><div class="label"><span>ON COURT NOW</span><span>Refreshes by itself</span></div>' + liveNow.map(liveCard).join('') + '</div>';
+      if (!document.querySelector('nav.tn')) {
+        document.querySelector('header').insertAdjacentHTML('afterend', '<nav class="tn"><a href="#draws">Draws</a><a href="#schedule">Schedule</a><a class="app" href="' + APP + 'tournaments/' + t.id + '">Get the app</a></nav>');
       }
-      html += '<div style="display:flex;flex-direction:column;gap:8px"><div class="label"><span>EVENTS</span></div><div class="card list">' +
-        events.map((ev) => '<div class="item" data-ev="' + ev.id + '"><span class="bar" style="width:4px;height:24px;border-radius:2px;background:' + ev.sport.accentColor + '"></span>' +
-          '<span class="nm">' + esc(ev.name) + '</span><span class="st">' + esc(stageLabel(ev)) + '</span></div>').join('') + '</div></div>';
-      const ev = events.find((e) => e.id === selected);
-      if (ev) html += '<div style="display:flex;flex-direction:column;gap:10px">' + eventHtml(ev) + '</div>';
-      html += '<a class="btn" href="' + APP + '" style="margin-top:auto;height:54px;border-radius:16px;background:var(--bg);color:var(--fg);font-weight:800;font-size:15px">Get the app to follow every point</a>';
+      const events = await Promise.all(t.events.map((e) => get('/tournament-events/' + e.id).then((r) => r.event)));
+      const all = events.flatMap((ev) => ev.fixtures.map((f) => ({ ...f, event: { ...f.event, sport: ev.sport } })));
+      const real = all.filter((f) => f.status !== 'bye' && f.status !== 'cancelled');
+      const played = real.filter((f) => f.status === 'completed').length;
+      const liveNow = real.filter(isLive);
+      const sports = [...new Set(events.map((e) => e.sport.name))];
+      const players = new Set(events.flatMap((e) => e.entries.filter((x) => x.status === 'approved').flatMap((x) => (x.players || []).map((p) => p.playerId || p.displayName)))).size;
+      statusEl.innerHTML = t.status === 'in_progress' ? '<span class="pill live"><i></i>LIVE</span>' : t.status === 'completed' ? '<span class="pill done">Complete</span>' : t.status === 'registration_open' ? '<span class="pill done">Entries open</span>' : '';
+      const kicker = (sports.length > 1 ? ['Multi-sport', ...sports] : sports).join(' · ');
+      const sub = [t.startsOn ? new Date(t.startsOn).toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' }) + (t.endsOn && t.endsOn !== t.startsOn ? ' – ' + range(t.startsOn, t.endsOn) : '') : '', t.venue && t.venue.name, t.courts && t.courts.length ? t.courts.length + ' courts' : '', players ? players + ' players' : ''].filter(Boolean).join(' · ');
+      const tile = (v, k) => '<div><div class="d v">' + esc(v) + '</div><div class="t">' + esc(k) + '</div></div>';
+      let html = '<section class="thero"><span class="k">' + esc(kicker) + '</span><h1 class="d">' + esc(t.name) + '</h1>' +
+        (sub ? '<span class="s">' + esc(sub) + '</span>' : '') + '<div class="tiles">' +
+        tile(events.length, events.length === 1 ? 'Category' : 'Categories') +
+        tile(real.length ? played + '/' + real.length : '—', 'Matches played') +
+        tile(liveNow.length, 'Live right now') +
+        tile(players || events.reduce((n, e) => n + e.entries.filter((x) => x.status === 'approved').length, 0), players ? 'Players' : 'Entries') + '</div></section>';
+      if (liveNow.length) html += '<h2>Live now</h2>' + liveNow.map((f, i) => liveNowCard(f, i === 0)).join('');
+      if (events.length) {
+        const ev = events.find((e) => e.id === selected) || events[0];
+        html += '<h2 id="draws">Draws</h2><div class="tabs">' + events.map((e) => '<button data-ev="' + e.id + '" aria-pressed="' + (e.id === ev.id) + '">' + esc((sports.length > 1 ? e.sport.name + ' · ' : '') + e.name) + '</button>').join('') + '</div>' +
+          '<div style="display:flex;flex-direction:column;gap:10px">' + eventHtml(ev) + '</div>';
+      }
+      const upcoming = real.filter((f) => !isLive(f) && f.status !== 'completed' && f.scheduledAt).sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt)).slice(0, 6);
+      if (upcoming.length) {
+        html += '<h2 id="schedule">Up next</h2><div>' + upcoming.map((f) => '<div class="next"><span class="d tm">' + esc(clock(f.scheduledAt).replace(/\s?[AP]M$/i, '')) + '</span><div><div class="w">' + entryName(f, 0) + ' vs ' + entryName(f, 1) + '</div><div class="s">' +
+          esc([f.event.sport && f.event.sport.name, f.event.name, f.groupName || f.roundName, f.court && f.court.name].filter(Boolean).join(' · ')) + '</div></div></div>').join('') + '</div>';
+      }
+      html += '<p class="foot">Scores update live, point by point.</p><a class="go" href="' + APP + '">Run your own tournament free with Project X</a>';
       app.innerHTML = html;
-      app.querySelectorAll('[data-ev]').forEach((b) => b.addEventListener('click', () => { selected = selected === b.dataset.ev ? null : b.dataset.ev; showTournament(); }));
+      app.querySelectorAll('[data-ev]').forEach((b) => b.addEventListener('click', () => { selected = b.dataset.ev; showTournament(); }));
       poll(showTournament, liveNow.length ? 5000 : 30000);
     } catch (e) { app.innerHTML = '<p class="muted">' + esc(e.message) + '</p>'; }
   }

@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { ActivityIndicator, Image, Pressable, View, type ViewStyle } from 'react-native';
 import { env } from '@/shared/config/env';
-import { avatarTone, LIVE, READY, useTheme, withAlpha } from '@/shared/theme';
+import { avatarTone, useTheme } from '@/shared/theme';
 import { Icon } from './Icon';
 import { D, T } from './Text';
 
@@ -97,19 +97,20 @@ export function Badge({
 }) {
   const { colors } = useTheme();
   const map = {
-    live: { bg: LIVE, fg: colors.ink },
-    ready: { bg: 'rgba(74,222,128,0.16)', fg: colors.good },
-    readySolid: { bg: READY, fg: colors.ink },
-    good: { bg: 'rgba(74,222,128,0.16)', fg: colors.good },
+    live: { bg: colors.liveBg, fg: colors.liveText },
+    ready: { bg: colors.goodBg, fg: colors.good },
+    readySolid: { bg: colors.goodBg, fg: colors.good },
+    good: { bg: colors.goodBg, fg: colors.good },
     pending: { bg: colors.warnBg, fg: colors.warnText },
-    neutral: { bg: colors.raised, fg: colors.soft },
-    bad: { bg: 'rgba(255,84,104,0.14)', fg: colors.bad },
-    progress: { bg: withAlpha(LIVE, 0.16), fg: colors.good },
+    neutral: { bg: colors.surface, fg: colors.muted },
+    bad: { bg: colors.badBg, fg: colors.bad },
+    progress: { bg: colors.accentSoft, fg: colors.accentText },
     primary: { bg: colors.primary, fg: colors.onPrimary },
   }[tone];
   return (
-    <View style={[{ alignSelf: 'flex-start', paddingHorizontal: size === 'xs' ? 6 : 8, paddingVertical: size === 'xs' ? 2 : 4, borderRadius: size === 'xs' ? 4 : 6, backgroundColor: map.bg }, style]}>
-      <T size={size === 'xs' ? 10 : 11} w={800} ls={0.06} color={map.fg}>
+    <View style={[{ alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: size === 'xs' ? 7 : 9, paddingVertical: size === 'xs' ? 2 : 4, borderRadius: 99, backgroundColor: map.bg }, style]}>
+      {tone === 'live' ? <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: colors.live }} /> : null}
+      <T size={size === 'xs' ? 10 : 11} w={700} ls={0.04} color={map.fg}>
         {label}
       </T>
     </View>
@@ -180,7 +181,7 @@ export function Notice({ text, tone = 'info', icon }: { text: string; tone?: 'in
     info: { bg: colors.raised, fg: colors.soft },
     surface: { bg: colors.surface, fg: colors.muted },
     warn: { bg: colors.warnBg, fg: colors.warnText },
-    error: { bg: 'rgba(255,84,104,0.1)', fg: colors.bad },
+    error: { bg: colors.badBg, fg: colors.bad },
   }[tone];
   return (
     <View accessibilityRole={tone === 'error' ? 'alert' : undefined} style={{ flexDirection: 'row', gap: 10, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 14, backgroundColor: map.bg }}>

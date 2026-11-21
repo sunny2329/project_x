@@ -152,9 +152,9 @@ export function BasketballResult({ sport }: { sport: SportSummary }) {
         <ScoreBox label={names[1]!} value={b} on={b > a} onChange={setB} />
       </View>
 
-      <View accessibilityRole="alert" style={{ flexDirection: 'row', gap: 10, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 14, backgroundColor: check.ok ? colors.bbTint : 'rgba(255,84,104,0.12)' }}>
-        <Icon name={check.ok ? 'check' : 'alert'} size={18} color={check.ok ? colors.tBb : '#FF8A98'} />
-        <T size={14} lh={20} w={600} color={check.ok ? colors.tBb : '#FF8A98'} flex>
+      <View accessibilityRole="alert" style={{ flexDirection: 'row', gap: 10, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 14, backgroundColor: check.ok ? colors.bbTint : colors.badBg }}>
+        <Icon name={check.ok ? 'check' : 'alert'} size={18} color={check.ok ? colors.tBb : colors.bad} />
+        <T size={14} lh={20} w={600} color={check.ok ? colors.tBb : colors.bad} flex>
           {check.text}
         </T>
       </View>

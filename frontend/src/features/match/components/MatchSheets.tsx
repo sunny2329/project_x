@@ -23,7 +23,7 @@ function MenuRow({ icon, title, sub, onPress, tone = 'normal' }: { icon: IconNam
       onPress={onPress}
       style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 14, minHeight: 56, paddingHorizontal: 12, borderRadius: 14, backgroundColor: pressed ? colors.raised2 : 'transparent' })}
     >
-      <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: tone === 'danger' ? 'rgba(255,84,104,0.12)' : tone === 'disabled' ? colors.raised2 : colors.raised, alignItems: 'center', justifyContent: 'center' }}>
+      <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: tone === 'danger' ? colors.badBg : tone === 'disabled' ? colors.raised2 : colors.raised, alignItems: 'center', justifyContent: 'center' }}>
         <Icon name={icon} size={20} color={fg} />
       </View>
       <View style={{ flex: 1 }}>

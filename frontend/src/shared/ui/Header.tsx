@@ -37,8 +37,8 @@ export function Header({
 }) {
   const { colors } = useTheme();
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 44 }}>
-      {icon ? <IconButton icon={icon} label={icon === 'close' ? 'Close' : 'Back'} onPress={onBack ?? (() => goBack())} /> : null}
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44 }}>
+      {icon ? <IconButton icon={icon} label={icon === 'close' ? 'Close' : 'Back'} tone="plain" onPress={onBack ?? (() => goBack())} /> : null}
       {center ? (
         <View style={{ flex: 1, alignItems: 'center' }}>{center}</View>
       ) : (
@@ -49,7 +49,7 @@ export function Header({
             </T>
           ) : null}
           {display ? (
-            <D size={displaySize} lh={displaySize} upper numberOfLines={2}>
+            <D size={displaySize} lh={displaySize + 2} numberOfLines={2}>
               {display}
             </D>
           ) : title ? (

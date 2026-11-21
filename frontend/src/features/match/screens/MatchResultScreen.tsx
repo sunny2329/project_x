@@ -277,7 +277,7 @@ export default function MatchResultScreen() {
         {m.confirmation.decisions
           .filter((d) => d.decision === 'disputed' && d.comment)
           .map((d) => (
-            <View key={d.sideIndex} style={{ padding: 14, borderRadius: 14, backgroundColor: 'rgba(255,84,104,0.1)', gap: 4 }}>
+            <View key={d.sideIndex} style={{ padding: 14, borderRadius: 14, backgroundColor: colors.badBg, gap: 4 }}>
               <T size={13} w={700} color={colors.bad}>
                 {d.displayName} disputed this result
               </T>

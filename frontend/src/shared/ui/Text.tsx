@@ -38,7 +38,8 @@ export function T({ w = 400, style, ...p }: BaseProps & { w?: BodyWeight }) {
 }
 
 /** Display text (Barlow Condensed): titles and every score / rating number. */
-export function D({ w = 700, style, ...p }: BaseProps & { w?: DisplayWeight }) {
+export function D({ w = 700, style, upper: _upper, ...p }: BaseProps & { w?: DisplayWeight }) {
+  // Design v2 sets display text in sentence case; `upper` is accepted from older call sites and ignored.
   const { colors } = useTheme();
   return <RNText {...p} style={[base(p, displayFont(w), colors.fg, 1.0), ...(Array.isArray(style) ? style : [style])]} />;
 }

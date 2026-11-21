@@ -679,7 +679,31 @@ Frontend (`frontend/.env`, template `frontend/.env.example`): `EXPO_PUBLIC_API_U
   / Free), event · round, the matchup, its scorer, and one action (Open score, Start match, Assign
   scorer, Open match, Assign match). The design's Walkover / Retired / No-show row and "Call
   players" are not built (no fixture picker / player notification yet).
-- Not yet: create tournament, multi-sport categories and hub, public tournament page.
+- Create tournament (`CreateTournamentScreen`, `tournaments/setup.ts`): one screen. Single sport:
+  name, Sport and Category selects ("Men's Singles", "Mixed Doubles", ... from the sport's formats),
+  Knockout / Round robin / Groups → Knockout cards, an Entries stepper with "16-draw · 3 byes · 15
+  matches", chips for seeding, rules and "date · venue · visibility" (a When and where sheet). "Make
+  it multi-sport" (or `?multi=1`) switches to a list of categories across sports: sport chips, "+ Add
+  Tennis · Men's Singles", rows grouped by sport (tap to edit, × to remove). Creating makes the
+  tournament and every category, opens entries on each, opens the tournament, then goes to Manage.
+- Tournament hub (`TournamentPageScreen`, `hub.ts`): orange header (date · sports · categories ·
+  courts, share), event progress "23 of 61 matches" once drawn, Manage / Court control for staff,
+  sport filter chips, a card per category with a status badge (LIVE, In progress, Up next, Done,
+  Entries open, Full) and line ("QF · 1 live on Court 2", "Group stage · 2 matches left", "R16 starts
+  2:00 PM · Table 1", "12/16 entries"). Department standings are not built (no departments in the
+  data model).
+- Public tournament page (`/t/<slug>`, public.pages.ts): brand row with Draws / Schedule / Get the
+  app, orange hero (multi-sport kicker, name, date · venue · courts · players, tiles: categories,
+  matches played, live right now, players), Live now cards, a draw per category (chips), Up next with
+  times, "Run your own tournament free" link.
+- Consistency pass (shared primitives, so every screen follows): one brand orange for every sport
+  (the API's `accentColor` is mapped to it in `shared/api/client.ts`, per-sport text tokens and
+  `SPORT_COLORS` are the accent; `textOn()` picks text on a fill); display text is sentence case (`D`
+  ignores `upper`); back/close are bare chevrons, other icon buttons outlined circles; outline and
+  surface buttons are white cards with a hairline; badges are pills (LIVE pill with a red dot); the
+  segmented control's picked option is a white card; steppers are outlined squares; live is red
+  (`LIVE`), READY a soft green; hard-coded reds/greens replaced by `bad`/`badBg`/`good`/`goodBg`.
+  Basketball team kit colours and the court art keep their own colours.
 
 
 ### 2026-11-20: PWA merged to `main` and web app redeployed (merge `e70aec8`)

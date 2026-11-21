@@ -73,7 +73,7 @@ export function FormTile({ result, size = 30 }: { result: 'W' | 'L'; size?: numb
   const { colors } = useTheme();
   const won = result === 'W';
   return (
-    <View style={{ width: size, height: size, borderRadius: 8, backgroundColor: won ? 'rgba(74,222,128,0.16)' : 'rgba(255,84,104,0.14)', alignItems: 'center', justifyContent: 'center' }}>
+    <View style={{ width: size, height: size, borderRadius: 8, backgroundColor: won ? colors.goodBg : colors.badBg, alignItems: 'center', justifyContent: 'center' }}>
       <D size={16} color={won ? colors.good : colors.bad}>
         {result}
       </D>

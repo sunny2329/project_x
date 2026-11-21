@@ -22,7 +22,7 @@ function Actions({ post, onComment }: { post: FeedPost; onComment: () => void })
         accessibilityState={{ selected: like.likedByMe }}
         accessibilityLabel={like.likedByMe ? 'Unlike' : 'Like'}
         onPress={() => void like.toggle()}
-        style={{ height: 40, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, backgroundColor: like.likedByMe ? 'rgba(255,84,104,0.14)' : colors.surface }}
+        style={{ height: 40, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, backgroundColor: like.likedByMe ? colors.badBg : colors.surface }}
       >
         <Icon name="heart" size={18} color={like.likedByMe ? colors.bad : colors.fg} filled={like.likedByMe} />
         <T size={14} w={like.likedByMe ? 700 : 600} color={like.likedByMe ? colors.bad : colors.fg}>

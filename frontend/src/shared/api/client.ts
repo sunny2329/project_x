@@ -1,3 +1,4 @@
+import { BRAND } from '@/shared/theme/colors';
 import * as Device from 'expo-device';
 import { env } from '@/shared/config/env';
 
@@ -84,7 +85,8 @@ async function send<T>(path: string, options: RequestOptions, accessToken: strin
 
   let envelope: ApiEnvelope<T> | null = null;
   try {
-    envelope = (await response.json()) as ApiEnvelope<T>;
+    // Design v2 has one accent: every sport's accentColor becomes the brand orange.
+    envelope = JSON.parse(await response.text(), (key, value: unknown) => (key === 'accentColor' && typeof value === 'string' ? BRAND : value)) as ApiEnvelope<T>;
   } catch {
     // Non-JSON body (e.g. a proxy error page); handled below.
   }

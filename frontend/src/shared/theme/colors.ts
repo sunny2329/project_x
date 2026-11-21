@@ -89,24 +89,24 @@ export interface Palette {
   nav: string;
 }
 
-/** LIVE badges, dots and borders (same in both themes). */
-export const LIVE = '#22C55E';
+/** LIVE dots and borders where no palette is at hand (design v2 red; screens prefer colors.live). */
+export const LIVE = '#DC2626';
 /** Unread counts, likes and disputes (same in both themes). */
-export const ALERT = '#FF5468';
-/** READY / Q badges and the Approve button (same in both themes). */
-export const READY = '#4ADE80';
+export const ALERT = '#DC2626';
+/** READY / Q badges and the Approve button: a soft green that dark text reads on (both themes). */
+export const READY = '#9BD88A';
 /** Podium crown. */
 export const GOLD = '#F5D06B';
 
 export const darkPalette: Palette = {
   bg: '#0A0908',
   surface: '#151210',
-  raised: '#221F1C',
-  raised2: '#1B1917',
+  raised: '#2A231E',
+  raised2: '#151210',
   bar: '#120F0D',
   scrim: '#000000',
   line: '#2E2722',
-  line2: '#3F3A35',
+  line2: '#3A322C',
   fg: '#F5EFE9',
   soft: '#D8D1CA',
   muted: '#A69B91',
@@ -125,14 +125,14 @@ export const darkPalette: Palette = {
   warnLine: '#5C4A24',
   good: '#9BD88A',
   bad: '#FFB49E',
-  tBad: '#C990FA',
-  tTT: '#F2CC4D',
-  tPk: '#FDA668',
-  tPd: '#5FD4E8',
-  tTn: '#B5E26A',
-  tVb: '#5EDBC8',
-  tBc: '#4ADE80',
-  tBb: '#8AB4FF',
+  tBad: '#FDBA8C',
+  tTT: '#FDBA8C',
+  tPk: '#FDBA8C',
+  tPd: '#FDBA8C',
+  tTn: '#FDBA8C',
+  tVb: '#FDBA8C',
+  tBc: '#FDBA8C',
+  tBb: '#FDBA8C',
   bbTint: 'rgba(59,130,246,0.14)',
   floor: '#2B1B10',
   floor2: '#24160D',
@@ -161,12 +161,12 @@ export const darkPalette: Palette = {
 export const lightPalette: Palette = {
   bg: '#FFFFFF',
   surface: '#F7F4F1',
-  raised: '#EEE8E2',
-  raised2: '#F2EDE8',
+  raised: '#F1E8E0',
+  raised2: '#F7F4F1',
   bar: '#FFFFFF',
   scrim: '#CFC7BF',
   line: '#EAE3DC',
-  line2: '#D2C8BE',
+  line2: '#DDD3CA',
   fg: '#17120E',
   soft: '#3B3430',
   muted: '#6B6158',
@@ -185,14 +185,14 @@ export const lightPalette: Palette = {
   warnLine: '#E9C46A',
   good: '#2E6418',
   bad: '#8A2A12',
-  tBad: '#7E22CE',
-  tTT: '#A16207',
-  tPk: '#C2410C',
-  tPd: '#0E7490',
-  tTn: '#4D7C0F',
-  tVb: '#0F766E',
-  tBc: '#15803D',
-  tBb: '#1D4ED8',
+  tBad: '#9A3412',
+  tTT: '#9A3412',
+  tPk: '#9A3412',
+  tPd: '#9A3412',
+  tTn: '#9A3412',
+  tVb: '#9A3412',
+  tBc: '#9A3412',
+  tBb: '#9A3412',
   bbTint: 'rgba(59,130,246,0.10)',
   floor: '#E9B67E',
   floor2: '#DCA56A',
@@ -218,40 +218,32 @@ export const lightPalette: Palette = {
   nav: '#FFFFFF',
 };
 
-/** Each sport's colour (backend/src/catalog/sports.ts); dark text (`ink`) goes on top of it. */
+/** The one brand orange (design v2). Every sport uses it; sports are told apart by name and icon. */
+export const BRAND = '#EA580C';
+
+/** Each sport's colour: all the brand orange in design v2 (the API's accentColor is mapped to it too). */
 export const SPORT_COLORS: Record<string, string> = {
-  badminton: '#A855F7',
-  'table-tennis': '#EAB308',
-  pickleball: '#F97316',
-  padel: '#06B6D4',
-  tennis: '#84CC16',
-  volleyball: '#14B8A6',
-  'box-cricket': '#22C55E',
-  basketball: '#3B82F6',
+  badminton: BRAND,
+  'table-tennis': BRAND,
+  pickleball: BRAND,
+  padel: BRAND,
+  tennis: BRAND,
+  volleyball: BRAND,
+  'box-cricket': BRAND,
+  basketball: BRAND,
 };
 
+/** Dark or white text, whichever reads on a fill colour ("#rrggbb"; anything else gets white). */
+export function textOn(hex: string): string {
+  if (!/^#[0-9a-f]{6}$/i.test(hex)) return '#FFFFFF';
+  const n = Number.parseInt(hex.slice(1), 16);
+  return 0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255) > 140 ? '#0A0A0A' : '#FFFFFF';
+}
+
 /** The sport's readable text tint in this palette ("MATCH POINT" in the sport's colour). */
-export function sportText(colors: Palette, slug: string | undefined): string {
-  switch (slug) {
-    case 'badminton':
-      return colors.tBad;
-    case 'table-tennis':
-      return colors.tTT;
-    case 'pickleball':
-      return colors.tPk;
-    case 'padel':
-      return colors.tPd;
-    case 'tennis':
-      return colors.tTn;
-    case 'volleyball':
-      return colors.tVb;
-    case 'box-cricket':
-      return colors.tBc;
-    case 'basketball':
-      return colors.tBb;
-    default:
-      return colors.accentText;
-  }
+export function sportText(colors: Palette, _slug: string | undefined): string {
+  // Design v2 is one orange accent for every sport (sports are told apart by name and icon).
+  return colors.accentText;
 }
 
 /** `#RRGGBB` at `alpha` ("rgba(168,85,247,0.14)" tints behind sport cards). */
