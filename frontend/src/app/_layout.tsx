@@ -67,7 +67,8 @@ export default function RootLayout() {
         <Stack.Protected guard={signedIn} redirectTo="/welcome">
           <Stack.Screen name="(app)" />
         </Stack.Protected>
-        <Stack.Protected guard={!signedIn}>
+        {/* Signing in or finishing sign-up replaces the auth screens with the app ("/"), so Back can't return to them. */}
+        <Stack.Protected guard={!signedIn} redirectTo="/">
           <Stack.Screen name="(auth)" />
         </Stack.Protected>
       </Stack>

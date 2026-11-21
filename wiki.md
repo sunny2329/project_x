@@ -737,6 +737,12 @@ Frontend (`frontend/.env`, template `frontend/.env.example`): `EXPO_PUBLIC_API_U
   button is "Next: who serves first", which opens the court screen (`ServeFirstScreen`: tap a side on
   the court or toss a coin, pick the first server in doubles, Start match). Cricket still says "Next:
   who bats first".
+- Sign-up landing fixed: after "account created" the app jumped to `/search` (the guard dropped the
+  auth screens and Expo Router fell back to some other app route), skipping onboarding, with no way
+  back. Now the `(auth)` guard has `redirectTo="/"`, the tabs guard `redirectTo="/onboarding/sports"`
+  while onboarding, and the onboarding guard `redirectTo="/"`: new account → What do you play? →
+  Home, and Back can't return to the auth or onboarding screens. Log-in still lands on Home, sign-out
+  on Welcome.
 
 
 ### 2026-11-21: Design v2 published (main `f7c3881`)

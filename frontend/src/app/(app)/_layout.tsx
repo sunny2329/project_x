@@ -8,12 +8,14 @@ export default function AppLayout() {
   const onboarding = useAuthStore((s) => s.onboarding);
   return (
     <Stack screenOptions={{ headerShown: false, animation: 'slide_from_right', contentStyle: { backgroundColor: colors.bg } }}>
-      <Stack.Protected guard={onboarding}>
+      {/* Finishing onboarding replaces it with Home (no way back into it, and not some other screen). */}
+      <Stack.Protected guard={onboarding} redirectTo="/">
         <Stack.Screen name="onboarding/sports" />
         <Stack.Screen name="onboarding/claim" />
         <Stack.Screen name="onboarding/details" />
       </Stack.Protected>
-      <Stack.Protected guard={!onboarding}>
+      {/* A brand-new account is sent to onboarding first, wherever the redirect above pointed. */}
+      <Stack.Protected guard={!onboarding} redirectTo="/onboarding/sports">
         <Stack.Screen name="(tabs)" />
       </Stack.Protected>
     </Stack>
