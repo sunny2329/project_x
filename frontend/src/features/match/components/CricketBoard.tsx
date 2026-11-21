@@ -17,7 +17,7 @@ export function CricketScoreboard({ score, names, slug }: { score: ScoreSummary;
   const { colors } = useTheme();
   const tint = sportText(colors, slug);
   return (
-    <View style={{ borderRadius: 20, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, overflow: 'hidden' }}>
+    <View style={{ borderRadius: 20, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, overflow: 'hidden' }}>
       {[0, 1].map((i) => {
         const side = score.sides[i]!;
         const overs = oversOf(score, i);

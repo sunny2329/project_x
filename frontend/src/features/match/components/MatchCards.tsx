@@ -33,7 +33,7 @@ export function LiveMatchCard({ match, width = 236 }: { match: MatchCard; width?
     <Tap
       label={`${match.sides.map((s) => s.name).join(' vs ')}, live`}
       onPress={() => router.push({ pathname: '/match/[id]/watch', params: { id: match.id } })}
-      style={{ width, padding: 14, borderRadius: 18, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, gap: 10 }}
+      style={{ width, padding: 14, borderRadius: 18, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, gap: 10 }}
     >
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>

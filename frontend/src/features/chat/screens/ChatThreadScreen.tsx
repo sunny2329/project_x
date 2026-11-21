@@ -223,7 +223,7 @@ export default function ChatThreadScreen() {
             accessibilityLabel="Message"
             multiline
             maxLength={2000}
-            style={{ flex: 1, minHeight: 46, maxHeight: 120, paddingHorizontal: 16, paddingVertical: 12, borderRadius: 23, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, color: colors.fg, fontFamily: bodyFont(400), fontSize: 15 }}
+            style={{ flex: 1, minHeight: 46, maxHeight: 120, paddingHorizontal: 16, paddingVertical: 12, borderRadius: 23, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, color: colors.fg, fontFamily: bodyFont(400), fontSize: 15 }}
           />
           <IconButton icon="send" label="Send" tone="primary" size={46} radius={23} onPress={() => void send()} disabled={sending || !draft.trim()} />
         </Row>

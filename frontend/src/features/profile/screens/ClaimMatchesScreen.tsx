@@ -61,7 +61,7 @@ export default function ClaimMatchesScreen() {
               key={m.matchId}
               label={claimLine(m)}
               onPress={() => toggle(m.matchId)}
-              style={{ flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 14, paddingHorizontal: 16, borderRadius: 16, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line }}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 14, paddingHorizontal: 16, borderRadius: 16, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line }}
             >
               <CheckBox on={on} />
               <View style={{ flex: 1, gap: 4 }}>

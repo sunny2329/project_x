@@ -188,7 +188,7 @@ export default function BasketballTeamsScreen() {
           const fill = hoops.colors[side];
           const ink = inkOn(fill);
           return (
-            <View key={side} style={{ borderRadius: 18, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, overflow: 'hidden' }}>
+            <View key={side} style={{ borderRadius: 18, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, overflow: 'hidden' }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, paddingHorizontal: 14, backgroundColor: fill }}>
                 <TeamName side={side} value={hoops.names[side]} ink={ink} onChange={(v) => setName(side, v)} />
                 <Row gap={6}>
@@ -350,7 +350,7 @@ export default function BasketballTeamsScreen() {
         ))}
       </View>
 
-      <View style={{ borderRadius: 18, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, overflow: 'hidden' }}>
+      <View style={{ borderRadius: 18, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, overflow: 'hidden' }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 14, backgroundColor: fill }}>
           <TeamName side={tab} value={hoops.names[tab]} ink={ink} onChange={(v) => setName(tab, v)} />
           <Pressable accessibilityRole="button" accessibilityLabel="Change jersey colour" onPress={cycleColor}>

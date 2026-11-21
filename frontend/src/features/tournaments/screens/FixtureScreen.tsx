@@ -117,7 +117,7 @@ export default function FixtureScreen() {
         right={badge ? <Badge label={badge.label} tone={badge.tone} /> : undefined}
       />
 
-      <View style={{ borderRadius: 20, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, overflow: 'hidden' }}>
+      <View style={{ borderRadius: 20, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, overflow: 'hidden' }}>
         {[0, 1].map((i) => {
           const e = f.entries[i];
           const side = fixtureSide(f, i);

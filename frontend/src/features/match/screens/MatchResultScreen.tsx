@@ -204,7 +204,7 @@ export default function MatchResultScreen() {
             <PlayerOfTheGame match={m} score={m.score} />
           </>
         ) : segs.length ? (
-          <View style={{ borderRadius: 16, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, overflow: 'hidden' }}>
+          <View style={{ borderRadius: 16, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, overflow: 'hidden' }}>
             <View style={{ flexDirection: 'row', paddingVertical: 10, paddingHorizontal: 14 }}>
               <T size={12} w={700} ls={0.06} color={colors.muted} flex>
                 {unit}
@@ -237,7 +237,7 @@ export default function MatchResultScreen() {
         ) : null}
 
         {myChange && delta !== null ? (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 14, paddingHorizontal: 16, borderRadius: 16, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 14, paddingHorizontal: 16, borderRadius: 16, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line }}>
             <View style={{ flex: 1, gap: 2 }}>
               <Label>Your {m.sport.name.toLowerCase()} rating</Label>
               <Row gap={8} style={{ alignItems: 'baseline' }}>

@@ -163,7 +163,7 @@ export function BasketballResult({ sport }: { sport: SportSummary }) {
         <T size={13} w={600} color={colors.muted}>
           Played on
         </T>
-        <Tap label="Played on" onPress={() => setPicking(true)} style={{ height: 52, borderRadius: 14, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, paddingHorizontal: 16, justifyContent: 'center' }}>
+        <Tap label="Played on" onPress={() => setPicking(true)} style={{ height: 52, borderRadius: 14, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, paddingHorizontal: 16, justifyContent: 'center' }}>
           <T size={16} w={600}>
             {weekdayComma(date)}
             {venue.trim() ? ` · ${venue.trim()}` : ''}

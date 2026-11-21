@@ -72,7 +72,7 @@ function RowCard({ t }: { t: TournamentListItem }) {
     <Tap
       label={t.name}
       onPress={() => (liveEvent ? router.push({ pathname: '/event/[id]/bracket', params: { id: liveEvent.id } }) : router.push({ pathname: '/tournament/[id]', params: { id: t.id } }))}
-      style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 18, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line }}
+      style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 18, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line }}
     >
       <View style={{ width: 48, height: 48, borderRadius: 14, backgroundColor: withAlpha(color, 0.16), alignItems: 'center', justifyContent: 'center' }}>
         <Icon name={sport ? sportIcon(sport.slug) : 'trophy'} size={24} color={color} />
@@ -115,7 +115,7 @@ export default function TournamentListScreen() {
     <Screen gap={14} refreshing={list.refreshing} onRefresh={list.refresh}>
       <Row between>
         <D size={40} upper accessibilityRole="header">
-          Tournaments
+          Events
         </D>
         <Button label="Create" icon="plus" height={40} radius={12} size={14} weight={700} inline px={14} onPress={() => router.push('/tournament/new')} />
       </Row>

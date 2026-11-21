@@ -134,7 +134,7 @@ export default function PlayerProfileScreen() {
       ) : null}
 
       {h2h && (h2h.wins + h2h.losses + h2h.partnerWins + h2h.partnerLosses > 0) ? (
-        <View style={{ padding: 16, borderRadius: 18, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, gap: 12 }}>
+        <View style={{ padding: 16, borderRadius: 18, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, gap: 12 }}>
           <Label>You and {first}</Label>
           <Row gap={12}>
             <View style={{ flex: 1, gap: 2 }}>

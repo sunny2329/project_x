@@ -66,7 +66,7 @@ export function SetsTable({ score, names, slug, color }: { score: ScoreSummary; 
   const leader = !score.complete && game ? (game.scores[0]! > game.scores[1]! ? 0 : game.scores[1]! > game.scores[0]! ? 1 : null) : null;
   const col = 40;
   return (
-    <View style={{ borderRadius: 18, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, overflow: 'hidden' }}>
+    <View style={{ borderRadius: 18, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, overflow: 'hidden' }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', paddingTop: 10, paddingHorizontal: 14, paddingBottom: 4 }}>
         <T size={11} w={700} ls={0.08} color={colors.muted} flex>
           PLAYER

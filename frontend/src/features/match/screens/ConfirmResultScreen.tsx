@@ -99,7 +99,7 @@ export default function ConfirmResultScreen() {
         </View>
       </Row>
 
-      <View style={{ borderRadius: 20, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, overflow: 'hidden' }}>
+      <View style={{ borderRadius: 20, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, overflow: 'hidden' }}>
         <Row between style={{ paddingVertical: 12, paddingHorizontal: 16, backgroundColor: withAlpha(m.sport.accentColor, 0.12) }}>
           <Row gap={8} style={{ flexShrink: 1 }}>
             <Dot color={m.sport.accentColor} />

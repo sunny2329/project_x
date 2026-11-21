@@ -17,7 +17,7 @@ export function PeriodTable({ match, score, rules, highlight }: { match: MatchVi
   const cell = cols > 5 ? 32 : 40;
   const now = g.period;
   return (
-    <View style={{ borderRadius: 16, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, overflow: 'hidden' }}>
+    <View style={{ borderRadius: 16, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, overflow: 'hidden' }}>
       <Row style={{ paddingTop: 10, paddingHorizontal: 14, paddingBottom: 6 }}>
         <View style={{ flex: 1 }} />
         {labels.map((l) => (

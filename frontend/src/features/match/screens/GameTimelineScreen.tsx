@@ -126,7 +126,7 @@ export default function GameTimelineScreen() {
         <IconButton icon="share" label="Share summary" onPress={share} />
       </Row>
 
-      <View style={{ borderRadius: 18, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, paddingVertical: 12, paddingHorizontal: 14, gap: 8 }}>
+      <View style={{ borderRadius: 18, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, paddingVertical: 12, paddingHorizontal: 14, gap: 8 }}>
         <Row gap={10}>
           <View style={{ flex: 1, gap: 2 }}>
             {[0, 1].map((side) => (

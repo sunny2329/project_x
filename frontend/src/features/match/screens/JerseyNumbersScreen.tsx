@@ -270,7 +270,7 @@ export default function JerseyNumbersScreen() {
       </View>
 
       {cur ? (
-        <View style={{ borderRadius: 18, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, padding: 10, gap: 8 }}>
+        <View style={{ borderRadius: 18, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, padding: 10, gap: 8 }}>
           <Row gap={8} style={{ paddingHorizontal: 2 }}>
             <View style={{ flex: 1, minWidth: 0 }}>
               <T size={13} w={700} numberOfLines={1}>

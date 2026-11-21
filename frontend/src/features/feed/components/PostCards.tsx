@@ -107,7 +107,7 @@ export function ResultPostCard({ post }: { post: FeedPost }) {
     <Tap
       label={resultTitle(post)}
       onPress={() => router.push({ pathname: '/match/[id]/result', params: { id: m.id } })}
-      style={{ gap: 12, padding: 16, borderRadius: 18, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line }}
+      style={{ gap: 12, padding: 16, borderRadius: 18, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line }}
     >
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
         <Avatar name={post.author.fullName} id={post.author.id} photoUrl={post.author.photoUrl} size={36} />
@@ -147,7 +147,7 @@ export function TextPostCard({ post }: { post: FeedPost }) {
     <Tap
       label={`Post by ${post.author.fullName}`}
       onPress={() => router.push({ pathname: '/post/[id]', params: { id: post.id } })}
-      style={{ gap: 10, padding: 16, borderRadius: 18, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line }}
+      style={{ gap: 10, padding: 16, borderRadius: 18, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line }}
     >
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
         <Avatar name={post.author.fullName} id={post.author.id} photoUrl={post.author.photoUrl} size={36} />

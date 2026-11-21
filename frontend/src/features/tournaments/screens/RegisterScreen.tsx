@@ -100,7 +100,7 @@ export default function RegisterScreen() {
         <View style={{ gap: 8 }}>
           <Label>2 · Your partner</Label>
           {partner ? (
-            <Row gap={12} style={{ paddingVertical: 12, paddingHorizontal: 14, borderRadius: 14, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line }}>
+            <Row gap={12} style={{ paddingVertical: 12, paddingHorizontal: 14, borderRadius: 14, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line }}>
               <Avatar name={partner.player.displayName} id={partner.player.userId ?? partner.player.key} photoUrl={partner.option?.photoUrl} size={40} />
               <View style={{ flex: 1 }}>
                 <T size={15} w={700} numberOfLines={1}>

@@ -90,7 +90,7 @@ export default function PostDetailScreen() {
               maxLength={1000}
               onSubmitEditing={send}
               returnKeyType="send"
-              style={{ flex: 1, height: 46, paddingHorizontal: 16, borderRadius: 23, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, color: colors.fg, fontFamily: bodyFont(400), fontSize: 15 }}
+              style={{ flex: 1, height: 46, paddingHorizontal: 16, borderRadius: 23, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, color: colors.fg, fontFamily: bodyFont(400), fontSize: 15 }}
             />
             <IconButton icon="send" label="Send" tone="primary" size={46} radius={23} onPress={send} disabled={submitting || !draft.trim()} />
           </Row>
@@ -120,7 +120,7 @@ export default function PostDetailScreen() {
               </T>
             ) : null}
             {p.match?.result ? (
-              <Tap label="Match result" onPress={() => router.push({ pathname: '/match/[id]/result', params: { id: p.match!.id } })} style={{ gap: 8, padding: 12, borderRadius: 14, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line }}>
+              <Tap label="Match result" onPress={() => router.push({ pathname: '/match/[id]/result', params: { id: p.match!.id } })} style={{ gap: 8, padding: 12, borderRadius: 14, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line }}>
                 <T size={12} color={colors.muted}>
                   {p.match.sport.name}
                   {p.match.format ? ` · ${p.match.format}` : ''}

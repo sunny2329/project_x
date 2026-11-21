@@ -23,7 +23,7 @@ function sideText(f: FixtureView, i: number, myId?: string): string {
 function ReadyCard({ f, myId }: { f: FixtureView; myId?: string }) {
   const { colors } = useTheme();
   return (
-    <Tap label="Fixture" onPress={() => router.push({ pathname: '/fixture/[id]', params: { id: f.id } })} style={{ gap: 10, padding: 14, borderRadius: 18, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line }}>
+    <Tap label="Fixture" onPress={() => router.push({ pathname: '/fixture/[id]', params: { id: f.id } })} style={{ gap: 10, padding: 14, borderRadius: 18, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line }}>
       <Row between gap={8}>
         <T size={12} color={colors.muted} flex numberOfLines={1}>
           {[f.event.name, f.groupName ?? f.roundName].filter(Boolean).join(' · ')}

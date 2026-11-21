@@ -149,7 +149,7 @@ export default function AddEventScreen() {
             accessibilityLabel="Max entries"
             placeholder="No limit"
             placeholderTextColor={colors.faint}
-            style={{ height: 48, borderRadius: 12, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, paddingHorizontal: 14, color: colors.fg, fontFamily: displayFont(900), fontSize: 24 }}
+            style={{ height: 48, borderRadius: 12, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, paddingHorizontal: 14, color: colors.fg, fontFamily: displayFont(900), fontSize: 24 }}
           />
         </View>
       </Row>
@@ -158,7 +158,7 @@ export default function AddEventScreen() {
         <T size={13} w={600} color={colors.muted}>
           Rules
         </T>
-        <Pressable accessibilityRole="button" accessibilityLabel="Rules" onPress={() => setPickingRules(true)} style={{ flexDirection: 'row', alignItems: 'center', height: 52, borderRadius: 14, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, paddingHorizontal: 14 }}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Rules" onPress={() => setPickingRules(true)} style={{ flexDirection: 'row', alignItems: 'center', height: 52, borderRadius: 14, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, paddingHorizontal: 14 }}>
           <T size={16} w={600} flex numberOfLines={1}>
             {ruleset ? rulesTitle(ruleset, override) : 'Pick the rules'}
           </T>

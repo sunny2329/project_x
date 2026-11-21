@@ -439,7 +439,7 @@ export function BasketballBoard({
     return (
       <>
         {header}
-        <View style={{ borderRadius: 20, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, padding: 12, gap: 10 }}>
+        <View style={{ borderRadius: 20, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, padding: 12, gap: 10 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <View style={{ width: 64, alignItems: 'center', paddingVertical: 6, borderRadius: 12, backgroundColor: colors.raised }}>
               <T size={10} w={700} ls={0.08} color={colors.muted}>

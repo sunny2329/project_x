@@ -45,7 +45,7 @@ export function TeamRow({ team, onPress }: { team: TeamSummary; onPress?: () => 
     <Tap
       label={`${team.name}, ${team.sport.name}`}
       onPress={onPress ?? (() => router.push({ pathname: '/team/[id]', params: { id: team.id } }))}
-      style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 18, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line }}
+      style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 18, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line }}
     >
       <View style={{ width: 48, height: 48, borderRadius: 14, backgroundColor: withAlpha(color, 0.16), alignItems: 'center', justifyContent: 'center' }}>
         <Icon name={sportIcon(team.sport.slug)} size={24} color={color} />

@@ -34,7 +34,7 @@ export function HoopsSpectator({ match }: { match: MatchView }) {
 
   return (
     <>
-      <View style={{ borderRadius: 24, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, overflow: 'hidden' }}>
+      <View style={{ borderRadius: 24, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, overflow: 'hidden' }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', paddingTop: 18, paddingHorizontal: 12, paddingBottom: 12 }}>
           {[0, 1].map((side) => {
             const box = (

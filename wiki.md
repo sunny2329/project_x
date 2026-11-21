@@ -704,6 +704,9 @@ Frontend (`frontend/.env`, template `frontend/.env.example`): `EXPO_PUBLIC_API_U
   segmented control's picked option is a white card; steppers are outlined squares; live is red
   (`LIVE`), READY a soft green; hard-coded reds/greens replaced by `bad`/`badBg`/`good`/`goodBg`.
   Basketball team kit colours and the court art keep their own colours.
+  Cards are white (`colors.card`) with a hairline everywhere; grey `surface` is for inputs, trays and
+  panels. Organizer dashboard event rows no longer nest the action button inside the row's button.
+  The Events tab screen is titled "Events".
 
 
 ### 2026-11-20: PWA merged to `main` and web app redeployed (merge `e70aec8`)
